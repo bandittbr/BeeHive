@@ -419,8 +419,8 @@ apps/web:          0 testes
 7. ~~Comentar 7 módulos placeholder~~ → ✅ **Feito** (manifest.ts)
 8. ~~Remover `coreConversationService.ts`~~ → ✅ **Feito** (+ `localConversationService.ts`)
 9. ~~Adicionar ESLint~~ → ✅ **Feito** (configs p/ api + platform; web já tinha; lint scripts adicionados)
-10. **Adicionar testes para `ConversationStore`** (lógica de estado, localStorage, cancelamento).
-11. **Adicionar testes para `RuntimeClient`** (mock de fetch/WebSocket).
+10. ~~Adicionar testes para `ConversationStore`~~ → ✅ **Feito** (10 testes: estado, sendMessage, stop, delete, persistência)
+11. ~~Adicionar testes para `RuntimeClient`~~ → ✅ **Feito** (10 testes: streamNdjson, dispatch, unsubscribe, singleton)
 
 ### 🟢 Médio prazo (meses)
 
@@ -491,5 +491,5 @@ CrewAI/
 
 ---
 
-> Revisão concluída em 06/01/2026. **Nenhum erro de TypeScript**; **0 erros de lint** (5 warnings pré-existentes no web). 13 ações concluídas de 17 propostas. Pendente: revogar chaves, testes ConversationStore/RuntimeClient, unificar stacks de IA, desacoplar RuntimeManager, extrair RuntimeClient, autenticação, persistência, CI.
+> Revisão concluída em 06/01/2026. **Nenhum erro de TypeScript**; **0 erros de lint** (5 warnings pré-existentes no web). **20 testes no web** (RuntimeClient 10, ConversationStore 10) + **6 testes no platform** = **26 testes total**. Pendente: revogar chaves, unificar stacks de IA, desacoplar RuntimeManager, extrair RuntimeClient, autenticação, persistência, CI.
 

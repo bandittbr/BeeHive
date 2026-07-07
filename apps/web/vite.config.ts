@@ -1,10 +1,11 @@
+/// <reference types="vitest/config" />
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 // Configuração do Vite (ferramenta de desenvolvimento/build do frontend).
 // O alias '@' aponta para 'src', mantendo imports limpos e desacoplados da
-// profundidade de pastas.
+// profundidade de pastas. O bloco `test` configura o Vitest.
 export default defineConfig({
   plugins: [react()],
   resolve: {
@@ -24,5 +25,10 @@ export default defineConfig({
         ws: true,
       },
     },
+  },
+  test: {
+    environment: 'jsdom',
+    globals: true,
+    setupFiles: ['./src/test-setup.ts'],
   },
 });
