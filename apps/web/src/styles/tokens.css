@@ -1,0 +1,93 @@
+/*
+ * Design tokens do BeeHive.
+ * Toda cor, espaçamento e tipografia da interface deriva daqui.
+ * Centralizar os tokens mantém a identidade visual consistente e permite
+ * trocar o tema (escuro/claro) sem tocar nos componentes.
+ */
+
+:root {
+  /* Tipografia */
+  --font-sans:
+    'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --text-xs: 0.75rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+
+  /* Espaçamento */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-8: 48px;
+
+  /* Raios e bordas */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 999px;
+
+  /* Acento (identidade da colmeia) */
+  --accent: #f4c20d;
+  --accent-strong: #ffd02e;
+  --accent-soft: rgba(244, 194, 13, 0.12);
+
+  /* Cores de apoio para os cartões de ação (apenas visuais) */
+  --tone-yellow: #f4c20d;
+  --tone-purple: #8b7bf2;
+  --tone-pink: #ef5da8;
+  --tone-blue: #4aa8ff;
+  --tone-green: #34d399;
+
+  /* Sombra */
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+
+  /* Transições */
+  --transition: 160ms ease;
+}
+
+/* ----------------------------- Tema escuro (padrão) ----------------------------- */
+:root,
+[data-theme='dark'] {
+  --bg-app: #0b0c10;
+  --bg-sidebar: #101116;
+  --bg-panel: #15161c;
+  --bg-elevated: #1b1d25;
+  --bg-input: #1b1d25;
+  --bg-hover: #20222b;
+
+  --border: #25272f;
+  --border-strong: #313442;
+
+  --text-primary: #f4f5f7;
+  --text-secondary: #a2a5b0;
+  --text-muted: #6c6f7a;
+
+  --positive: #34d399;
+}
+
+/* ----------------------------- Tema claro ----------------------------- */
+[data-theme='light'] {
+  --bg-app: #f5f6f8;
+  --bg-sidebar: #ffffff;
+  --bg-panel: #ffffff;
+  --bg-elevated: #ffffff;
+  --bg-input: #f0f1f4;
+  --bg-hover: #eceef2;
+
+  --border: #e3e5ea;
+  --border-strong: #d3d6dd;
+
+  --text-primary: #16181d;
+  --text-secondary: #565a66;
+  --text-muted: #8a8e99;
+
+  --positive: #0f9d6c;
+  --accent-soft: rgba(244, 194, 13, 0.18);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+}

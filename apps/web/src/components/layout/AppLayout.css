@@ -1,0 +1,39 @@
+.app-layout {
+  display: grid;
+  grid-template-columns: 264px 1fr;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-app);
+}
+
+.app-layout__main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  height: 100vh;
+}
+
+.app-layout__content {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.app-layout__scrim {
+  display: none;
+}
+
+/* ---- Responsivo: sidebar vira sobreposição em telas estreitas ---- */
+@media (max-width: 960px) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .app-layout__scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 40;
+  }
+}

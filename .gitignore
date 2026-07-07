@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Virtual environment
+CrewAI/.venv/
+CrewAI/__pycache__/
+
+# Secrets / keys
+CrewAI/*.txt
+
+# Cache
+.cache/
+.vite/

@@ -1,0 +1,31 @@
+{
+  "name": "beehive",
+  "version": "0.1.0",
+  "private": true,
+  "description": "BeeHive — Sistema Operacional de Inteligência Artificial",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+    "dev:web": "npm run dev --workspace apps/web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "build": "npm run build --workspace apps/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"{apps,packages}/**/src/**/*.{ts,tsx,css}\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2",
+    "prettier": "^3.3.3"
+  },
+  "engines": {
+    "node": ">=18.18.0"
+  },
+  "dependencies": {
+    "playwright": "^1.61.1"
+  }
+}
