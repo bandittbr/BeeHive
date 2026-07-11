@@ -32,3 +32,4 @@ CrewAI/*.txt
 # Cache
 .cache/
 .vite/
+services/omniroute/
