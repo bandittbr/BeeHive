@@ -76,7 +76,7 @@ export class ConversationService extends BaseService {
 
   private context: ServiceContext | null = null;
   private readonly timeoutMs: number;
-  private readonly memory: IConversationMemory;
+  private memory: IConversationMemory;
   /** Streams em andamento, por `id` — só para `cancelStream()` conseguir abortar por fora (ex.: um comando HTTP, que não tem como carregar um AbortSignal vivo). */
   private readonly inFlight = new Map<string, AbortController>();
 
@@ -84,6 +84,16 @@ export class ConversationService extends BaseService {
     super();
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.memory = options.memory ?? new ConversationMemory();
+  }
+
+  /**
+   * Substitui a memória em tempo de execução (ex.: trocar RAM por SQLite).
+   *
+   * Chamado pelo RuntimeManager durante o boot, depois que o DatabaseManager
+   * está pronto. Idempotente: pode ser chamado múltiplas vezes.
+   */
+  setMemory(memory: IConversationMemory): void {
+    this.memory = memory;
   }
 
   initialize(context: ServiceContext): void {

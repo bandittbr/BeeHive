@@ -5,6 +5,8 @@ import cors from 'cors';
 import { config } from './config';
 import { runtime } from './runtimeConfig';
 import { createOllamaProvider } from './intelligence/ollamaProvider';
+import { createOpenAIProvider } from './intelligence/openaiProvider';
+import { createBeeHiveRouter } from './intelligence/routerFactory';
 import { createConversationOrchestrator } from './core/conversationOrchestrator';
 import { createPollinationsProvider } from './media/imageProvider';
 import { createBeeHiveRuntime } from './beehiveRuntime';
@@ -17,35 +19,69 @@ import { mountSystemRoutes } from './routes/systemRoutes';
 /**
  * Servidor do BeeHive (Core).
  *
- * Expõe a Conversa por HTTP. A inteligência é injetada por abstração: hoje
- * Ollama, amanhã qualquer outro provedor, sem mudar este arquivo além da
- * linha de criação do provider.
+ * A inteligência é injetada por abstração. Suporta:
+ *  - 'llmrouter': múltiplos providers free com failover automático
+ *  - 'openai': um único provider OpenAI-compatível
+ *  - 'ollama': Ollama local (fallback)
  */
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const provider = createOllamaProvider();
-const orchestrator = createConversationOrchestrator(provider);
-const imageProvider = createPollinationsProvider();
+// --- Escolha do provedor de IA ---
+let providerName = 'nenhum';
 
-// BeeHive Runtime (Sprint 12): Kernel + Tools + Providers + Services + Modules
-// passam a viver neste processo. Expõe status/health/snapshot/logs/comandos
-// por HTTP e eventos por WebSocket — a Web é só um cliente (ver apps/web/src/app).
-const beehiveRuntime = await createBeeHiveRuntime();
-mountRuntimeHttpRoutes(app, beehiveRuntime);
-
-mountSystemRoutes(app, provider, { model: runtime.model, status: beehiveRuntime.status });
-mountConversationRoutes(app, orchestrator);
-mountBusinessRoutes(app, provider);
-mountMediaRoutes(app, imageProvider);
-
-const httpServer = createServer(app);
-attachRuntimeEventsSocket(httpServer, beehiveRuntime);
-
-httpServer.listen(config.port, () => {
-  // eslint-disable-next-line no-console
-  console.log(
-    `[BeeHive API] ouvindo em http://localhost:${config.port} — inteligência: ${provider.name} — Runtime: ${beehiveRuntime.status}`,
-  );
-});
+if (config.aiProvider === 'llmrouter') {
+  const routerResult = createBeeHiveRouter();
+  if (routerResult) {
+    providerName = `llmrouter [${routerResult.activeProviders.join(', ')}]`;
+    // server.ts usa o provider legado (IntelligenceProvider), então precisamos
+    // de um adaptador. Por enquanto, usa o primeiro provider do router.
+    // TODO: migrar rotas HTTP para usar o AIManager moderno
+    const firstProvider = routerResult.activeProviders[0];
+    const [id, model] = firstProvider.split(':');
+    const cfg = {
+      apiKey: (config as any)[id]?.apiKey ?? config.openai.apiKey,
+      baseUrl: (config as any)[id]?.baseUrl ?? config.openai.baseUrl,
+      model: model ?? config.openai.model,
+      providerName: id,
+    };
+    const provider = createOpenAIProvider(cfg);
+    const orchestrator = createConversationOrchestrator(provider);
+    const imageProvider = createPollinationsProvider();
+    const beehiveRuntime = await createBeeHiveRuntime({ useRouter: true });
+    mountRuntimeHttpRoutes(app, beehiveRuntime);
+    mountSystemRoutes(app, provider, { model: runtime.model, status: beehiveRuntime.status });
+    mountConversationRoutes(app, orchestrator);
+    mountBusinessRoutes(app, provider);
+    mountMediaRoutes(app, imageProvider);
+    const httpServer = createServer(app);
+    attachRuntimeEventsSocket(httpServer, beehiveRuntime);
+    httpServer.listen(config.port, () => {
+      console.log(`[BeeHive API] ouvindo em http://localhost:${config.port} — inteligência: ${providerName} — Runtime: ${beehiveRuntime.status}`);
+    });
+  } else {
+    console.error('[BeeHive API] Nenhuma chave de API configurada para llmrouter. Configure GROQ_API_KEY ou OPENROUTER_API_KEY no .env');
+    process.exit(1);
+  }
+} else {
+  const provider = config.aiProvider === 'openai'
+    ? createOpenAIProvider()
+    : createOllamaProvider();
+  providerName = provider.name;
+  const orchestrator = createConversationOrchestrator(provider);
+  const imageProvider = createPollinationsProvider();
+  const beehiveRuntime = await createBeeHiveRuntime();
+  mountRuntimeHttpRoutes(app, beehiveRuntime);
+  mountSystemRoutes(app, provider, { model: runtime.model, status: beehiveRuntime.status });
+  mountConversationRoutes(app, orchestrator);
+  mountBusinessRoutes(app, provider);
+  mountMediaRoutes(app, imageProvider);
+  const httpServer = createServer(app);
+  attachRuntimeEventsSocket(httpServer, beehiveRuntime);
+  httpServer.listen(config.port, () => {
+    console.log(
+      `[BeeHive API] ouvindo em http://localhost:${config.port} — inteligência: ${providerName} — Runtime: ${beehiveRuntime.status}`,
+    );
+  });
+}

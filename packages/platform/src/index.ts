@@ -23,6 +23,7 @@ export * from './kernel';
 export * from './modules';
 export * from './services';
 export * from './ai';
+export * from './database';
 export type * from './tools';
 export type * from './runtime';
 // Valores (não só tipos) — direto de `./runtime/ids`, que NÃO importa nada

@@ -3,6 +3,7 @@ import type { ModuleManager, ModuleSnapshot } from '../modules';
 import type { ServiceManager, ServiceSnapshot } from '../services';
 import type { AIManager, AIProviderRegistry } from '../ai';
 import type { ToolManager, ToolRegistry, ToolSnapshot } from '../tools';
+import type { DatabaseManager } from '../database';
 
 /**
  * Contratos do BeeHive Runtime.
@@ -51,6 +52,8 @@ export interface RuntimeContext {
   readonly aiRegistry: AIProviderRegistry;
   /** Onde as Tools serão conectadas. */
   readonly toolRegistry: ToolRegistry;
+  /** Banco de dados SQLite (persistência). */
+  readonly database: DatabaseManager;
   readonly logger: ILogger;
   readonly config: IConfigurationManager;
 }

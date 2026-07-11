@@ -2,7 +2,10 @@ import { bootstrapKernel } from '../kernel';
 import { ModuleManager, MODULE_MANIFEST } from '../modules';
 import { ServiceManager } from '../services';
 import { AIManager, ProviderManager, createOllamaProvider } from '../ai';
+import type { AIProvider } from '../ai';
 import { ToolManager, ToolRegistry, TOOL_MANIFEST } from '../tools';
+import { DatabaseManager, DatabaseConversationMemory } from '../database';
+import { CONVERSATION_SERVICE_ID } from '../modules/conversation/ConversationService';
 import { AI_MANAGER_ID, TOOL_MANAGER_ID } from './ids';
 import { RuntimeLifecycle } from './RuntimeLifecycle';
 import type {
@@ -19,6 +22,11 @@ import type {
  * mora em `./ids` (zero imports — ver o porquê lá).
  */
 export { AI_MANAGER_ID, TOOL_MANAGER_ID };
+
+export interface RuntimeManagerOptions {
+  /** Provider de IA personalizado (padrão: OllamaProvider local). */
+  provider?: AIProvider;
+}
 
 /**
  * BeeHive Runtime — executa todo o Sistema Operacional.
@@ -47,7 +55,7 @@ export class RuntimeManager {
   }
 
   /** Inicializa e coloca todo o sistema em execução (Startup ordenado). */
-  async start(): Promise<void> {
+  async start(options?: RuntimeManagerOptions): Promise<void> {
     if (this._status === 'Running') return;
     try {
       // Boot: o Kernel primeiro (tudo o mais depende dele).
@@ -75,7 +83,12 @@ export class RuntimeManager {
         logger: kernel.context.logger,
         events: kernel.context.events,
       });
-      providerManager.register(createOllamaProvider({ logger: kernel.context.logger }));
+      // Provider personalizado (ex.: OpenAI) ou fallback para Ollama local
+      if (options?.provider) {
+        providerManager.register(options.provider);
+      } else {
+        providerManager.register(createOllamaProvider({ logger: kernel.context.logger }));
+      }
       const aiManager = new AIManager({
         registry: providerManager,
         logger: kernel.context.logger.child('ai'),
@@ -83,6 +96,11 @@ export class RuntimeManager {
       });
       kernel.registerService(TOOL_MANAGER_ID, toolManager);
       kernel.registerService(AI_MANAGER_ID, aiManager);
+
+      // Database: SQLite persistente (sobrevive a restarts).
+      const dbManager = new DatabaseManager({ logger: kernel.context.logger });
+      const dbMemory = new DatabaseConversationMemory(dbManager.db);
+
       const serviceManager = new ServiceManager(kernel.context);
       const moduleManager = new ModuleManager(kernel.context);
 
@@ -91,6 +109,18 @@ export class RuntimeManager {
         [
           { name: 'Tools', start: () => toolManager.load(TOOL_MANIFEST), stop: () => toolManager.disposeAll() },
           { name: 'Modules', start: () => moduleManager.loadAll(MODULE_MANIFEST), stop: () => moduleManager.disposeAll() },
+          {
+            name: 'Database',
+            start: async () => {
+              // Injeta a memória persistente no ConversationService
+              const convService = kernel.getService(CONVERSATION_SERVICE_ID);
+              if (convService && typeof (convService as any).setMemory === 'function') {
+                (convService as any).setMemory(dbMemory);
+                logger.info('ConversationService: memória persistente (SQLite) ativada.');
+              }
+            },
+            stop: () => { dbManager.close(); },
+          },
           { name: 'Services', start: () => serviceManager.startAll(), stop: () => serviceManager.disposeAll() },
           // Agents: ponto de extensão futuro (um AgentManager entra aqui, no mesmo padrão).
         ],
@@ -109,6 +139,7 @@ export class RuntimeManager {
         ai: aiManager,
         aiRegistry: providerManager,
         toolRegistry,
+        database: dbManager,
         logger: kernel.context.logger,
         config: kernel.context.config,
       };

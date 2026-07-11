@@ -24,3 +24,5 @@ export {
   type ProviderChangedPayload,
 } from './ProviderManager';
 export * from './providers/ollama';
+export * from './providers/openai';
+export * from './router';
