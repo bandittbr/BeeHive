@@ -3,7 +3,7 @@
 // só expõe isto como TIPO, para não quebrar o bundle do navegador (`apps/web`)
 // — só `apps/api` (Node) precisa do valor de verdade.
 import { RuntimeManager } from '@beehive/platform/runtime';
-import { createOpenAIProvider, LLMRouter } from '@beehive/platform';
+import { createOpenAIProvider } from '@beehive/platform';
 import type { AIProvider } from '@beehive/platform';
 import { config } from './config';
 import { createBeeHiveRouter } from './intelligence/routerFactory';
