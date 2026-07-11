@@ -34,4 +34,15 @@ export const config = {
 
   /** OpenRouter (modelos free, fallback) */
   openrouter: {
-    a
+    apiKey: process.env.OPENROUTER_API_KEY ?? '',
+    baseUrl: process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
+    model: process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct',
+  },
+
+  /** Groq (rápido, free tier generoso) */
+  groq: {
+    apiKey: process.env.GROQ_API_KEY ?? '',
+    baseUrl: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
+    model: process.env.GROQ_MODEL ?? 'llama3-70b-8192',
+  },
+};
