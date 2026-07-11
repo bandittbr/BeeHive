@@ -4,7 +4,7 @@
  * Roda com Vitest + jsdom. Mocka fetch e WebSocket.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { BeeHiveEvent, EventName } from '@beehive/platform';
+import type { EventName } from '@beehive/platform';
 import { RuntimeClient, getRuntimeClient } from './runtimeClient';
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
