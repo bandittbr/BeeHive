@@ -5,7 +5,7 @@ import {
   type MessageStreamChunkPayload,
   type MessageStreamCompletedPayload,
   type MessageStreamFailedPayload,
-} from '@beehive/platform';
+} from '@beehive/platform/browser';
 
 let seq = 0;
 const nextRequestId = () => `stream-${Date.now()}-${seq++}`;
