@@ -46,7 +46,7 @@ export interface ModelsInfo {
   current: string;
 }
 
-const API_BASE = '/api';
+const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
 
 async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
