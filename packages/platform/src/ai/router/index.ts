@@ -1,4 +1,16 @@
 /**
- * LLMRouter — ponto único de importação.
+ * BeeRouter — ponto único de importação.
  */
-export { LLMRouter, createLLMRouter, type LLMRouterOptions, type RouterProviderConfig } from './LLMRouter';
+export { BeeRouter, createBeeRouter } from './BeeRouter';
+export { classifyError, extractHttpStatus } from './errorClassifier';
+export type {
+  BeeRouterOptions,
+  BeeRouterSnapshot,
+  ProviderConfig,
+  ProviderCategory,
+  Combo,
+  ComboModel,
+  ClassifiedError,
+  RateLimitBucket,
+  BackoffState,
+} from './types';

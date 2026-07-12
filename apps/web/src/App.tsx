@@ -1,3 +1,14 @@
+/**
+ * Raiz da aplicação BeeHive.
+ *
+ * Integra:
+ * - Navegação por views (dashboard, conversation, projects, business, settings)
+ * - Sistema de projetos (diretórios locais)
+ * - Tema claro/escuro
+ * - Serviço de conversa
+ */
+
+import { useState } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AreaScreen, AREA_IDS } from '@/app/areas';
 import { useHashRoute } from '@/app/router/useHashRoute';
@@ -5,29 +16,62 @@ import { useTheme } from '@/theme/useTheme';
 import { ConversationServiceProvider } from '@/services/conversation/ConversationServiceContext';
 import { runtimeConversationService } from '@/services/conversation/runtimeConversationService';
 import { ConversationStoreProvider } from '@/features/conversation/ConversationStore';
+import { ProjectStoreProvider } from '@/services/projects/ProjectStoreProvider';
+import { ProjectsView } from '@/features/projects/ProjectsView';
+import { BusinessView } from '@/features/business/BusinessView';
+import { SettingsView } from '@/features/settings/SettingsView';
 
-/**
- * Raiz da aplicação.
- *
- * Mantém o estado de tema e de navegação (via roteamento por hash) e monta o
- * layout com a Área ativa. O `ConversationServiceProvider` injeta o serviço de
- * conversa sem que a interface precise mudar.
- */
+type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings';
+
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { id, navigate } = useHashRoute(AREA_IDS, 'conversa');
+  const [activeView, setActiveView] = useState<ViewType>('conversation');
+
+  const handleNavigate = (view: string) => {
+    setActiveView(view as ViewType);
+    if (view === 'conversation') {
+      navigate('conversa');
+    }
+  };
+
+  const renderView = () => {
+    switch (activeView) {
+      case 'projects':
+        return <ProjectsView />;
+      case 'business':
+        return <BusinessView />;
+      case 'settings':
+        return <SettingsView />;
+      case 'dashboard':
+        return (
+          <div className="view-container">
+            <div className="empty-state">
+              <div className="empty-state__icon">🐝</div>
+              <h2>BeeHive Dashboard</h2>
+              <p>Bem-vindo ao BeeHive! Selecione uma opção no menu ao lado.</p>
+            </div>
+          </div>
+        );
+      case 'conversation':
+      default:
+        return <AreaScreen id={id} />;
+    }
+  };
 
   return (
     <ConversationServiceProvider service={runtimeConversationService}>
       <ConversationStoreProvider>
-        <AppLayout
-          activeArea={id}
-          onSelectArea={navigate}
-          theme={theme}
-          onToggleTheme={toggleTheme}
-        >
-          <AreaScreen id={id} />
-        </AppLayout>
+        <ProjectStoreProvider>
+          <AppLayout
+            activeView={activeView}
+            onNavigate={handleNavigate}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+          >
+            {renderView()}
+          </AppLayout>
+        </ProjectStoreProvider>
       </ConversationStoreProvider>
     </ConversationServiceProvider>
   );

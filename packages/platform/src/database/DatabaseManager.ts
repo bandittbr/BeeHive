@@ -62,6 +62,20 @@ CREATE TABLE IF NOT EXISTS migrations (
   name      TEXT NOT NULL,
   applied_at INTEGER NOT NULL
 );
+
+-- Projetos: diretórios locais adicionados pelo usuário
+CREATE TABLE IF NOT EXISTS projects (
+  id              TEXT PRIMARY KEY,
+  name            TEXT NOT NULL,
+  path            TEXT NOT NULL,
+  description     TEXT DEFAULT '',
+  created_at      INTEGER NOT NULL,
+  last_accessed_at INTEGER NOT NULL,
+  color           TEXT DEFAULT '',
+  icon            TEXT DEFAULT '📁',
+  pinned          INTEGER DEFAULT 0,
+  tags            TEXT DEFAULT ''
+);
 `;
 
 /**
@@ -101,6 +115,25 @@ export class DatabaseManager {
   close(): void {
     this.db.close();
     this.logger?.info('Banco SQLite fechado.');
+  }
+
+  /** Executa uma query que retorna múltiplas linhas. */
+  queryAll<T = Record<string, unknown>>(sql: string, params?: unknown[]): T[] {
+    return (params ? this.db.prepare(sql).all(...params) : this.db.prepare(sql).all()) as T[];
+  }
+
+  /** Executa uma query que retorna uma única linha (ou undefined). */
+  queryOne<T = Record<string, unknown>>(sql: string, params?: unknown[]): T | undefined {
+    return (params ? this.db.prepare(sql).get(...params) : this.db.prepare(sql).get()) as T | undefined;
+  }
+
+  /** Executa uma instrução SQL (INSERT/UPDATE/DELETE). */
+  execute(sql: string, params?: unknown[]): void {
+    if (params) {
+      this.db.prepare(sql).run(...params);
+    } else {
+      this.db.exec(sql);
+    }
   }
 
   /** Versão atual do schema (última migração aplicada). */

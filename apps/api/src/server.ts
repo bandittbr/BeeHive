@@ -15,6 +15,8 @@ import { mountConversationRoutes } from './routes/conversationRoutes';
 import { mountBusinessRoutes } from './routes/businessRoutes';
 import { mountMediaRoutes } from './routes/mediaRoutes';
 import { mountSystemRoutes } from './routes/systemRoutes';
+import { mountProjectRoutes } from './routes/projectRoutes';
+import { DatabaseManager } from '@beehive/platform';
 
 /**
  * Servidor do BeeHive (Core).
@@ -26,7 +28,13 @@ import { mountSystemRoutes } from './routes/systemRoutes';
  */
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// --- Database (SQLite) ---
+const db = new DatabaseManager({ dbPath: 'data/beehive.db' });
+
+// --- Rotas de Projetos (sempre disponíveis, independente do provider) ---
+mountProjectRoutes(app, db);
 
 // --- Escolha do provedor de IA ---
 let providerName = 'nenhum';
@@ -35,9 +43,6 @@ if (config.aiProvider === 'llmrouter') {
   const routerResult = createBeeHiveRouter();
   if (routerResult) {
     providerName = `llmrouter [${routerResult.activeProviders.join(', ')}]`;
-    // server.ts usa o provider legado (IntelligenceProvider), então precisamos
-    // de um adaptador. Por enquanto, usa o primeiro provider do router.
-    // TODO: migrar rotas HTTP para usar o AIManager moderno
     const firstProvider = routerResult.activeProviders[0];
     const [id, model] = firstProvider.split(':');
     const cfg = {

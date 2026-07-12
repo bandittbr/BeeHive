@@ -1,3 +1,7 @@
+/**
+ * Topbar — barra superior do BeeHive.
+ */
+
 import { Icon } from '@/components/common/Icon';
 import type { Theme } from '@/theme/useTheme';
 import './Topbar.css';
@@ -6,16 +10,20 @@ interface TopbarProps {
   theme: Theme;
   onToggleTheme: () => void;
   onToggleSidebar: () => void;
+  activeView: string;
 }
 
-/**
- * Barra superior: saudação + ações globais (busca, notificações, tema).
- *
- * As ações são visuais no Sprint 1. O botão de tema funciona (troca de
- * aparência), por ser puramente apresentacional. Busca e notificações ainda
- * não têm comportamento.
- */
-export function Topbar({ theme, onToggleTheme, onToggleSidebar }: TopbarProps) {
+const VIEW_LABELS: Record<string, string> = {
+  dashboard: 'Dashboard',
+  conversation: 'Conversa',
+  projects: 'Projetos',
+  business: 'Negócios',
+  settings: 'Configurações',
+};
+
+export function Topbar({ theme, onToggleTheme, onToggleSidebar, activeView }: TopbarProps) {
+  const viewLabel = VIEW_LABELS[activeView] || 'BeeHive';
+
   return (
     <header className="topbar">
       <div className="topbar__left">
@@ -28,14 +36,24 @@ export function Topbar({ theme, onToggleTheme, onToggleSidebar }: TopbarProps) {
           <Icon name="grid" size={20} />
         </button>
         <div className="topbar__greeting">
-          <h1 className="topbar__title">
-            Olá, Administrador <span aria-hidden>👋</span>
-          </h1>
-          <p className="topbar__subtitle">Como posso ajudar você hoje?</p>
+          <h1 className="topbar__title">{viewLabel}</h1>
+          <p className="topbar__subtitle">
+            {activeView === 'conversation'
+              ? 'Converse com a IA do BeeHive'
+              : activeView === 'projects'
+                ? 'Gerencie seus projetos locais'
+                : activeView === 'dashboard'
+                  ? 'Visão geral do sistema'
+                  : 'Como posso ajudar você hoje?'}
+          </p>
         </div>
       </div>
 
       <div className="topbar__actions">
+        <div className="topbar__model-badge">
+          <span className="status-dot status-dot--online" />
+          <span>big-pickle</span>
+        </div>
         <button type="button" className="topbar__icon-btn" aria-label="Buscar">
           <Icon name="search" size={20} />
         </button>
