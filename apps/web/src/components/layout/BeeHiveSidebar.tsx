@@ -2,17 +2,17 @@
  * BeeHiveSidebar — sidebar principal do BeeHive.
  *
  * Similar ao OpenWork: navegação entre áreas, projetos, conversas e configurações.
+ * Agora com sub-itens para Negócios (Afiliados, Meus Produtos, Criador de Conteúdo).
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useProjectStore } from '../../services/projects/projectStore';
 
 interface NavItem {
   id: string;
   label: string;
   icon: string;
-  href?: string;
-  children?: NavItem[];
+  children?: { id: string; label: string; icon: string }[];
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -31,6 +31,12 @@ const NAV_ITEMS: NavItem[] = [
     id: 'business',
     label: 'Negócios',
     icon: '💼',
+    children: [
+      { id: 'projetos', label: 'Projetos', icon: '📋' },
+      { id: 'afiliados', label: 'Afiliados', icon: '🔗' },
+      { id: 'meus-produtos', label: 'Meus Produtos', icon: '📦' },
+      { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: '✍️' },
+    ],
   },
   {
     id: 'settings',
@@ -41,12 +47,26 @@ const NAV_ITEMS: NavItem[] = [
 
 interface BeeHiveSidebarProps {
   activeView: string;
+  activeBusinessTab?: string;
   onNavigate: (view: string) => void;
+  onBusinessTabChange?: (tab: string) => void;
 }
 
-export function BeeHiveSidebar({ activeView, onNavigate }: BeeHiveSidebarProps) {
+export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBusinessTabChange }: BeeHiveSidebarProps) {
   const { projects, activeProject, setActiveProject } = useProjectStore();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [businessExpanded, setBusinessExpanded] = useState(
+    activeView === 'business' || activeBusinessTab !== undefined,
+  );
+
+  const handleBusinessClick = () => {
+    if (activeView === 'business') {
+      setBusinessExpanded(!businessExpanded);
+    } else {
+      setBusinessExpanded(true);
+      onNavigate('business');
+    }
+  };
 
   return (
     <aside className="sidebar">
@@ -62,11 +82,45 @@ export function BeeHiveSidebar({ activeView, onNavigate }: BeeHiveSidebarProps) 
           <div key={item.id}>
             <button
               className={`sidebar__nav-item ${activeView === item.id ? 'sidebar__nav-item--active' : ''}`}
-              onClick={() => onNavigate(item.id)}
+              onClick={() => {
+                if (item.id === 'business') {
+                  handleBusinessClick();
+                } else {
+                  onNavigate(item.id);
+                }
+              }}
             >
               <span className="sidebar__nav-icon">{item.icon}</span>
               <span className="sidebar__nav-label">{item.label}</span>
+              {item.children && (
+                <span className="sidebar__nav-chevron">
+                  {businessExpanded ? '▾' : '▸'}
+                </span>
+              )}
             </button>
+
+            {/* Sub-itens de Negócios */}
+            {item.id === 'business' && item.children && businessExpanded && (
+              <div className="sidebar__subnav">
+                {item.children.map((child) => (
+                  <button
+                    key={child.id}
+                    className={`sidebar__subnav-item ${
+                      activeView === 'business' && activeBusinessTab === child.id
+                        ? 'sidebar__subnav-item--active'
+                        : ''
+                    }`}
+                    onClick={() => {
+                      onNavigate('business');
+                      onBusinessTabChange?.(child.id);
+                    }}
+                  >
+                    <span className="sidebar__subnav-icon">{child.icon}</span>
+                    <span className="sidebar__subnav-label">{child.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
 
             {/* Projetos na sidebar */}
             {item.id === 'projects' && projects.length > 0 && (

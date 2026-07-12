@@ -13,7 +13,9 @@ import './AppLayout.css';
 interface AppLayoutProps {
   children: ReactNode;
   activeView: string;
+  activeBusinessTab?: string;
   onNavigate: (view: string) => void;
+  onBusinessTabChange?: (tab: string) => void;
   theme: Theme;
   onToggleTheme: () => void;
 }
@@ -21,7 +23,9 @@ interface AppLayoutProps {
 export function AppLayout({
   children,
   activeView,
+  activeBusinessTab,
   onNavigate,
+  onBusinessTabChange,
   theme,
   onToggleTheme,
 }: AppLayoutProps) {
@@ -30,7 +34,12 @@ export function AppLayout({
   return (
     <div className="app-layout">
       {sidebarOpen && (
-        <BeeHiveSidebar activeView={activeView} onNavigate={onNavigate} />
+        <BeeHiveSidebar
+          activeView={activeView}
+          activeBusinessTab={activeBusinessTab}
+          onNavigate={onNavigate}
+          onBusinessTabChange={onBusinessTabChange}
+        />
       )}
 
       <div className="app-layout__main">

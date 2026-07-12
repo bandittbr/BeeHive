@@ -6,6 +6,7 @@
  * - Sistema de projetos (diretórios locais)
  * - Tema claro/escuro
  * - Serviço de conversa
+ * - Sub-navegação de Negócios (Projetos, Afiliados, Meus Produtos, Criador de Conteúdo)
  */
 
 import { useState } from 'react';
@@ -27,6 +28,7 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { id, navigate } = useHashRoute(AREA_IDS, 'conversa');
   const [activeView, setActiveView] = useState<ViewType>('conversation');
+  const [activeBusinessTab, setActiveBusinessTab] = useState<string>('projetos');
 
   const handleNavigate = (view: string) => {
     setActiveView(view as ViewType);
@@ -35,12 +37,21 @@ export default function App() {
     }
   };
 
+  const handleBusinessTabChange = (tab: string) => {
+    setActiveBusinessTab(tab);
+  };
+
   const renderView = () => {
     switch (activeView) {
       case 'projects':
         return <ProjectsView />;
       case 'business':
-        return <BusinessView />;
+        return (
+          <BusinessView
+            initialTab={activeBusinessTab}
+            onTabChange={handleBusinessTabChange}
+          />
+        );
       case 'settings':
         return <SettingsView />;
       case 'dashboard':
@@ -65,7 +76,9 @@ export default function App() {
         <ProjectStoreProvider>
           <AppLayout
             activeView={activeView}
+            activeBusinessTab={activeBusinessTab}
             onNavigate={handleNavigate}
+            onBusinessTabChange={handleBusinessTabChange}
             theme={theme}
             onToggleTheme={toggleTheme}
           >

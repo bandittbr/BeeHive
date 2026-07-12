@@ -16,6 +16,8 @@ import { mountBusinessRoutes } from './routes/businessRoutes';
 import { mountMediaRoutes } from './routes/mediaRoutes';
 import { mountSystemRoutes } from './routes/systemRoutes';
 import { mountProjectRoutes } from './routes/projectRoutes';
+import { mountAffiliatesRoutes } from './routes/affiliatesRoutes';
+import { bootstrapWorker } from './affiliates';
 import { DatabaseManager } from '@beehive/platform';
 
 /**
@@ -35,6 +37,12 @@ const db = new DatabaseManager({ dbPath: 'data/beehive.db' });
 
 // --- Rotas de Projetos (sempre disponíveis, independente do provider) ---
 mountProjectRoutes(app, db);
+
+// --- Rotas de Afiliados (sempre disponíveis) ---
+mountAffiliatesRoutes(app, db);
+
+// --- Worker de Afiliados (BullMQ + Redis) ---
+bootstrapWorker(db);
 
 // --- Escolha do provedor de IA ---
 let providerName = 'nenhum';

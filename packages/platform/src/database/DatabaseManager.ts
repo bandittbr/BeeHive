@@ -13,6 +13,7 @@ import Database from 'better-sqlite3';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { ILogger } from '../kernel';
+import { AFFILIATES_SCHEMA } from './affiliatesSchema';
 
 export interface DatabaseManagerOptions {
   /** Caminho do arquivo SQLite. Padrão: data/beehive.db */
@@ -109,6 +110,7 @@ export class DatabaseManager {
   /** Aplica o schema inicial (idempotente: CREATE TABLE IF NOT EXISTS). */
   private ensureSchema(): void {
     this.db.exec(SCHEMA_SQL);
+    this.db.exec(AFFILIATES_SCHEMA);
   }
 
   /** Fecha o banco com segurança. */

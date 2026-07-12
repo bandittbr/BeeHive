@@ -45,4 +45,18 @@ export const config = {
     baseUrl: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
     model: process.env.GROQ_MODEL ?? 'llama3-70b-8192',
   },
+
+  /** OpenCode Zen (anomalyco) — modelos free, incluindo big-pickle */
+  opencode: {
+    apiKey: process.env.OPENCODE_API_KEY ?? '',
+    baseUrl: process.env.OPENCODE_BASE_URL ?? 'https://opencode.ai/zen/v1',
+    model: process.env.OPENCODE_MODEL ?? 'big-pickle',
+  },
+
+  /** Kiro (AWS) — Claude via AWS Bedrock, requer gateway local */
+  kiro: {
+    apiKey: process.env.KIRO_API_KEY ?? '',
+    baseUrl: process.env.KIRO_BASE_URL ?? 'http://localhost:8000/v1',
+    model: process.env.KIRO_MODEL ?? 'claude-sonnet-4-20250514',
+  },
 };

@@ -23,7 +23,6 @@ import { BaseAIProvider } from '../BaseAIProvider';
 import type {
   AICapability,
   AIContext,
-  AIProvider,
   AIProviderHealth,
   AIRequest,
   AIResponse,
@@ -39,7 +38,6 @@ import type {
   BeeRouterSnapshot,
   ClassifiedError,
   Combo,
-  ComboModel,
   ProviderConfig,
   RateLimitBucket,
 } from './types';
@@ -64,9 +62,6 @@ export class BeeRouter extends BaseAIProvider {
   private activeModel: string | null = null;
   private activeComboId: string | null = null;
   private lastHealth: AIProviderHealth = { ok: true };
-
-  // Round-robin counters por provider
-  private readonly rrCounters = new Map<string, number>();
 
   constructor(options: BeeRouterOptions) {
     super();

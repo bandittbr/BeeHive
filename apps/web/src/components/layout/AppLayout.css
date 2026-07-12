@@ -101,9 +101,52 @@
   flex: 1;
 }
 
-/* Subnav (projetos) */
+.sidebar__nav-chevron {
+  font-size: 10px;
+  color: var(--text-tertiary, #707080);
+  transition: transform 0.15s ease;
+}
+
+/* Subnav (projetos e negócios) */
 .sidebar__subnav {
   padding-left: 20px;
+}
+
+.sidebar__subnav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 20px 6px 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary, #a0a0b0);
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  text-align: left;
+}
+
+.sidebar__subnav-item:hover {
+  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
+  color: var(--text-primary, #e0e0e0);
+}
+
+.sidebar__subnav-item--active {
+  color: var(--accent, #6366f1);
+  font-weight: 600;
+}
+
+.sidebar__subnav-icon {
+  font-size: 14px;
+  width: 20px;
+  text-align: center;
+}
+
+.sidebar__subnav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .sidebar__subnav-toggle {

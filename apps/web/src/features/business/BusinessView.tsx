@@ -1,19 +1,40 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AreaPage } from '@/components/area/AreaPage';
 import { Button, EmptyState, Modal } from '@/components/ui';
 import { useBusiness } from './useBusiness';
 import { ProjectCard } from './components/ProjectCard';
 import { ProjectDetail } from './components/ProjectDetail';
 import { CreateProjectModal } from './components/CreateProjectModal';
+import { AffiliatesView } from './affiliates/AffiliatesView';
+import { MyProductsView } from './affiliates/MyProductsView';
+import { ContentCreatorView } from './affiliates/ContentCreatorView';
 import './BusinessView.css';
 
+export type BusinessTab = 'projetos' | 'afiliados' | 'meus-produtos' | 'criador-conteudo';
+
+const TABS: { id: BusinessTab; label: string; icon: string }[] = [
+  { id: 'projetos', label: 'Projetos', icon: '📋' },
+  { id: 'afiliados', label: 'Afiliados', icon: '🔗' },
+  { id: 'meus-produtos', label: 'Meus Produtos', icon: '📦' },
+  { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: '✍️' },
+];
+
+interface BusinessViewProps {
+  initialTab?: string;
+  onTabChange?: (tab: string) => void;
+}
+
 /**
- * Área Business — cria e administra negócios digitais como Projetos.
- *
- * Duas telas: a lista de Projetos e o detalhe de um Projeto (onde o agente
- * estrategista gera o plano de conteúdo). Projetos persistem no navegador.
+ * Área Business — agora com sub-módulos:
+ * - Projetos (original)
+ * - Afiliados (discovery rules + automação)
+ * - Meus Produtos (produtos descobertos)
+ * - Criador de Conteúdo (conteúdo gerado + publicações)
  */
-export function BusinessView() {
+export function BusinessView({ initialTab, onTabChange }: BusinessViewProps) {
+  const [activeTab, setActiveTab] = useState<BusinessTab>(
+    (initialTab as BusinessTab) || 'projetos',
+  );
   const {
     projects,
     generating,
@@ -31,63 +52,105 @@ export function BusinessView() {
 
   const selected = projects.find((p) => p.id === selectedId) ?? null;
 
+  // Sincroniza com initialTab quando vem da sidebar
+  useEffect(() => {
+    if (initialTab && initialTab !== activeTab) {
+      setActiveTab(initialTab as BusinessTab);
+    }
+  }, [initialTab]);
+
+  const handleTabChange = (tab: BusinessTab) => {
+    setActiveTab(tab);
+    onTabChange?.(tab);
+  };
+
+  const renderTabContent = () => {
+    switch (activeTab) {
+      case 'afiliados':
+        return <AffiliatesView />;
+      case 'meus-produtos':
+        return <MyProductsView />;
+      case 'criador-conteudo':
+        return <ContentCreatorView />;
+      case 'projetos':
+      default:
+        return selected ? (
+          <ProjectDetail
+            project={selected}
+            generatingPlan={generating?.id === selected.id && generating.kind === 'plan'}
+            generatingPosts={generating?.id === selected.id && generating.kind === 'posts'}
+            onGeneratePlan={() => generatePlan(selected.id, selected.niche, selected.brand)}
+            onGeneratePosts={() =>
+              generatePosts(selected.id, selected.niche, selected.brand, selected.contentPlan)
+            }
+            onSetImage={(prompt, url) => setProjectImage(selected.id, prompt, url)}
+            onStop={stopGeneration}
+            onBack={() => setSelectedId(null)}
+            onDelete={() => setPendingDelete(selected.id)}
+          />
+        ) : (
+          <>
+            <div className="business__toolbar">
+              <span className="business__count">
+                {projects.length} {projects.length === 1 ? 'projeto' : 'projetos'}
+              </span>
+              <Button variant="primary" size="sm" icon="plus" onClick={() => setCreateOpen(true)}>
+                Novo Projeto
+              </Button>
+            </div>
+
+            {projects.length === 0 ? (
+              <EmptyState
+                icon="briefcase"
+                title="Nenhum projeto ainda"
+                description="Crie seu primeiro negócio digital e deixe o agente gerar o plano de conteúdo."
+                action={
+                  <Button variant="primary" icon="plus" onClick={() => setCreateOpen(true)}>
+                    Criar Projeto
+                  </Button>
+                }
+              />
+            ) : (
+              <div className="business__grid">
+                {projects.map((project) => (
+                  <ProjectCard
+                    key={project.id}
+                    project={project}
+                    onOpen={() => setSelectedId(project.id)}
+                    onDelete={() => setPendingDelete(project.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </>
+        );
+    }
+  };
+
   return (
     <AreaPage
       icon="briefcase"
-      title="Business"
-      description="Crie e administre negócios digitais como Projetos."
+      title="Negócios"
+      description="Gerencie seus negócios digitais, afiliados e conteúdo."
       state="Ativo"
     >
-      {selected ? (
-        <ProjectDetail
-          project={selected}
-          generatingPlan={generating?.id === selected.id && generating.kind === 'plan'}
-          generatingPosts={generating?.id === selected.id && generating.kind === 'posts'}
-          onGeneratePlan={() => generatePlan(selected.id, selected.niche, selected.brand)}
-          onGeneratePosts={() =>
-            generatePosts(selected.id, selected.niche, selected.brand, selected.contentPlan)
-          }
-          onSetImage={(prompt, url) => setProjectImage(selected.id, prompt, url)}
-          onStop={stopGeneration}
-          onBack={() => setSelectedId(null)}
-          onDelete={() => setPendingDelete(selected.id)}
-        />
-      ) : (
-        <>
-          <div className="business__toolbar">
-            <span className="business__count">
-              {projects.length} {projects.length === 1 ? 'projeto' : 'projetos'}
-            </span>
-            <Button variant="primary" size="sm" icon="plus" onClick={() => setCreateOpen(true)}>
-              Novo Projeto
-            </Button>
-          </div>
+      {/* Navegação de abas */}
+      <div className="business__tabs">
+        {TABS.map((tab) => (
+          <button
+            key={tab.id}
+            className={`business__tab ${activeTab === tab.id ? 'business__tab--active' : ''}`}
+            onClick={() => handleTabChange(tab.id)}
+          >
+            <span className="business__tab-icon">{tab.icon}</span>
+            <span className="business__tab-label">{tab.label}</span>
+          </button>
+        ))}
+      </div>
 
-          {projects.length === 0 ? (
-            <EmptyState
-              icon="briefcase"
-              title="Nenhum projeto ainda"
-              description="Crie seu primeiro negócio digital e deixe o agente gerar o plano de conteúdo."
-              action={
-                <Button variant="primary" icon="plus" onClick={() => setCreateOpen(true)}>
-                  Criar Projeto
-                </Button>
-              }
-            />
-          ) : (
-            <div className="business__grid">
-              {projects.map((project) => (
-                <ProjectCard
-                  key={project.id}
-                  project={project}
-                  onOpen={() => setSelectedId(project.id)}
-                  onDelete={() => setPendingDelete(project.id)}
-                />
-              ))}
-            </div>
-          )}
-        </>
-      )}
+      <div className="business__tab-content">
+        {renderTabContent()}
+      </div>
 
       <CreateProjectModal
         open={createOpen}
