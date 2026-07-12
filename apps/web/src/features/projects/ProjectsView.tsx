@@ -4,8 +4,8 @@
 
 import React, { useState } from 'react';
 import { useProjectStore } from '../../services/projects/projectStore';
-import { ProjectCard } from './ProjectCard';
-import { AddProjectModal } from './AddProjectModal';
+import { ProjectCard } from '../../components/projects/ProjectCard';
+import { AddProjectModal } from '../../components/projects/AddProjectModal';
 
 export function ProjectsView() {
   const { projects, activeProject, loading, error, setActiveProject, removeProject } =
