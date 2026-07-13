@@ -1,0 +1,26 @@
+# Nixpacks config for BeeHive API backend on Railway
+# Garante: pnpm install + Python (pro pipeline de cortes) + start correto
+
+[phases.setup]
+# Instala pnpm e Python 3.11
+nixPkgs = ["nodejs_20", "pnpm", "python311", "gcc", "ffmpeg"]
+
+[phases.install]
+# Instala deps do Node (pnpm) e do Python (pipeline)
+cmds = [
+  "pnpm install --frozen-lockfile",
+  "python3.11 -m pip install --upgrade pip",
+  "python3.11 -m pip install -r pipeline/requirements.txt",
+]
+
+[phases.build]
+cmds = [
+  "pnpm run build --workspace apps/web",
+]
+
+[start]
+cmd = "pnpm run start --workspace apps/api"
+
+[variables]
+PORT = "4000"
+PYTHONUNBUFFERED = "1"

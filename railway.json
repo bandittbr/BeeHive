@@ -5,9 +5,11 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "npm run start --workspace apps/api",
+    "startCommand": "pnpm run start --workspace apps/api",
     "healthcheckPath": "/api/runtime/status",
     "restartPolicyType": "on-failure",
-    "restartPolicyMaxRetries": 5
+    "restartPolicyMaxRetries": 5,
+    "healthcheckTimeout": 100,
+    "restartPolicy": "on-failure"
   }
 }
