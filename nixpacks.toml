@@ -14,7 +14,7 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm run start --workspace apps/api"
+cmd = "pnpm --filter apps/api run start"
 
 [variables]
 PORT = "4000"

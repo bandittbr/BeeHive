@@ -22,3 +22,7 @@ export {
   type ProviderChangedPayload,
 } from '../ai/ProviderManager';
 export { DatabaseManager, type DatabaseManagerOptions } from '../database/DatabaseManager';
+export {
+  registerProviderCommands,
+  PROVIDER_COMMANDS,
+} from '../ai/commands';

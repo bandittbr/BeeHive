@@ -12,6 +12,7 @@ import type { KernelContext } from '../kernel/types';
 import type { ProviderManager } from './ProviderManager';
 import type { StoredCredentials } from './providers/credentialsStore';
 import type Database from 'better-sqlite3';
+import { getCatalogEntry } from './providers/catalog';
 
 /** IDs dos comandos de provider. */
 export const PROVIDER_COMMANDS = {
@@ -33,24 +34,23 @@ export function registerProviderCommands(
   db: Database.Database,
 ): void {
   // ── provider.list ──────────────────────────────────────────────────────
-  ctx.registerCommand(PROVIDER_COMMANDS.LIST, () => {
+  ctx.registerCommand(PROVIDER_COMMANDS.LIST, async () => {
     return manager.getCatalogStatus(db);
   });
 
   // ── provider.save ──────────────────────────────────────────────────────
-  ctx.registerCommand(PROVIDER_COMMANDS.SAVE, (payload) => {
+  ctx.registerCommand(PROVIDER_COMMANDS.SAVE, async (payload) => {
     const { providerId, credentials } = payload as {
       providerId: string;
       credentials: StoredCredentials;
     };
 
-    const { getCatalogEntry } = require('./providers/catalog') as typeof import('./providers/catalog');
     const entry = getCatalogEntry(providerId);
     if (!entry) {
       throw new Error(`Provider não encontrado no catálogo: ${providerId}`);
     }
 
-    manager.saveAndRegister(entry, credentials, db);
+    await manager.saveAndRegister(entry, credentials, db);
     ctx.events.emit('ProviderChanged', {
       providerId,
       previousProviderId: manager.getDefaultProviderId(),
@@ -66,7 +66,6 @@ export function registerProviderCommands(
       credentials?: StoredCredentials;
     };
 
-    const { getCatalogEntry } = require('./providers/catalog') as typeof import('./providers/catalog');
     const entry = getCatalogEntry(providerId);
     if (!entry) {
       throw new Error(`Provider não encontrado no catálogo: ${providerId}`);
@@ -103,4 +102,5 @@ export function registerProviderCommands(
       activeModel: manager.getDefaultModel(),
     };
   });
+
 }

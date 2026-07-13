@@ -2,7 +2,8 @@ import type { Express } from 'express';
 import type { DatabaseManager } from '@beehive/platform/server';
 import type { RuntimeManager } from '@beehive/platform/runtime';
 import { spawn } from 'node:child_process';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * Rotas do pipeline de Cortes Youtube.
@@ -17,7 +18,7 @@ function now(): string {
   return new Date().toISOString();
 }
 
-const PIPELINE_DIR = join(__dirname, '..', '..', '..', '..', 'pipeline');
+const PIPELINE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'pipeline');
 
 export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, runtime?: RuntimeManager): void {
 

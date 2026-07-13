@@ -20,6 +20,7 @@
  */
 import type Database from 'better-sqlite3';
 import { randomBytes, createCipheriv, createDecipheriv, pbkdf2Sync } from 'node:crypto';
+import os from 'node:os';
 
 /** Credenciais salvas de um provider. */
 export interface StoredCredentials {
@@ -61,8 +62,8 @@ function deriveKey(machineSecret: string): Buffer {
 
 /** Obtém o segredo da máquina (hostname + username). */
 function getMachineSecret(): string {
-  const hostname = require('node:os').hostname();
-  const username = require('node:os').username();
+  const hostname = os.hostname();
+  const username = os.userInfo().username;
   return `${hostname}:${username}`;
 }
 

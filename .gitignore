@@ -33,3 +33,7 @@ CrewAI/*.txt
 .cache/
 .vite/
 services/omniroute/
+
+# Local SQLite DB (runtime data)
+apps/api/data/
+

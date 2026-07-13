@@ -302,10 +302,10 @@ export class ProviderManager extends AIProviderRegistry {
    *  3. O primeiro provider registrado vira o ativo (comportamento existente)
    *  4. Modelo padrão: BigPickle se nada foi configurado antes
    */
-  autoLoad(db: Database.Database, catalog?: readonly ProviderCatalogEntry[]): void {
-    const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
+  async autoLoad(db: Database.Database, catalog?: readonly ProviderCatalogEntry[]): Promise<void> {
+    const { PROVIDER_CATALOG } = await import('./providers/catalog');
     const entries = catalog ?? PROVIDER_CATALOG;
-    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
+    const { ProviderCredentialsStore } = await import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
 
     for (const entry of entries) {
@@ -318,7 +318,7 @@ export class ProviderManager extends AIProviderRegistry {
       }
 
       try {
-        const provider = this.instantiateProvider(entry, credentials);
+        const provider = await this.instantiateProvider(entry, credentials);
         this.register(provider);
         this.logger?.info(`Provider auto-load: ${entry.name}`, {
           id: entry.id,
@@ -342,12 +342,12 @@ export class ProviderManager extends AIProviderRegistry {
    * Salva credenciais de um provider, (re-)instancía ele e registra.
    * Se o provider já estava registrado, substitui.
    */
-  saveAndRegister(
+  async saveAndRegister(
     entry: ProviderCatalogEntry,
     credentials: StoredCredentials,
     db: Database.Database,
-  ): void {
-    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
+  ): Promise<void> {
+    const { ProviderCredentialsStore } = await import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
     store.save(entry.id, credentials);
 
@@ -357,7 +357,7 @@ export class ProviderManager extends AIProviderRegistry {
     }
 
     // Instancia e registra
-    const provider = this.instantiateProvider(entry, credentials);
+    const provider = await this.instantiateProvider(entry, credentials);
     this.register(provider);
   }
 
@@ -370,7 +370,7 @@ export class ProviderManager extends AIProviderRegistry {
     credentials?: StoredCredentials,
   ): Promise<{ ok: boolean; detail?: string }> {
     try {
-      const provider = this.instantiateProvider(entry, credentials ?? undefined);
+      const provider = await this.instantiateProvider(entry, credentials ?? undefined);
       const health = await provider.health();
       // Se health não tem detail, tenta uma chamada real
       if (health.ok && 'checkHealth' in provider && typeof (provider as any).checkHealth === 'function') {
@@ -389,13 +389,13 @@ export class ProviderManager extends AIProviderRegistry {
    * Retorna o catálogo completo com status de cada provider
    * (tem credenciais? está habilitado? está registrado?).
    */
-  getCatalogStatus(db: Database.Database): Array<ProviderCatalogEntry & {
+  async getCatalogStatus(db: Database.Database): Promise<Array<ProviderCatalogEntry & {
     hasCredentials: boolean;
     isEnabled: boolean;
     isRegistered: boolean;
-  }> {
-    const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
-    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
+  }>> {
+    const { PROVIDER_CATALOG } = await import('./providers/catalog');
+    const { ProviderCredentialsStore } = await import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
 
     return PROVIDER_CATALOG.map((entry: ProviderCatalogEntry) => ({
@@ -412,15 +412,15 @@ export class ProviderManager extends AIProviderRegistry {
    * Instancia o implementador correto de AIProvider baseado na entrada do catálogo.
    * Conhecimento PRIVADO: este é o único lugar que importa os providers concretos.
    */
-  private instantiateProvider(
+  private async instantiateProvider(
     entry: ProviderCatalogEntry,
     credentials?: StoredCredentials,
-  ): AIProvider {
+  ): Promise<AIProvider> {
     const logger = this.logger;
 
     switch (entry.implementation) {
       case 'ollama': {
-        const { OllamaProvider } = require('./providers/ollama') as typeof import('./providers/ollama');
+        const { OllamaProvider } = await import('./providers/ollama');
         return new OllamaProvider({
           baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
           model: entry.defaultModel,
@@ -428,7 +428,7 @@ export class ProviderManager extends AIProviderRegistry {
         });
       }
       case 'openai': {
-        const { OpenAIProvider } = require('./providers/openai') as typeof import('./providers/openai');
+        const { OpenAIProvider } = await import('./providers/openai');
         return new OpenAIProvider({
           apiKey: credentials?.apiKey ?? '',
           baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
@@ -438,7 +438,7 @@ export class ProviderManager extends AIProviderRegistry {
         });
       }
       case 'anthropic': {
-        const { AnthropicProvider } = require('./providers/anthropic') as typeof import('./providers/anthropic');
+        const { AnthropicProvider } = await import('./providers/anthropic');
         return new AnthropicProvider({
           apiKey: credentials?.apiKey ?? '',
           baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
@@ -447,7 +447,7 @@ export class ProviderManager extends AIProviderRegistry {
         });
       }
       case 'gemini': {
-        const { GeminiProvider } = require('./providers/gemini') as typeof import('./providers/gemini');
+        const { GeminiProvider } = await import('./providers/gemini');
         return new GeminiProvider({
           apiKey: credentials?.apiKey ?? '',
           baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
