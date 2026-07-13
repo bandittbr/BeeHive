@@ -25,6 +25,7 @@ export * from './services';
 export * from './ai';
 export * from './database';
 export * from './affiliates';
+export * from './shorts';
 export * from './plugins';
 export type * from './browser';
 export type * from './tools';

@@ -1,0 +1,126 @@
+.pj-card {
+  padding: var(--space-3);
+  transition: all var(--transition);
+}
+
+.pj-card--active {
+  border-left: 3px solid var(--accent);
+}
+
+.pj-card--error {
+  border-left: 3px solid var(--danger, #ef4444);
+}
+
+.pj-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.pj-card__icon {
+  font-size: var(--text-lg);
+  flex-shrink: 0;
+}
+
+.pj-card__info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.pj-card__url {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pj-card__status {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.pj-card__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.pj-card__progress-bar {
+  flex: 1;
+  height: 6px;
+  background: var(--bg-input, #1e1e2e);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pj-card__progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.pj-card__progress-text {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  flex-shrink: 0;
+  min-width: 32px;
+  text-align: right;
+}
+
+.pj-card__error {
+  margin-top: var(--space-2);
+  padding: var(--space-2);
+  background: rgba(239, 68, 68, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  color: var(--danger, #ef4444);
+}
+
+.pj-card__clips {
+  margin-top: var(--space-2);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.pj-card__clip {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) 0;
+  font-size: var(--text-sm);
+}
+
+.pj-card__clip-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pj-card__clip-publish {
+  background: var(--accent);
+  color: white;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 2px 8px;
+  font-size: var(--text-xs);
+  cursor: pointer;
+  transition: opacity var(--transition);
+}
+
+.pj-card__clip-publish:hover {
+  opacity: 0.8;
+}
+
+.pj-card__footer {
+  margin-top: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}

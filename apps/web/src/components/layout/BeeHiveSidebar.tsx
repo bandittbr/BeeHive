@@ -36,6 +36,7 @@ const NAV_ITEMS: NavItem[] = [
       { id: 'afiliados', label: 'Afiliados', icon: '🔗' },
       { id: 'meus-produtos', label: 'Meus Produtos', icon: '📦' },
       { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: '✍️' },
+      { id: 'cortes-youtube', label: 'Cortes Youtube', icon: '🎬' },
     ],
   },
   {

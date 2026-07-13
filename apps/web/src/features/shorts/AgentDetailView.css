@@ -1,0 +1,134 @@
+.agent-detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.agent-detail__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agent-detail__title-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.agent-detail__avatar {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  overflow: hidden;
+  flex-shrink: 0;
+  background: var(--accent-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.agent-detail__avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.agent-detail__avatar span {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: var(--text-xl);
+}
+
+.agent-detail__name {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  margin: 0;
+}
+
+.agent-detail__metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: var(--space-3);
+}
+
+.agent-detail__metric {
+  padding: var(--space-3);
+  text-align: center;
+}
+
+.agent-detail__metric-value {
+  display: block;
+  font-size: var(--text-lg);
+  font-weight: 700;
+}
+
+.agent-detail__metric-label {
+  display: block;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+  margin-top: var(--space-1);
+}
+
+.agent-detail__socials {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: var(--space-3);
+}
+
+.agent-detail__social {
+  padding: var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.agent-detail__social--connected {
+  border-color: var(--success, #22c55e);
+}
+
+.agent-detail__social-icon {
+  font-size: var(--text-lg);
+}
+
+.agent-detail__social-name {
+  font-weight: 600;
+  text-transform: capitalize;
+  flex: 1;
+}
+
+.agent-detail__new-job {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.agent-detail__new-job-row {
+  display: flex;
+  gap: var(--space-3);
+  align-items: flex-end;
+}
+
+.agent-detail__new-job-row .field {
+  flex: 0 0 100px;
+}
+
+.agent-detail__jobs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+@media (max-width: 768px) {
+  .agent-detail__metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .agent-detail__socials {
+    grid-template-columns: 1fr;
+  }
+
+  .agent-detail__new-job-row {
+    flex-direction: column;
+  }
+}

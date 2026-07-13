@@ -18,6 +18,9 @@ import { mountSystemRoutes } from './routes/systemRoutes';
 import { mountProjectRoutes } from './routes/projectRoutes';
 import { mountAffiliatesRoutes } from './routes/affiliatesRoutes';
 import { mountProviderRoutes } from './routes/providerRoutes';
+import { mountShortsAgentRoutes } from './routes/shortsAgentRoutes';
+import { mountShortsPipelineRoutes } from './routes/shortsPipelineRoutes';
+import { mountShortsPublishRoutes } from './routes/shortsPublishRoutes';
 import { bootstrapWorker } from './affiliates';
 import { DatabaseManager } from '@beehive/platform';
 
@@ -41,6 +44,10 @@ mountProjectRoutes(app, db);
 
 // --- Rotas de Afiliados (sempre disponíveis) ---
 mountAffiliatesRoutes(app, db);
+
+// --- Rotas de Cortes Youtube (agentes e publish sempre disponíveis) ---
+mountShortsAgentRoutes(app, db);
+mountShortsPublishRoutes(app, db);
 
 // --- Worker de Afiliados (BullMQ + Redis) ---
 bootstrapWorker(db);
@@ -70,6 +77,7 @@ if (config.aiProvider === 'llmrouter') {
     mountConversationRoutes(app, orchestrator);
     mountBusinessRoutes(app, provider);
     mountMediaRoutes(app, imageProvider);
+    mountShortsPipelineRoutes(app, db, beehiveRuntime);
     const httpServer = createServer(app);
     attachRuntimeEventsSocket(httpServer, beehiveRuntime);
     httpServer.listen(config.port, () => {
@@ -93,6 +101,7 @@ if (config.aiProvider === 'llmrouter') {
   mountConversationRoutes(app, orchestrator);
   mountBusinessRoutes(app, provider);
   mountMediaRoutes(app, imageProvider);
+  mountShortsPipelineRoutes(app, db, beehiveRuntime);
   const httpServer = createServer(app);
   attachRuntimeEventsSocket(httpServer, beehiveRuntime);
   httpServer.listen(config.port, () => {

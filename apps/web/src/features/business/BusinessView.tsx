@@ -8,15 +8,17 @@ import { CreateProjectModal } from './components/CreateProjectModal';
 import { AffiliatesView } from './affiliates/AffiliatesView';
 import { MyProductsView } from './affiliates/MyProductsView';
 import { ContentCreatorView } from './affiliates/ContentCreatorView';
+import { ShortsView } from '../shorts/ShortsView';
 import './BusinessView.css';
 
-export type BusinessTab = 'projetos' | 'afiliados' | 'meus-produtos' | 'criador-conteudo';
+export type BusinessTab = 'projetos' | 'afiliados' | 'meus-produtos' | 'criador-conteudo' | 'cortes-youtube';
 
 const TABS: { id: BusinessTab; label: string; icon: string }[] = [
   { id: 'projetos', label: 'Projetos', icon: '📋' },
   { id: 'afiliados', label: 'Afiliados', icon: '🔗' },
   { id: 'meus-produtos', label: 'Meus Produtos', icon: '📦' },
   { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: '✍️' },
+  { id: 'cortes-youtube', label: 'Cortes Youtube', icon: '🎬' },
 ];
 
 interface BusinessViewProps {
@@ -72,6 +74,8 @@ export function BusinessView({ initialTab, onTabChange }: BusinessViewProps) {
         return <MyProductsView />;
       case 'criador-conteudo':
         return <ContentCreatorView />;
+      case 'cortes-youtube':
+        return <ShortsView />;
       case 'projetos':
       default:
         return selected ? (
