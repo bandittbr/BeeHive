@@ -1,7 +1,7 @@
 import type { Express } from 'express';
 import type { DatabaseManager } from '@beehive/platform/server';
 import type { RuntimeManager } from '@beehive/platform/runtime';
-import { spawn } from 'node:child_process';
+import { spawn, execSync } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config';
@@ -22,6 +22,18 @@ function now(): string {
 }
 
 const PIPELINE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..', 'pipeline');
+
+// Resolve o interpretador Python disponível (Railway nixpacks costuma expor `python3`).
+let RESOLVED_PYTHON = 'python';
+for (const candidate of ['python3', 'python', 'python3.11']) {
+  try {
+    execSync(`${candidate} --version`, { stdio: 'ignore' });
+    RESOLVED_PYTHON = candidate;
+    break;
+  } catch {
+    // tenta o próximo
+  }
+}
 
 export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, runtime?: RuntimeManager): void {
 
@@ -119,7 +131,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
         language: language ?? 'pt',
       });
 
-      const child = spawn('python', [pythonScript], {
+      const child = spawn(RESOLVED_PYTHON, [pythonScript], {
         cwd: PIPELINE_DIR,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
