@@ -28,5 +28,11 @@
   "dependencies": {
     "playwright": "^1.61.1",
     "typescript": "^7.0.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "esbuild"
+    ]
   }
 }
