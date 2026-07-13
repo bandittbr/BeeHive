@@ -14,6 +14,12 @@ function formatTime(timestamp: number): string {
   });
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  user: 'Você',
+  assistant: 'BeeHive',
+  system: 'Sistema',
+};
+
 /**
  * Lista de mensagens, com rolagem automática para a última.
  *
@@ -33,7 +39,10 @@ export function MessageList({ messages }: MessageListProps) {
         const isStreaming = message.role === 'assistant' && message.content === '';
         return (
           <div key={message.id} className={`message message--${message.role}`}>
-            <div className={`message__bubble${isStreaming ? ' message__bubble--typing' : ''}`}>
+            <div className="message__head">
+              <span className="message__role">{ROLE_LABEL[message.role] ?? message.role}</span>
+            </div>
+            <div className={`message__body${isStreaming ? ' message__body--typing' : ''}`}>
               {isStreaming ? (
                 <Loading variant="dots" label="Gerando" />
               ) : message.role === 'assistant' ? (

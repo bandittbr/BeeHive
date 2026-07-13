@@ -1,8 +1,8 @@
 /* Estilos do conteúdo Markdown das mensagens. */
 
 .markdown {
-  font-size: var(--text-sm);
-  line-height: 1.6;
+  font-size: var(--text-md);
+  line-height: 1.7;
   color: inherit;
   word-break: break-word;
 }
