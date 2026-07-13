@@ -8,12 +8,13 @@ nixPkgs = ["nodejs_20", "pnpm", "python311", "python311Packages.pip", "gcc", "ff
 [phases.install]
 cmds = [
   "pnpm install --frozen-lockfile",
-  "pip install --user -r pipeline/requirements.txt",
+  "pip install --user --break-system-packages -r pipeline/requirements.txt",
 ]
 
 [start]
-cmd = "pnpm --filter apps/api run start"
+cmd = "pnpm --filter @beehive/api run start"
 
 [variables]
 PORT = "4000"
 PYTHONUNBUFFERED = "1"
+PYTHONPATH = "/root/.local/lib/python3.11/site-packages"
