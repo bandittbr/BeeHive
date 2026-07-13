@@ -8,7 +8,7 @@
 import type { Express, Request, Response } from 'express';
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import type { DatabaseManager } from '@beehive/platform';
+import type { DatabaseManager } from '@beehive/platform/server';
 
 interface ProjectRecord {
   id: string;

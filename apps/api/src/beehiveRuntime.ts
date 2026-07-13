@@ -3,7 +3,7 @@
 // só expõe isto como TIPO, para não quebrar o bundle do navegador (`apps/web`)
 // — só `apps/api` (Node) precisa do valor de verdade.
 import { RuntimeManager } from '@beehive/platform/runtime';
-import { ProviderManager } from '@beehive/platform';
+import { ProviderManager } from '@beehive/platform/server';
 import { config } from './config';
 
 export interface CreateRuntimeOptions {

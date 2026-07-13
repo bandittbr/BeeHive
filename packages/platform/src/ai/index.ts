@@ -31,10 +31,5 @@ export {
   type CredentialField,
   type ProviderImplementation,
 } from './providers/catalog';
-export {
-  ProviderCredentialsStore,
-  type StoredCredentials,
-  type CredentialMeta,
-} from './providers/credentialsStore';
 export { PROVIDER_COMMANDS, registerProviderCommands } from './commands';
 export * from './router';

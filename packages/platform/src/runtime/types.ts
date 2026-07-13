@@ -3,7 +3,7 @@ import type { ModuleManager, ModuleSnapshot } from '../modules';
 import type { ServiceManager, ServiceSnapshot } from '../services';
 import type { AIManager, AIProviderRegistry } from '../ai';
 import type { ToolManager, ToolRegistry, ToolSnapshot } from '../tools';
-import type { DatabaseManager } from '../database';
+import type { DatabaseManager } from '../database/DatabaseManager';
 
 /**
  * Contratos do BeeHive Runtime.

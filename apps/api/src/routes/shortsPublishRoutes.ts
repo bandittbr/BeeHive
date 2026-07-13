@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { DatabaseManager } from '@beehive/platform';
+import type { DatabaseManager } from '@beehive/platform/server';
 
 /**
  * Rotas de publicação e métricas do módulo Cortes Youtube.

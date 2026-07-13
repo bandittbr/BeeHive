@@ -22,7 +22,7 @@ import { mountShortsAgentRoutes } from './routes/shortsAgentRoutes';
 import { mountShortsPipelineRoutes } from './routes/shortsPipelineRoutes';
 import { mountShortsPublishRoutes } from './routes/shortsPublishRoutes';
 import { bootstrapWorker } from './affiliates';
-import { DatabaseManager } from '@beehive/platform';
+import { DatabaseManager } from '@beehive/platform/server';
 
 /**
  * Servidor do BeeHive (Core).

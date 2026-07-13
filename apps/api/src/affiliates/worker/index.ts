@@ -13,7 +13,7 @@ import IORedis from 'ioredis';
 import { createAIRouter } from '../aiRouter.service';
 import { MercadoLivreProvider } from '../providers/mercadoLivre.provider';
 import { InstagramProvider } from '../providers/instagram.provider';
-import type { DatabaseManager } from '@beehive/platform';
+import type { DatabaseManager } from '@beehive/platform/server';
 
 // ─── Conexão Redis ────────────────────────────────────────────────
 

@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { DatabaseManager } from '@beehive/platform';
+import type { DatabaseManager } from '@beehive/platform/server';
 
 /**
  * Rotas CRUD para agentes de Cortes Youtube e suas redes sociais.

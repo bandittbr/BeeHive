@@ -1,5 +1,5 @@
 import type { Express } from 'express';
-import type { DatabaseManager } from '@beehive/platform';
+import type { DatabaseManager } from '@beehive/platform/server';
 import type { DiscoveryRule, AutomationSettings, Product, ContentItem, Publication } from '@beehive/platform';
 
 /**

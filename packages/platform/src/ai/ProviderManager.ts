@@ -2,7 +2,7 @@ import type { IEventBus, ILogger } from '../kernel';
 import type Database from 'better-sqlite3';
 import { AIProviderRegistry } from './AIProviderRegistry';
 import { BIGPICKLE_DEFAULT_MODEL, type ProviderCatalogEntry } from './providers/catalog';
-import { ProviderCredentialsStore, type StoredCredentials } from './providers/credentialsStore';
+import type { StoredCredentials } from './providers/credentialsStore';
 import type { AICapability, AIProvider, AIProviderHealth, AIProviderModelSummary } from './types';
 
 /** Payload do evento `ProviderChanged`, emitido a cada troca real do Provider ativo. */
@@ -305,6 +305,7 @@ export class ProviderManager extends AIProviderRegistry {
   autoLoad(db: Database.Database, catalog?: readonly ProviderCatalogEntry[]): void {
     const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
     const entries = catalog ?? PROVIDER_CATALOG;
+    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
 
     for (const entry of entries) {
@@ -346,6 +347,7 @@ export class ProviderManager extends AIProviderRegistry {
     credentials: StoredCredentials,
     db: Database.Database,
   ): void {
+    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
     store.save(entry.id, credentials);
 
@@ -393,6 +395,7 @@ export class ProviderManager extends AIProviderRegistry {
     isRegistered: boolean;
   }> {
     const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
+    const { ProviderCredentialsStore } = require('./providers/credentialsStore') as typeof import('./providers/credentialsStore');
     const store = new ProviderCredentialsStore(db);
 
     return PROVIDER_CATALOG.map((entry: ProviderCatalogEntry) => ({
