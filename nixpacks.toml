@@ -3,7 +3,7 @@
 # rebuild trigger: use get-pip.py to install pip into nix python
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl"]
+nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl"]
 
 [phases.install]
 cmds = [
