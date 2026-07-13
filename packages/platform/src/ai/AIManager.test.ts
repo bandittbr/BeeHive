@@ -641,7 +641,7 @@ test('Reutilizacao do mesmo Provider - execute() e continueConversation() rodam 
   const response = await aiManager.execute({
     capability: 'chat',
     input: {},
-    options: { provider: 'fake-agent' },
+    options: { providerId: 'fake-agent' },
   });
 
   assert.equal(response.provider, 'fake-agent');

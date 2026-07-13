@@ -9,7 +9,7 @@ import {
   type RuntimeSnapshot,
   type RuntimeStatus,
   type Unsubscribe,
-} from '@beehive/platform/browser';
+} from '@beehive/platform';
 
 type EventHandler<P = unknown> = (event: BeeHiveEvent<P>) => void;
 

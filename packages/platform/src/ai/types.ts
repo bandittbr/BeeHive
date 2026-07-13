@@ -29,7 +29,7 @@ export type AICapability =
 export interface AIRequestOptions {
   readonly model?: string;
   /** Preferência de provedor por id (a resolução por abstração ainda decide). */
-  readonly provider?: string;
+  readonly providerId?: string;
   readonly temperature?: number;
   readonly maxTokens?: number;
   readonly stream?: boolean;

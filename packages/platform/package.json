@@ -9,7 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./runtime": "./src/runtime/index.ts",
-    "./browser": "./src/browser.ts"
+    "./browser": "./src/browser/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

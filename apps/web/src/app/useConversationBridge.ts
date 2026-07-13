@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { CONVERSATION_COMMANDS, type MessagePayload, type SendMessageResult } from '@beehive/platform/browser';
+import { CONVERSATION_COMMANDS, type MessagePayload, type SendMessageResult } from '@beehive/platform';
 import { getRuntimeClient } from './runtimeClient';
 
 /**

@@ -1,5 +1,8 @@
 import type { IEventBus, ILogger } from '../kernel';
+import type Database from 'better-sqlite3';
 import { AIProviderRegistry } from './AIProviderRegistry';
+import { BIGPICKLE_DEFAULT_MODEL, type ProviderCatalogEntry } from './providers/catalog';
+import { ProviderCredentialsStore, type StoredCredentials } from './providers/credentialsStore';
 import type { AICapability, AIProvider, AIProviderHealth, AIProviderModelSummary } from './types';
 
 /** Payload do evento `ProviderChanged`, emitido a cada troca real do Provider ativo. */
@@ -194,7 +197,7 @@ export class ProviderManager extends AIProviderRegistry {
 
   /**
    * Resolve um Provider habilitado para a capacidade pedida — nesta ordem:
-   * 1) `preferredId`, se veio explícito na solicitação (`AIRequestOptions.provider`);
+   * 1) `preferredId`, se veio explícito na solicitação (`AIRequestOptions.providerId`);
    * 2) o Provider ATIVO (`activeProvider()`), se suportar a capacidade — é
    *    isto que faz o `AIManager` usar sempre o Provider ativo, com zero
    *    mudança em `AIManager.ts`: ele já chama `findByCapability()` sem saber
@@ -280,5 +283,177 @@ export class ProviderManager extends AIProviderRegistry {
     const meta = this.meta.get(id);
     if (!meta) throw new Error(`Provider de IA não encontrado: ${id}`);
     return meta;
+  }
+
+  // -------------------- AutoLoad (catálogo + credenciais) ----------------
+
+  /**
+   * Carrega automaticamente todos os providers do catálogo, instanciando
+   * apenas aqueles que têm credenciais salvas (ou que não precisam de API key,
+   * como Ollama e Custom). É o ponto de entrada principal para o boot do
+   * sistema de providers — chamado pelo Runtime na inicialização.
+   *
+   * Fluxo:
+   *  1. Para cada entrada do catálogo:
+   *     - Se requiresApiKey=true e não há credenciais salvas → pula (não registra)
+   *     - Se requiresApiKey=true e há credenciais → instancia com credenciais
+   *     - Se requiresApiKey=false → instancia com defaults (Ollama, Custom)
+   *  2. Registra cada provider instanciado
+   *  3. O primeiro provider registrado vira o ativo (comportamento existente)
+   *  4. Modelo padrão: BigPickle se nada foi configurado antes
+   */
+  autoLoad(db: Database.Database, catalog?: readonly ProviderCatalogEntry[]): void {
+    const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
+    const entries = catalog ?? PROVIDER_CATALOG;
+    const store = new ProviderCredentialsStore(db);
+
+    for (const entry of entries) {
+      const credentials = store.load(entry.id);
+
+      // Pula providers que precisam de API key mas não têm credenciais
+      if (entry.requiresApiKey && !credentials?.apiKey) {
+        this.logger?.debug(`Provider ${entry.name} pulado (sem API key)`);
+        continue;
+      }
+
+      try {
+        const provider = this.instantiateProvider(entry, credentials);
+        this.register(provider);
+        this.logger?.info(`Provider auto-load: ${entry.name}`, {
+          id: entry.id,
+          hasCredentials: !!credentials?.apiKey,
+        });
+      } catch (error) {
+        this.logger?.warn(`Provider ${entry.name} falhou ao carregar`, {
+          error: error instanceof Error ? error.message : 'erro desconhecido',
+        });
+      }
+    }
+
+    // Modelo padrão: BigPickle se nada foi configurado
+    if (!this.defaultModel) {
+      this.defaultModel = BIGPICKLE_DEFAULT_MODEL;
+      this.logger?.info(`Modelo padrão: ${BIGPICKLE_DEFAULT_MODEL} (BigPickle)`);
+    }
+  }
+
+  /**
+   * Salva credenciais de um provider, (re-)instancía ele e registra.
+   * Se o provider já estava registrado, substitui.
+   */
+  saveAndRegister(
+    entry: ProviderCatalogEntry,
+    credentials: StoredCredentials,
+    db: Database.Database,
+  ): void {
+    const store = new ProviderCredentialsStore(db);
+    store.save(entry.id, credentials);
+
+    // Remove se já existia
+    if (super.has(entry.id)) {
+      this.unregister(entry.id);
+    }
+
+    // Instancia e registra
+    const provider = this.instantiateProvider(entry, credentials);
+    this.register(provider);
+  }
+
+  /**
+   * Testa se um provider é acessível com as credenciais dadas.
+   * Retorna { ok, detail? } sem registrar nada.
+   */
+  async testConnection(
+    entry: ProviderCatalogEntry,
+    credentials?: StoredCredentials,
+  ): Promise<{ ok: boolean; detail?: string }> {
+    try {
+      const provider = this.instantiateProvider(entry, credentials ?? undefined);
+      const health = await provider.health();
+      // Se health não tem detail, tenta uma chamada real
+      if (health.ok && 'checkHealth' in provider && typeof (provider as any).checkHealth === 'function') {
+        return await (provider as any).checkHealth();
+      }
+      return health;
+    } catch (error) {
+      return {
+        ok: false,
+        detail: error instanceof Error ? error.message : 'erro desconhecido',
+      };
+    }
+  }
+
+  /**
+   * Retorna o catálogo completo com status de cada provider
+   * (tem credenciais? está habilitado? está registrado?).
+   */
+  getCatalogStatus(db: Database.Database): Array<ProviderCatalogEntry & {
+    hasCredentials: boolean;
+    isEnabled: boolean;
+    isRegistered: boolean;
+  }> {
+    const { PROVIDER_CATALOG } = require('./providers/catalog') as typeof import('./providers/catalog');
+    const store = new ProviderCredentialsStore(db);
+
+    return PROVIDER_CATALOG.map((entry: ProviderCatalogEntry) => ({
+      ...entry,
+      hasCredentials: store.has(entry.id),
+      isEnabled: this.isEnabled(entry.id),
+      isRegistered: super.has(entry.id),
+    }));
+  }
+
+  // -------------------- Factory (privado) ---------------------------------
+
+  /**
+   * Instancia o implementador correto de AIProvider baseado na entrada do catálogo.
+   * Conhecimento PRIVADO: este é o único lugar que importa os providers concretos.
+   */
+  private instantiateProvider(
+    entry: ProviderCatalogEntry,
+    credentials?: StoredCredentials,
+  ): AIProvider {
+    const logger = this.logger;
+
+    switch (entry.implementation) {
+      case 'ollama': {
+        const { OllamaProvider } = require('./providers/ollama') as typeof import('./providers/ollama');
+        return new OllamaProvider({
+          baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
+          model: entry.defaultModel,
+          logger,
+        });
+      }
+      case 'openai': {
+        const { OpenAIProvider } = require('./providers/openai') as typeof import('./providers/openai');
+        return new OpenAIProvider({
+          apiKey: credentials?.apiKey ?? '',
+          baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
+          model: entry.defaultModel,
+          providerName: entry.name,
+          logger,
+        });
+      }
+      case 'anthropic': {
+        const { AnthropicProvider } = require('./providers/anthropic') as typeof import('./providers/anthropic');
+        return new AnthropicProvider({
+          apiKey: credentials?.apiKey ?? '',
+          baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
+          model: entry.defaultModel,
+          logger,
+        });
+      }
+      case 'gemini': {
+        const { GeminiProvider } = require('./providers/gemini') as typeof import('./providers/gemini');
+        return new GeminiProvider({
+          apiKey: credentials?.apiKey ?? '',
+          baseUrl: credentials?.baseUrl ?? entry.defaultBaseUrl,
+          model: entry.defaultModel,
+          logger,
+        });
+      }
+      default:
+        throw new Error(`Provider implementation desconhecida: ${(entry as any).implementation}`);
+    }
   }
 }

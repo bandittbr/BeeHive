@@ -231,7 +231,7 @@ export class BeeRouter extends BaseAIProvider {
       try {
         const providerRequest: AIRequest = {
           ...request,
-          options: { ...request.options, model: cfg.model, provider: cfg.id },
+          options: { ...request.options, model: cfg.model, providerId: cfg.id },
         };
         const result = await cfg.provider.continueConversation!(
           providerRequest,
@@ -332,7 +332,7 @@ export class BeeRouter extends BaseAIProvider {
           options: {
             ...request.options,
             model: modelConfig.model,
-            provider: provider.id,
+            providerId: provider.id,
           },
         };
 
@@ -401,7 +401,7 @@ export class BeeRouter extends BaseAIProvider {
           options: {
             ...request.options,
             model: modelConfig.model,
-            provider: provider.id,
+            providerId: provider.id,
           },
         };
 
@@ -472,7 +472,7 @@ export class BeeRouter extends BaseAIProvider {
           options: {
             ...request.options,
             model: provider.model,
-            provider: provider.id,
+            providerId: provider.id,
           },
         };
 
@@ -531,7 +531,7 @@ export class BeeRouter extends BaseAIProvider {
           options: {
             ...request.options,
             model: provider.model,
-            provider: provider.id,
+            providerId: provider.id,
           },
         };
 

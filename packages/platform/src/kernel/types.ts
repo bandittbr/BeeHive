@@ -160,3 +160,196 @@ export interface IModuleLoader {
   load(modules: readonly IModule[], context: KernelContext): Promise<void>;
   loaded(): readonly string[];
 }
+
+// ---------------------------------------------------------------------------
+// Scheduler
+// ---------------------------------------------------------------------------
+
+/** Tipo de recorrência de uma tarefa agendada. */
+export type ScheduleRecurrence = 'once' | 'interval' | 'cron' | 'daily' | 'weekly' | 'monthly';
+
+/** Configuração de uma tarefa agendada. */
+export interface ScheduleConfig {
+  readonly type: ScheduleRecurrence;
+  /** Intervalo em ms (para 'interval'). */
+  readonly intervalMs?: number;
+  /** Expressão cron (para 'cron'). */
+  readonly cron?: string;
+  /** Horário no formato 'HH:MM' (para 'daily'/'weekly'/'monthly'). */
+  readonly time?: string;
+  /** Dia da semana 0-6 (para 'weekly'). */
+  readonly dayOfWeek?: number;
+  /** Dia do mês 1-31 (para 'monthly'). */
+  readonly dayOfMonth?: number;
+}
+
+/** Handler de uma tarefa agendada. */
+export type TaskHandler = (context: KernelContext) => void | Promise<void>;
+
+/** Uma tarefa agendada no sistema. */
+export interface ScheduledTask {
+  readonly id: string;
+  readonly name: string;
+  readonly schedule: ScheduleConfig;
+  readonly handler: TaskHandler;
+  readonly createdAt: number;
+  running: boolean;
+  lastRunAt: number | null;
+  lastError: string | null;
+  runCount: number;
+}
+
+/** Gerenciador de tarefas agendadas. */
+export interface IScheduler {
+  /** Agenda uma nova tarefa. Retorna o id da tarefa. */
+  schedule(task: Omit<ScheduledTask, 'createdAt' | 'running' | 'lastRunAt' | 'lastError' | 'runCount'>): string;
+  /** Cancela uma tarefa agendada. */
+  cancel(taskId: string): boolean;
+  /** Pausa uma tarefa (não executa até ser retomada). */
+  pause(taskId: string): boolean;
+  /** Retoma uma tarefa pausada. */
+  resume(taskId: string): boolean;
+  /** Lista todas as tarefas agendadas. */
+  list(): readonly ScheduledTask[];
+  /** Obtém uma tarefa pelo id. */
+  get(taskId: string): ScheduledTask | undefined;
+  /** Executa uma tarefa imediatamente (fora do agendamento). */
+  runNow(taskId: string): Promise<void>;
+  /** Para o scheduler e limpa todos os timers. */
+  stop(): void;
+}
+
+// ---------------------------------------------------------------------------
+// Agent Manager
+// ---------------------------------------------------------------------------
+
+/** Estados de um agente no seu ciclo de vida. */
+export type AgentState = 'Idle' | 'Running' | 'Paused' | 'Stopped' | 'Failed' | 'Disposed';
+
+/** Um agente executado pelo Kernel. */
+export interface IAgent {
+  readonly id: string;
+  readonly name: string;
+  readonly description: string;
+  readonly version: string;
+  readonly tools: readonly string[];
+  readonly state: AgentState;
+  start(context: KernelContext): void | Promise<void>;
+  stop(context: KernelContext): void | Promise<void>;
+  pause(context: KernelContext): void | Promise<void>;
+  resume(context: KernelContext): void | Promise<void>;
+  dispose(context: KernelContext): void | Promise<void>;
+  health(): { ok: boolean; detail?: string };
+}
+
+/** Gerenciador de agentes. */
+export interface IAgentManager {
+  register(agent: IAgent): void;
+  unregister(agentId: string): boolean;
+  get(agentId: string): IAgent | undefined;
+  list(): readonly IAgent[];
+  start(agentId: string): Promise<void>;
+  stop(agentId: string): Promise<void>;
+  pause(agentId: string): Promise<void>;
+  resume(agentId: string): Promise<void>;
+  dispose(agentId: string): Promise<void>;
+  disposeAll(): Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Memory Manager
+// ---------------------------------------------------------------------------
+
+/** Tipo de entrada de memória. */
+export type MemoryEntryType = 'context' | 'decision' | 'preference' | 'goal' | 'result' | 'agent_history' | 'observation';
+
+/** Uma entrada na memória do sistema. */
+export interface MemoryEntry {
+  readonly id: string;
+  readonly type: MemoryEntryType;
+  readonly scope: string;
+  readonly key: string;
+  readonly value: unknown;
+  readonly tags: readonly string[];
+  readonly timestamp: number;
+  readonly ttl?: number;
+}
+
+/** Gerenciador de memória do sistema. */
+export interface IMemoryManager {
+  /** Armazena um valor na memória. */
+  set(type: MemoryEntryType, scope: string, key: string, value: unknown, tags?: string[], ttl?: number): void;
+  /** Recupera um valor da memória. */
+  get<T = unknown>(scope: string, key: string): T | undefined;
+  /** Busca entradas por tipo e/ou escopo. */
+  query(options: { type?: MemoryEntryType; scope?: string; tags?: string[]; limit?: number }): readonly MemoryEntry[];
+  /** Remove uma entrada. */
+  delete(id: string): boolean;
+  /** Limpa entradas expiradas. */
+  cleanExpired(): number;
+  /** Lista todos os escopos disponíveis. */
+  scopes(): readonly string[];
+}
+
+// ---------------------------------------------------------------------------
+// Plugin Manager
+// ---------------------------------------------------------------------------
+
+/** Permissões que um plugin pode solicitar. */
+export type PluginPermission =
+  | 'filesystem.read'
+  | 'filesystem.write'
+  | 'network.http'
+  | 'network.websocket'
+  | 'process.exec'
+  | 'browser.control'
+  | 'ai.access'
+  | 'database.read'
+  | 'database.write'
+  | 'eventbus.publish'
+  | 'eventbus.subscribe';
+
+/** Manifesto de um plugin. */
+export interface PluginManifest {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly description: string;
+  readonly author?: string;
+  readonly permissions: readonly PluginPermission[];
+  readonly dependencies: readonly string[];
+  readonly commands: readonly string[];
+  readonly events: readonly string[];
+  readonly homepage?: string;
+  readonly license?: string;
+}
+
+/** Estado de um plugin carregado. */
+export type PluginState = 'Registered' | 'Loading' | 'Loaded' | 'Active' | 'Inactive' | 'Failed' | 'Disposed';
+
+/** Um plugin carregado no sistema. */
+export interface IPlugin {
+  readonly manifest: PluginManifest;
+  readonly state: PluginState;
+  activate(context: KernelContext): void | Promise<void>;
+  deactivate(context: KernelContext): void | Promise<void>;
+  dispose(context: KernelContext): void | Promise<void>;
+}
+
+/** Gerenciador de plugins. */
+export interface IPluginManager {
+  /** Registra um plugin (a partir do manifesto + factory). */
+  register(plugin: IPlugin): void;
+  /** Carrega e ativa um plugin. */
+  load(pluginId: string): Promise<void>;
+  /** Desativa um plugin (sem descarregar). */
+  unload(pluginId: string): Promise<void>;
+  /** Remove um plugin do sistema. */
+  dispose(pluginId: string): Promise<void>;
+  /** Obtém um plugin pelo id. */
+  get(pluginId: string): IPlugin | undefined;
+  /** Lista todos os plugins registrados. */
+  list(): readonly IPlugin[];
+  /** Lista plugins ativos. */
+  active(): readonly IPlugin[];
+}

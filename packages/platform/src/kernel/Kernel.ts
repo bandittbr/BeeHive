@@ -1,12 +1,16 @@
 import type {
   Command,
   CommandHandler,
+  IAgentManager,
   IConfigurationManager,
   ICommandDispatcher,
   IEventBus,
   ILogger,
+  IMemoryManager,
   IModule,
   IModuleLoader,
+  IPluginManager,
+  IScheduler,
   IServiceRegistry,
   KernelContext,
   Unsubscribe,
@@ -19,6 +23,10 @@ export interface KernelDependencies {
   config: IConfigurationManager;
   logger: ILogger;
   moduleLoader: IModuleLoader;
+  scheduler: IScheduler;
+  agents: IAgentManager;
+  memory: IMemoryManager;
+  plugins: IPluginManager;
   /** Fábrica do dispatcher (recebe um getter do contexto para quebrar o ciclo). */
   createDispatcher: (getContext: () => KernelContext) => ICommandDispatcher;
 }
@@ -29,10 +37,11 @@ export interface KernelDependencies {
  * É deliberadamente PEQUENO: ele apenas conecta as peças e expõe a superfície
  * (`KernelContext`) por onde todo o resto do sistema conversa. Não implementa
  * regra de negócio; delega tudo (eventos, comandos, serviços, módulos, config,
- * logs) aos componentes injetados.
+ * logs, scheduler, agentes, memória, plugins) aos componentes injetados.
  *
- * "Tudo passa pelo Kernel": módulos e serviços nunca se importam diretamente —
- * usam o contexto para emitir eventos, despachar comandos e descobrir serviços.
+ * "Tudo passa pelo Kernel": módulos, serviços, agentes e plugins nunca se
+ * importam diretamente — usam o contexto para emitir eventos, despachar
+ * comandos e descobrir serviços.
  */
 export class Kernel {
   private readonly events: IEventBus;
@@ -41,6 +50,10 @@ export class Kernel {
   private readonly logger: ILogger;
   private readonly moduleLoader: IModuleLoader;
   private readonly dispatcher: ICommandDispatcher;
+  private readonly _scheduler: IScheduler;
+  private readonly _agents: IAgentManager;
+  private readonly _memory: IMemoryManager;
+  private readonly _plugins: IPluginManager;
   private readonly ctx: KernelContext;
   private started = false;
 
@@ -50,6 +63,10 @@ export class Kernel {
     this.config = deps.config;
     this.logger = deps.logger;
     this.moduleLoader = deps.moduleLoader;
+    this._scheduler = deps.scheduler;
+    this._agents = deps.agents;
+    this._memory = deps.memory;
+    this._plugins = deps.plugins;
     this.dispatcher = deps.createDispatcher(() => this.ctx);
 
     this.ctx = {
@@ -66,6 +83,26 @@ export class Kernel {
   /** A superfície de acesso ao sistema para módulos e serviços. */
   get context(): KernelContext {
     return this.ctx;
+  }
+
+  /** Gerenciador de tarefas agendadas. */
+  get scheduler(): IScheduler {
+    return this._scheduler;
+  }
+
+  /** Gerenciador de agentes. */
+  get agents(): IAgentManager {
+    return this._agents;
+  }
+
+  /** Gerenciador de memória. */
+  get memory(): IMemoryManager {
+    return this._memory;
+  }
+
+  /** Gerenciador de plugins. */
+  get plugins(): IPluginManager {
+    return this._plugins;
   }
 
   registerService<T>(id: string, service: T): void {
@@ -106,6 +143,7 @@ export class Kernel {
 
   stop(): void {
     if (!this.started) return;
+    this._scheduler.stop();
     this.events.emit('SystemStopped', {});
     this.logger.info('BeeHive Kernel parado');
     this.started = false;

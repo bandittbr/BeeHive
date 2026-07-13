@@ -130,7 +130,7 @@ export class LLMRouter extends BaseAIProvider {
       try {
         const providerRequest: AIRequest = {
           ...request,
-          options: { ...request.options, model: cfg.model, provider: cfg.id },
+          options: { ...request.options, model: cfg.model, providerId: cfg.id },
         };
 
         const response = await cfg.provider.execute(providerRequest, context);
@@ -190,7 +190,7 @@ export class LLMRouter extends BaseAIProvider {
       try {
         const providerRequest: AIRequest = {
           ...request,
-          options: { ...request.options, model: cfg.model, provider: cfg.id },
+          options: { ...request.options, model: cfg.model, providerId: cfg.id },
         };
 
         // Wrap handlers para capturar o consumo no onDone
@@ -250,7 +250,7 @@ export class LLMRouter extends BaseAIProvider {
       try {
         const providerRequest: AIRequest = {
           ...request,
-          options: { ...request.options, model: cfg.model, provider: cfg.id },
+          options: { ...request.options, model: cfg.model, providerId: cfg.id },
         };
         const result = await cfg.provider.continueConversation!(
           providerRequest,

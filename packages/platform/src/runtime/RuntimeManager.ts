@@ -122,7 +122,37 @@ export class RuntimeManager {
             stop: () => { dbManager.close(); },
           },
           { name: 'Services', start: () => serviceManager.startAll(), stop: () => serviceManager.disposeAll() },
-          // Agents: ponto de extensão futuro (um AgentManager entra aqui, no mesmo padrão).
+          // Agents: inicia os agentes registrados no AgentManager do Kernel.
+          {
+            name: 'Agents',
+            start: async () => {
+              const agentList = kernel.agents.list();
+              for (const agent of agentList) {
+                await kernel.agents.start(agent.id);
+              }
+              logger.info(`Agentes iniciados: ${agentList.length}`);
+            },
+            stop: async () => {
+              await kernel.agents.disposeAll();
+            },
+          },
+          // Plugins: ativa os plugins registrados no PluginManager do Kernel.
+          {
+            name: 'Plugins',
+            start: async () => {
+              const pluginList = kernel.plugins.list();
+              for (const plugin of pluginList) {
+                await kernel.plugins.load(plugin.manifest.id);
+              }
+              logger.info(`Plugins ativados: ${pluginList.length}`);
+            },
+            stop: async () => {
+              const pluginList = kernel.plugins.list();
+              for (const plugin of pluginList) {
+                await kernel.plugins.unload(plugin.manifest.id);
+              }
+            },
+          },
         ],
         logger,
       );

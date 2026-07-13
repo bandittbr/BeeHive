@@ -17,6 +17,7 @@ import { mountMediaRoutes } from './routes/mediaRoutes';
 import { mountSystemRoutes } from './routes/systemRoutes';
 import { mountProjectRoutes } from './routes/projectRoutes';
 import { mountAffiliatesRoutes } from './routes/affiliatesRoutes';
+import { mountProviderRoutes } from './routes/providerRoutes';
 import { bootstrapWorker } from './affiliates';
 import { DatabaseManager } from '@beehive/platform';
 
@@ -64,6 +65,7 @@ if (config.aiProvider === 'llmrouter') {
     const imageProvider = createPollinationsProvider();
     const beehiveRuntime = await createBeeHiveRuntime({ useRouter: true });
     mountRuntimeHttpRoutes(app, beehiveRuntime);
+    mountProviderRoutes(app, beehiveRuntime);
     mountSystemRoutes(app, provider, { model: runtime.model, status: beehiveRuntime.status });
     mountConversationRoutes(app, orchestrator);
     mountBusinessRoutes(app, provider);
@@ -86,6 +88,7 @@ if (config.aiProvider === 'llmrouter') {
   const imageProvider = createPollinationsProvider();
   const beehiveRuntime = await createBeeHiveRuntime();
   mountRuntimeHttpRoutes(app, beehiveRuntime);
+  mountProviderRoutes(app, beehiveRuntime);
   mountSystemRoutes(app, provider, { model: runtime.model, status: beehiveRuntime.status });
   mountConversationRoutes(app, orchestrator);
   mountBusinessRoutes(app, provider);

@@ -1,9 +1,13 @@
+import { AgentManager } from './AgentManager';
 import { CommandDispatcher } from './CommandDispatcher';
 import { ConfigurationManager } from './ConfigurationManager';
 import { EventBus } from './EventBus';
 import { Kernel } from './Kernel';
 import { Logger } from './Logger';
+import { MemoryManager } from './MemoryManager';
 import { ModuleLoader } from './ModuleLoader';
+import { PluginManager } from './PluginManager';
+import { Scheduler } from './Scheduler';
 import { ServiceRegistry } from './ServiceRegistry';
 import type { EnvironmentName } from './types';
 
@@ -37,6 +41,10 @@ export function createKernel(): Kernel {
     'api.baseUrl': '/api',
   });
   const moduleLoader = new ModuleLoader();
+  const scheduler = new Scheduler(logger);
+  const agents = new AgentManager(logger);
+  const memory = new MemoryManager(logger);
+  const plugins = new PluginManager(logger);
 
   return new Kernel({
     events,
@@ -44,6 +52,10 @@ export function createKernel(): Kernel {
     config,
     logger,
     moduleLoader,
+    scheduler,
+    agents,
+    memory,
+    plugins,
     createDispatcher: (getContext) => new CommandDispatcher(events, logger, getContext),
   });
 }

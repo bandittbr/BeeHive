@@ -9,11 +9,6 @@ export * from './types';
 export { BaseAIProvider } from './BaseAIProvider';
 export { AIProviderRegistry } from './AIProviderRegistry';
 export { AIManager, type AIManagerDeps, type AIExecuteInit } from './AIManager';
-// AI_MANAGER_ID NÃO é reexportado por aqui: `runtime/RuntimeManager.ts` já expõe
-// uma constante de mesmo nome/valor pelo barrel `./runtime`, e `src/index.ts`
-// faz `export *` dos dois — reexportar aqui geraria um TS2308 (ambiguidade) no
-// pacote sem tocar em Runtime. Quem precisar do id canônico do AIManager fora
-// deste diretório importa direto de `./ai/AIManager` (ver `ConversationService`).
 export {
   ProviderManager,
   type ProviderManagerOptions,
@@ -25,4 +20,21 @@ export {
 } from './ProviderManager';
 export * from './providers/ollama';
 export * from './providers/openai';
+export * from './providers/anthropic';
+export * from './providers/gemini';
+export {
+  PROVIDER_CATALOG,
+  BIGPICKLE_DEFAULT_MODEL,
+  getCatalogEntry,
+  getCatalogByTier,
+  type ProviderCatalogEntry,
+  type CredentialField,
+  type ProviderImplementation,
+} from './providers/catalog';
+export {
+  ProviderCredentialsStore,
+  type StoredCredentials,
+  type CredentialMeta,
+} from './providers/credentialsStore';
+export { PROVIDER_COMMANDS, registerProviderCommands } from './commands';
 export * from './router';

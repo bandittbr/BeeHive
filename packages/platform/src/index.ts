@@ -25,6 +25,8 @@ export * from './services';
 export * from './ai';
 export * from './database';
 export * from './affiliates';
+export * from './plugins';
+export type * from './browser';
 export type * from './tools';
 export type * from './runtime';
 // Valores (não só tipos) — direto de `./runtime/ids`, que NÃO importa nada

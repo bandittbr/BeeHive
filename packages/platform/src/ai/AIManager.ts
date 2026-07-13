@@ -70,7 +70,7 @@ export class AIManager {
     init?: AIExecuteInit,
   ): Promise<AIResponse<TOutput>> {
     const context = this.makeContext(request.capability, init);
-    const provider = this.resolve(request.capability, request.options?.provider);
+    const provider = this.resolve(request.capability, request.options?.providerId);
     const requestWithTools = this.withTools(request);
     this.logger?.info(`IA: ${request.capability} via ${provider.name}`, {
       requestId: context.requestId,
@@ -109,7 +109,7 @@ export class AIManager {
    */
   async stream(request: AIRequest, handlers: AIStreamHandlers, init?: AIExecuteInit): Promise<void> {
     const context = this.makeContext(request.capability, init);
-    const provider = this.resolve(request.capability, request.options?.provider);
+    const provider = this.resolve(request.capability, request.options?.providerId);
     if (!provider.stream) {
       throw new Error(`Provider ${provider.id} não suporta streaming`);
     }

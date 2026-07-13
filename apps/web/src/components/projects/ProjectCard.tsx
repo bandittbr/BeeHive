@@ -2,7 +2,6 @@
  * ProjectCard — card de projeto na grid.
  */
 
-import React from 'react';
 import type { Project } from '../../services/projects/types';
 
 interface ProjectCardProps {

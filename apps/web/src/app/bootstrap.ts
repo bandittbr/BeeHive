@@ -1,5 +1,5 @@
 import { getRuntimeClient, RuntimeClient } from './runtimeClient';
-import { CONVERSATION_COMMANDS, TOOL_MANAGER_ID, AI_MANAGER_ID } from '@beehive/platform/browser';
+import { CONVERSATION_COMMANDS, TOOL_MANAGER_ID, AI_MANAGER_ID } from '@beehive/platform';
 
 export { CONVERSATION_COMMANDS, AI_MANAGER_ID, TOOL_MANAGER_ID };
 

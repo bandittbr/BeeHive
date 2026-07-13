@@ -2,7 +2,7 @@
  * ProjectsView — página de gerenciamento de projetos.
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useProjectStore } from '../../services/projects/projectStore';
 import { ProjectCard } from '../../components/projects/ProjectCard';
 import { AddProjectModal } from '../../components/projects/AddProjectModal';
