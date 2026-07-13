@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # BeeHive API
-BEEHIVE_API_URL = os.getenv("BEEHIVE_API_URL", "http://localhost:3000")
+BEEHIVE_API_URL = os.getenv("BEEHIVE_API_URL", "http://localhost:4000")
 
 # Pipeline settings
 LOCAL_OUTPUT_DIR = os.getenv("LOCAL_OUTPUT_DIR", "output")
