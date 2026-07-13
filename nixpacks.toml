@@ -2,13 +2,14 @@
 # Só sobe o backend (apps/api). O frontend (apps/web) fica no Vercel.
 
 [phases.setup]
-nixPkgs = ["nodejs_20", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg"]
+nixPkgs = ["nodejs_20", "pnpm", "python311", "gcc", "ffmpeg", "curl"]
 
 [phases.install]
 cmds = [
   "pnpm install --frozen-lockfile",
-  "python3.11 -m pip install --upgrade pip",
-  "python3.11 -m pip install -r pipeline/requirements.txt",
+  "curl -sS https://bootstrap.pypa.io/get-pip.py -o /tmp/get-pip.py",
+  "python3.11 /tmp/get-pip.py --user",
+  "python3.11 -m pip install --user -r pipeline/requirements.txt",
 ]
 
 [start]
