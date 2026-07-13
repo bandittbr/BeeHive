@@ -35,19 +35,13 @@ export async function createBeeHiveRuntime(options?: CreateRuntimeOptions): Prom
   let db: any;
 
   try {
-    const { default: Database } = await import('better-sqlite3');
-    const dbPath = 'data/beehive.db';
+    // Abre o SQLite via DatabaseManager do @beehive/platform (que já resolve
+    // better-sqlite3 internamente). Não importamos better-sqlite3 direto aqui
+    // porque, no pnpm isolado de produção, apps/api não enxerga a dependência.
+    const { DatabaseManager } = await import('@beehive/platform/server');
+    const dm = new DatabaseManager({ logger: undefined });
+    db = dm.db;
 
-    // Garante que o diretório existe
-    const fs = await import('node:fs');
-    const path = await import('node:path');
-    const dir = path.dirname(dbPath);
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-
-    db = new Database(dbPath);
-    db.pragma('journal_mode = WAL');
     providerManager = new ProviderManager({ logger: undefined });
     await providerManager.autoLoad(db);
 
