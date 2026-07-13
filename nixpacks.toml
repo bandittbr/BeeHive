@@ -7,8 +7,8 @@ nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ff
 
 [phases.install]
 cmds = [
-  "pnpm install --frozen-lockfile",
-  "npm_config_target=20.19.5 npm_config_runtime=node pnpm rebuild better-sqlite3",
+  "pnpm install",
+  "pnpm rebuild better-sqlite3",
   "pip install --user --break-system-packages -r pipeline/requirements.txt",
 ]
 
