@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Card, Badge } from '@/components/ui';
+import { useState, useEffect } from 'react';
+import { Badge } from '@/components/ui';
 import './ProviderSelector.css';
 
 const API = '/api/providers';

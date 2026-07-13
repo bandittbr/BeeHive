@@ -32,11 +32,31 @@ export type IconName =
   | 'more'
   | 'clock'
   | 'stop'
-  | 'edit';
+  | 'edit'
+  | 'sparkles'
+  | 'hexagon'
+  | 'folder'
+  | 'chevron'
+  | 'link'
+  | 'film'
+  | 'play'
+  | 'globe'
+  | 'star'
+  | 'crown'
+  | 'bolt'
+  | 'arrow-right'
+  | 'check-circle'
+  | 'trending-up'
+  | 'rocket'
+  | 'shield'
+  | 'target'
+  | 'users'
+  | 'pie';
 
 interface IconProps {
   name: IconName;
   size?: number;
+  strokeWidth?: number;
   className?: string;
 }
 
@@ -167,9 +187,75 @@ const PATHS: Record<IconName, JSX.Element> = {
       <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" />
     </>
   ),
+  sparkles: (
+    <>
+      <path d="M12 3l1.6 4.4L18 9l-4.4 1.6L12 15l-1.6-4.4L6 9l4.4-1.6z" />
+      <path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8z" />
+    </>
+  ),
+  hexagon: (
+    <path d="M12 3 20.5 7.5v9L12 21 3.5 16.5v-9L12 3Z" />
+  ),
+  folder: (
+    <>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+    </>
+  ),
+  chevron: <path d="m9 6 6 6-6 6" />,
+  link: (
+    <>
+      <path d="M10 13a5 5 0 0 0 7 0l2-2a5 5 0 0 0-7-7l-1 1" />
+      <path d="M14 11a5 5 0 0 0-7 0l-2 2a5 5 0 0 0 7 7l1-1" />
+    </>
+  ),
+  film: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M7 4v16M17 4v16M3 9h4M3 15h4M17 9h4M17 15h4" />
+    </>
+  ),
+  play: <path d="M7 4v16l13-8z" />,
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3c2.6 2.6 2.6 15.4 0 18M12 3c-2.6 2.6-2.6 15.4 0 18" />
+    </>
+  ),
+  star: <path d="M12 3l2.6 5.3 5.9.9-4.2 4.1 1 5.8L12 16.9 6.7 19l1-5.8L3.5 9.2l5.9-.9z" />,
+  crown: <path d="M3 7l4 4 5-6 5 6 4-4-1.5 12H4.5z" />,
+  bolt: <path d="M13 2 4 14h7l-1 8 9-12h-7z" />,
+  'arrow-right': <path d="M5 12h14M13 6l6 6-6 6" />,
+  'check-circle': (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M8 12l3 3 5-6" />
+    </>
+  ),
+  'trending-up': <path d="M3 17l6-6 4 4 8-8M21 7v6M21 7h-6" />,
+  rocket: (
+    <>
+      <path d="M5 15c-1 1-2 5-2 5s4-1 5-2c1 1 4 1 7-2s-1-6-1-6-5 0-7 1c-1-1-2-4-2-4s4 1 5 2z" />
+      <circle cx="14" cy="10" r="1.5" />
+    </>
+  ),
+  shield: <path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" />,
+  target: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="5" />
+      <circle cx="12" cy="12" r="1.5" />
+    </>
+  ),
+  users: (
+    <>
+      <circle cx="9" cy="8" r="3" />
+      <path d="M3 20a6 6 0 0 1 12 0M16 6a3 3 0 0 1 0 6M21 20a6 6 0 0 0-4-5.6" />
+    </>
+  ),
+  pie: <path d="M12 3v9h9a9 9 0 1 0-9-9z" />,
 };
 
-export function Icon({ name, size = 20, className }: IconProps) {
+export function Icon({ name, size = 20, strokeWidth = 1.8, className }: IconProps) {
   return (
     <svg
       className={className}
@@ -178,7 +264,7 @@ export function Icon({ name, size = 20, className }: IconProps) {
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
-      strokeWidth={1.8}
+      strokeWidth={strokeWidth}
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"

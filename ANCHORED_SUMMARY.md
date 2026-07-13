@@ -1,0 +1,38 @@
+# BeeHive — Anchored Summary
+
+## Deploy Status
+- **Backend: ONLINE** on Railway — https://beehive-production-d934.up.railway.app
+  - `/api/runtime/status` → `Running`; `/api/providers` → 10-provider catalog (HTTP 200)
+- **Frontend: built locally & passing**, NOT yet redeployed to Vercel. Needs `VITE_API_URL` + commit/push.
+
+## Objective
+- Tornar o BeeHive um produto premium "top de vendas": backend já no ar no Railway; frontend precisa de design coeso de alto impacto em todas as views (Dashboard de destaque), build/typecheck saudável e deploy na Vercel.
+
+## Key Fixes Applied (this session)
+- **Backend deploy**: pnpm filter `@beehive/api`, `pnpm rebuild better-sqlite3`, `nodejs_22` (ABI 127), SQLite via `@beehive/platform` `DatabaseManager`, providers registrados após `runtime.start()`.
+- **Frontend redesign (fase 1 — Shell + Conversa)**: `tokens.css` (mel/âmbar, dark+light), `global.css`, `AppLayout.css`, `Icon.tsx` (hexagon/sparkles/folder/chevron/link/film/play/globe/star/crown/bolt/+), `BeeHiveSidebar.tsx`, `ConversationView.css`, `index.html` (Inter/JetBrains Mono), `useTheme.ts` (localStorage), `shims/nodeBuiltins.ts` + `vite.config.ts` alias → `vite build` passa.
+- **Typecheck Shorts corrigido**: removido import duplicado em `AgentDetailView.tsx`, imports não usados (`PipelineClip`, `ClipPreviewCard`, `STATUS_LABELS`, `activeJobs`), ícones `'link'`/`'film'` adicionados ao `IconName`; limpezas em `ProviderSelector.tsx` e `ShortsView.tsx`. `pnpm typecheck` passa.
+- **Dashboard premium criado** (`features/dashboard/DashboardView.tsx` + `.css`): hero com marca hexágono, headline com gradiente âmbar, trust signals, status do sistema (big-pickle ativo), grade de áreas (Conversa/Projetos/Negócios/Cortes/Providers/Agentes) — definido como tela inicial (`activeView` default = `dashboard`).
+- **Coerência de tema nas views de negócios**: reescrito `AIProvidersSettings.css` para usar tokens da colmeia (âmbar) e remover bloco `prefers-color-scheme` legado; adicionados tokens `--danger`/`--success`/`--warning` e substituídas cores hardcoded em `affiliates.css`, `BusinessView.css`, `ConversationView.css`, `AgentDetailView.css`.
+
+## Build / Deploy Config
+- `nixpacks.toml`: `nodejs_22`, `pnpm install`, `pip --user --break-system-packages`.
+- Vercel (apps/web) precisa de env `VITE_API_URL=https://beehive-production-d934.up.railway.app`.
+
+## Remaining Work
+- [ ] Commit/push das mudanças do frontend (tudo local, uncommitted).
+- [ ] Setar `VITE_API_URL` na Vercel e redeployar o frontend.
+- [ ] Setar `OPENAI_API_KEY` real no Railway (placeholder atual).
+- [ ] (Opcional) Refino visual de Projects/Shorts (hoje usam ui.css tokenizado e já coerentes).
+
+## Relevant Files
+- `apps/web/src/features/dashboard/DashboardView.tsx` / `.css` — vitrine premium (tela inicial)
+- `apps/web/src/styles/tokens.css` — tokens mel/âmbar + `--danger`/`--success`/`--warning`
+- `apps/web/src/components/common/Icon.tsx` — ícones novos
+- `apps/web/src/components/layout/BeeHiveSidebar.tsx` / `AppLayout.css` — shell
+- `apps/web/src/features/conversation/ConversationView.css` — chat
+- `apps/web/src/features/settings/components/AIProvidersSettings.css` — refeito p/ tokens
+- `apps/web/src/features/business/affiliates/affiliates.css`, `BusinessView.css` — cores tokenizadas
+- `apps/web/src/App.tsx` — dashboard como default
+- `apps/web/src/shims/nodeBuiltins.ts`, `vite.config.ts` — build browser
+- `nixpacks.toml`, `railway.json` — backend deploy

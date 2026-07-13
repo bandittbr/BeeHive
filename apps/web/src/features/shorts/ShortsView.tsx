@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Button, Card, EmptyState, Modal, Input, Alert, Loading, Badge } from '@/components/ui';
+import { Button, Card, EmptyState, Modal, Alert, Loading, Badge } from '@/components/ui';
 import { useAgents, type ShortsAgent } from './useShorts';
 import { AgentDetailView } from './AgentDetailView';
 import { CreateAgentModal } from './CreateAgentModal';

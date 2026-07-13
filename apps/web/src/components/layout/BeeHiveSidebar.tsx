@@ -1,49 +1,38 @@
 /**
  * BeeHiveSidebar — sidebar principal do BeeHive.
  *
- * Similar ao OpenWork: navegação entre áreas, projetos, conversas e configurações.
- * Agora com sub-itens para Negócios (Afiliados, Meus Produtos, Criador de Conteúdo).
+ * Navegação entre áreas, projetos, conversas e configurações.
+ * Sub-itens para Negócios (Afiliados, Meus Produtos, Criador de Conteúdo).
  */
 
 import { useState } from 'react';
+import { Icon, type IconName } from '@/components/common/Icon';
 import { useProjectStore } from '../../services/projects/projectStore';
 
 interface NavItem {
   id: string;
   label: string;
-  icon: string;
-  children?: { id: string; label: string; icon: string }[];
+  icon: IconName;
+  children?: { id: string; label: string; icon: IconName }[];
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: '📊' },
-  {
-    id: 'conversation',
-    label: 'Conversa',
-    icon: '💬',
-  },
-  {
-    id: 'projects',
-    label: 'Projetos',
-    icon: '📁',
-  },
+  { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
+  { id: 'conversation', label: 'Conversa', icon: 'chat' },
+  { id: 'projects', label: 'Projetos', icon: 'folder' },
   {
     id: 'business',
     label: 'Negócios',
-    icon: '💼',
+    icon: 'briefcase',
     children: [
-      { id: 'projetos', label: 'Projetos', icon: '📋' },
-      { id: 'afiliados', label: 'Afiliados', icon: '🔗' },
-      { id: 'meus-produtos', label: 'Meus Produtos', icon: '📦' },
-      { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: '✍️' },
-      { id: 'cortes-youtube', label: 'Cortes Youtube', icon: '🎬' },
+      { id: 'projetos', label: 'Projetos', icon: 'folder' },
+      { id: 'afiliados', label: 'Afiliados', icon: 'command' },
+      { id: 'meus-produtos', label: 'Meus Produtos', icon: 'briefcase' },
+      { id: 'criador-conteudo', label: 'Criador de Conteúdo', icon: 'edit' },
+      { id: 'cortes-youtube', label: 'Cortes Youtube', icon: 'media' },
     ],
   },
-  {
-    id: 'settings',
-    label: 'Configurações',
-    icon: '⚙️',
-  },
+  { id: 'settings', label: 'Configurações', icon: 'gear' },
 ];
 
 interface BeeHiveSidebarProps {
@@ -73,12 +62,17 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
     <aside className="sidebar">
       <div className="sidebar__header">
         <div className="sidebar__logo">
-          <span className="sidebar__logo-icon">🐝</span>
-          <span className="sidebar__logo-text">BeeHive</span>
+          <span className="sidebar__logo-icon">
+            <Icon name="hexagon" size={20} strokeWidth={2} />
+          </span>
+          <span className="sidebar__logo-text">
+            <span className="sidebar__brand-name">BeeHive</span>
+            <span className="sidebar__brand-tag">Sistema Operacional de IA</span>
+          </span>
         </div>
       </div>
 
-      <nav className="sidebar__nav">
+      <nav className="sidebar__nav" aria-label="Áreas">
         {NAV_ITEMS.map((item) => (
           <div key={item.id}>
             <button
@@ -91,11 +85,17 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
                 }
               }}
             >
-              <span className="sidebar__nav-icon">{item.icon}</span>
+              <span className="sidebar__nav-icon">
+                <Icon name={item.icon} size={18} />
+              </span>
               <span className="sidebar__nav-label">{item.label}</span>
               {item.children && (
                 <span className="sidebar__nav-chevron">
-                  {businessExpanded ? '▾' : '▸'}
+                  <Icon
+                    name="chevron"
+                    size={14}
+                    className={`sidebar__chevron${businessExpanded ? ' sidebar__chevron--open' : ''}`}
+                  />
                 </span>
               )}
             </button>
@@ -116,7 +116,9 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
                       onBusinessTabChange?.(child.id);
                     }}
                   >
-                    <span className="sidebar__subnav-icon">{child.icon}</span>
+                    <span className="sidebar__subnav-icon">
+                      <Icon name={child.icon} size={16} />
+                    </span>
                     <span className="sidebar__subnav-label">{child.label}</span>
                   </button>
                 ))}
@@ -130,7 +132,11 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
                   className="sidebar__subnav-toggle"
                   onClick={() => setProjectsExpanded(!projectsExpanded)}
                 >
-                  <span>{projectsExpanded ? '▾' : '▸'}</span>
+                  <Icon
+                    name="chevron"
+                    size={12}
+                    className={`sidebar__chevron${projectsExpanded ? ' sidebar__chevron--open' : ''}`}
+                  />
                   <span>Meus Projetos</span>
                 </button>
                 {projectsExpanded && (
@@ -149,7 +155,7 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
                           title={project.path}
                         >
                           <span className="sidebar__project-icon">
-                            {project.icon || '📁'}
+                            <Icon name="folder" size={15} />
                           </span>
                           <span className="sidebar__project-name">{folderName}</span>
                         </button>
@@ -166,7 +172,8 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
       <div className="sidebar__footer">
         <div className="sidebar__status">
           <span className="status-dot status-dot--online" />
-          <span>big-pickle</span>
+          <span className="sidebar__status-model">big-pickle</span>
+          <span>ativo</span>
         </div>
       </div>
     </aside>

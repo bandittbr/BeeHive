@@ -6,12 +6,24 @@ import { fileURLToPath, URL } from 'node:url';
 // Configuração do Vite (ferramenta de desenvolvimento/build do frontend).
 // O alias '@' aponta para 'src', mantendo imports limpos e desacoplados da
 // profundidade de pastas. O bloco `test` configura o Vitest.
+const isVitest = !!process.env.VITEST;
+
+// No browser, os builtins do Node não existem. Como o @beehive/platform é
+// compartilhado com o backend, alguns módulos server-only importam `node:*`.
+// Resolver para um stub (no-op) só no build/dev — os testes (vitest, em Node)
+// continuam usando os builtins reais.
+const nodeStubAlias = {
+  find: /^node:.*/,
+  replacement: fileURLToPath(new URL('./src/shims/nodeBuiltins.ts', import.meta.url)),
+};
+
 export default defineConfig({
   plugins: [react()],
   resolve: {
-    alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-    },
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      ...(isVitest ? [] : [nodeStubAlias]),
+    ],
   },
   server: {
     port: 5173,

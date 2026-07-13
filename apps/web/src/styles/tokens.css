@@ -3,19 +3,25 @@
  * Toda cor, espaçamento e tipografia da interface deriva daqui.
  * Centralizar os tokens mantém a identidade visual consistente e permite
  * trocar o tema (escuro/claro) sem tocar nos componentes.
+ *
+ * Identidade "colmeia": acento mel/âmbar (--accent) usado com contenção,
+ * sobre superfícies escuras quase neutras e hairlines finas.
  */
 
 :root {
   /* Tipografia */
   --font-sans:
     'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono:
+    'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
 
   --text-xs: 0.75rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
-  --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 2rem;
+  --text-sm: 0.8125rem;
+  --text-md: 0.9375rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.375rem;
+  --text-2xl: 1.875rem;
+  --text-3xl: 2.5rem;
 
   /* Espaçamento */
   --space-1: 4px;
@@ -26,49 +32,67 @@
   --space-6: 32px;
   --space-8: 48px;
 
-  /* Raios e bordas */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* Raios (fino/profissional) */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-full: 999px;
 
-  /* Acento (identidade da colmeia) */
-  --accent: #f4c20d;
-  --accent-strong: #ffd02e;
-  --accent-soft: rgba(244, 194, 13, 0.12);
+  /* Acento (identidade da colmeia — mel/âmbar) */
+  --accent: #f5b301;
+  --accent-strong: #ffc62e;
+  --accent-weak: #e0a200;
+  --accent-soft: rgba(245, 179, 1, 0.12);
+  --accent-softer: rgba(245, 179, 1, 0.06);
+  --accent-gradient: linear-gradient(135deg, #f5b301 0%, #ffd15e 100%);
 
-  /* Cores de apoio para os cartões de ação (apenas visuais) */
-  --tone-yellow: #f4c20d;
-  --tone-purple: #8b7bf2;
-  --tone-pink: #ef5da8;
-  --tone-blue: #4aa8ff;
+  /* Cores de apoio (discretas) */
+  --tone-yellow: #f5b301;
+  --tone-purple: #a78bfa;
+  --tone-pink: #f472b6;
+  --tone-blue: #60a5fa;
   --tone-green: #34d399;
 
-  /* Sombra */
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.35);
+  /* Sombras (sutis) */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+
+  /* Textura de colmeia (hexágonos sutis) */
+  --comb: url("data:image/svg+xml,%3Csvg width='56' height='100' viewBox='0 0 56 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' stroke='%23f5b301' stroke-width='1.1' stroke-opacity='0.045'%3E%3Cpath d='M28 66L0 50L0 16L28 0L56 16L56 50L28 66L28 100'/%3E%3Cpath d='M28 0L28 34L0 50L0 84L28 100L56 84L56 50L28 34'/%3E%3C/g%3E%3C/svg%3E");
 
   /* Transições */
-  --transition: 160ms ease;
+  --transition: 160ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 120ms ease;
 }
 
 /* ----------------------------- Tema escuro (padrão) ----------------------------- */
 :root,
 [data-theme='dark'] {
-  --bg-app: #0b0c10;
-  --bg-sidebar: #101116;
-  --bg-panel: #15161c;
-  --bg-elevated: #1b1d25;
-  --bg-input: #1b1d25;
-  --bg-hover: #20222b;
+  --bg-app: #0b0d10;
+  --bg-sidebar: #0e1116;
+  --bg-panel: #14171c;
+  --bg-elevated: #1a1e25;
+  --bg-input: #14171c;
+  --bg-hover: #1b1f26;
+  --bg-active: rgba(245, 179, 1, 0.07);
 
-  --border: #25272f;
-  --border-strong: #313442;
+  --border: #23272e;
+  --border-strong: #313640;
 
-  --text-primary: #f4f5f7;
-  --text-secondary: #a2a5b0;
-  --text-muted: #6c6f7a;
+  --text-primary: #e8eaef;
+  --text-secondary: #9aa1ad;
+  --text-muted: #646b76;
+  --text-tertiary: #787f8b;
 
   --positive: #34d399;
+  --danger: #f87171;
+  --success: #34d399;
+  --warning: #fbbf24;
+
+  --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.6);
 }
 
 /* ----------------------------- Tema claro ----------------------------- */
@@ -77,17 +101,34 @@
   --bg-sidebar: #ffffff;
   --bg-panel: #ffffff;
   --bg-elevated: #ffffff;
-  --bg-input: #f0f1f4;
-  --bg-hover: #eceef2;
+  --bg-input: #f3f4f7;
+  --bg-hover: #edeff3;
+  --bg-active: rgba(245, 179, 1, 0.1);
 
-  --border: #e3e5ea;
-  --border-strong: #d3d6dd;
+  --border: #e6e8ec;
+  --border-strong: #d3d7dd;
 
   --text-primary: #16181d;
-  --text-secondary: #565a66;
+  --text-secondary: #565c68;
   --text-muted: #8a8e99;
+  --text-tertiary: #a0a4ae;
 
   --positive: #0f9d6c;
-  --accent-soft: rgba(244, 194, 13, 0.18);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --danger: #dc2626;
+  --success: #16a34a;
+  --warning: #d97706;
+  --accent-soft: rgba(245, 179, 1, 0.16);
+  --accent-softer: rgba(245, 179, 1, 0.08);
+  --shadow-md: 0 10px 30px -12px rgba(20, 24, 33, 0.18);
+}
+
+/* Aliases para variáveis legadas usadas em alguns componentes */
+:root,
+[data-theme='dark'],
+[data-theme='light'] {
+  --border-color: var(--border);
+  --bg-card: var(--bg-panel);
+  --bg-card-hover: var(--bg-elevated);
+  --bg-active-fallback: var(--bg-active);
+  --accent-hover: var(--accent-strong);
 }

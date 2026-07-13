@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, EmptyState, Alert, Loading, Badge, Input, Panel } from '@/components/ui';
-import { useAgents, usePipeline, useMetrics, type AgentDetail, type PipelineJob, type PipelineClip } from './useShorts';
-import { ProviderSelector } from './ProviderSelector';
+import { useAgents, usePipeline, useMetrics, type AgentDetail, type PipelineJob } from './useShorts';
 import { ProviderSelector } from './ProviderSelector';
 import { PipelineJobCard } from './PipelineJobCard';
-import { ClipPreviewCard } from './ClipPreviewCard';
 import './AgentDetailView.css';
 
 interface AgentDetailViewProps {
@@ -16,18 +14,6 @@ const PLATFORM_ICONS: Record<string, string> = {
   youtube: '▶️',
   tiktok: '🎵',
   instagram: '📷',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  queued: 'Na fila',
-  downloading: 'Baixando',
-  transcribing: 'Transcrevendo',
-  analyzing: 'Analisando',
-  cropping: 'Recortando',
-  generating_metadata: 'Gerando metadata',
-  publishing: 'Publicando',
-  done: 'Concluído',
-  error: 'Erro',
 };
 
 export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
@@ -113,7 +99,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
   if (error && !detail) return <Alert variant="danger">{error}</Alert>;
   if (!detail) return <Alert variant="warning">Agent não encontrado</Alert>;
 
-  const { agent, socialAccounts, totalClips, activeJobs, recentJobs } = detail;
+  const { agent, socialAccounts, totalClips, recentJobs } = detail;
   const m = metrics || {};
 
   return (

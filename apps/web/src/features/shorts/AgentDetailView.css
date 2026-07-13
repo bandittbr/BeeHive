@@ -84,7 +84,7 @@
 }
 
 .agent-detail__social--connected {
-  border-color: var(--success, #22c55e);
+  border-color: var(--success);
 }
 
 .agent-detail__social-icon {

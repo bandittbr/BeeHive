@@ -21,13 +21,14 @@ import { ProjectStoreProvider } from '@/services/projects/ProjectStoreProvider';
 import { ProjectsView } from '@/features/projects/ProjectsView';
 import { BusinessView } from '@/features/business/BusinessView';
 import { SettingsView } from '@/features/settings/SettingsView';
+import { DashboardView } from '@/features/dashboard/DashboardView';
 
 type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings';
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { id, navigate } = useHashRoute(AREA_IDS, 'conversa');
-  const [activeView, setActiveView] = useState<ViewType>('conversation');
+  const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [activeBusinessTab, setActiveBusinessTab] = useState<string>('projetos');
 
   const handleNavigate = (view: string) => {
@@ -57,11 +58,7 @@ export default function App() {
       case 'dashboard':
         return (
           <div className="view-container">
-            <div className="empty-state">
-              <div className="empty-state__icon">🐝</div>
-              <h2>BeeHive Dashboard</h2>
-              <p>Bem-vindo ao BeeHive! Selecione uma opção no menu ao lado.</p>
-            </div>
+            <DashboardView onNavigate={handleNavigate} />
           </div>
         );
       case 'conversation':
