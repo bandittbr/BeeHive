@@ -3,6 +3,7 @@ Download de vídeos do YouTube via yt-dlp.
 """
 import os
 import re
+import sys
 import subprocess
 import json
 from .config import LOCAL_OUTPUT_DIR, YOUTUBE_CACHE_DIR, YOUTUBE_FORMAT
@@ -46,7 +47,7 @@ def download_video(url: str, output_dir: str = None) -> dict:
         }
 
     cmd = [
-        "yt-dlp",
+        sys.executable, "-m", "yt_dlp",
         "-f", YOUTUBE_FORMAT,
         "--merge-output-format", "mp4",
         "-o", cache_path,
