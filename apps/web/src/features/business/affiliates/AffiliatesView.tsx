@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, EmptyState, Modal, Input, Alert, Loading } from '@/components/ui';
+import { Icon } from '@/components/common/Icon';
 import type { DiscoveryRule, AutomationSettings, AffiliateProvider } from '@beehive/platform';
 import './affiliates.css';
 
@@ -149,7 +150,7 @@ export function AffiliatesView() {
             <h3>Automação</h3>
             <div className="affiliates__kill-switch">
               <span className="affiliates__kill-label">
-                {settings.killSwitchActive ? '⏸️ Pausado' : '▶️ Ativo'}
+                {settings.killSwitchActive ? <><Icon name="clock" size={14} /> Pausado</> : <><Icon name="bolt" size={14} /> Ativo</>}
               </span>
               <button
                 className={`affiliates__kill-btn ${settings.killSwitchActive ? 'kill--active' : ''}`}
@@ -213,8 +214,9 @@ export function AffiliatesView() {
                     className="affiliates__rule-delete"
                     onClick={() => handleDeleteRule(rule.id)}
                     title="Remover regra"
+                    aria-label="Remover regra"
                   >
-                    🗑️
+                    <Icon name="trash" size={15} />
                   </button>
                 </div>
               </div>

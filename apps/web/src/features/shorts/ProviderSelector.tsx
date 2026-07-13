@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui';
+import { Icon } from '@/components/common/Icon';
 import './ProviderSelector.css';
 
 const API = '/api/providers';
@@ -54,12 +55,12 @@ export function ProviderSelector({ selectedProviderId, onSelect }: ProviderSelec
 
   return (
     <div className="provider-selector">
-      <h3 className="provider-selector__title">🧠 Provider de IA</h3>
+      <h3 className="provider-selector__title"><Icon name="bolt" size={18} /> Provider de IA</h3>
       <p className="provider-selector__subtitle">Escolha qual provider usar pra análise de cortes</p>
 
       <div className="provider-selector__group">
         <div className="provider-selector__group-header">
-          <span className="provider-selector__group-icon">🆓</span>
+          <span className="provider-selector__group-icon"><Icon name="check-circle" size={16} /></span>
           <span className="provider-selector__group-label">Gratuitos</span>
         </div>
         <div className="provider-selector__grid">
@@ -85,7 +86,7 @@ export function ProviderSelector({ selectedProviderId, onSelect }: ProviderSelec
 
       <div className="provider-selector__group">
         <div className="provider-selector__group-header">
-          <span className="provider-selector__group-icon">💎</span>
+          <span className="provider-selector__group-icon"><Icon name="crown" size={16} /></span>
           <span className="provider-selector__group-label">Pagos</span>
         </div>
         <div className="provider-selector__grid">

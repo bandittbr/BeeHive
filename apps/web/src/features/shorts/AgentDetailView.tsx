@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, EmptyState, Alert, Loading, Badge, Input, Panel } from '@/components/ui';
+import { Icon, type IconName } from '@/components/common/Icon';
 import { useAgents, usePipeline, useMetrics, type AgentDetail, type PipelineJob } from './useShorts';
 import { ProviderSelector } from './ProviderSelector';
 import { PipelineJobCard } from './PipelineJobCard';
@@ -10,10 +11,10 @@ interface AgentDetailViewProps {
   onBack: () => void;
 }
 
-const PLATFORM_ICONS: Record<string, string> = {
-  youtube: '▶️',
-  tiktok: '🎵',
-  instagram: '📷',
+const PLATFORM_ICONS: Record<string, IconName> = {
+  youtube: 'play',
+  tiktok: 'music',
+  instagram: 'camera',
 };
 
 export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
@@ -130,31 +131,31 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
       {/* Métricas */}
       <div className="agent-detail__metrics">
         <Card className="agent-detail__metric">
-          <span className="agent-detail__metric-value">📹 {totalClips}</span>
+          <span className="agent-detail__metric-value"><Icon name="video" size={18} /> {totalClips}</span>
           <span className="agent-detail__metric-label">Clips</span>
         </Card>
         <Card className="agent-detail__metric">
-          <span className="agent-detail__metric-value">👁️ {(m.totalViews || 0).toLocaleString()}</span>
+          <span className="agent-detail__metric-value"><Icon name="eye" size={18} /> {(m.totalViews || 0).toLocaleString()}</span>
           <span className="agent-detail__metric-label">Views</span>
         </Card>
         <Card className="agent-detail__metric">
-          <span className="agent-detail__metric-value">👍 {(m.totalLikes || 0).toLocaleString()}</span>
+          <span className="agent-detail__metric-value"><Icon name="heart" size={18} /> {(m.totalLikes || 0).toLocaleString()}</span>
           <span className="agent-detail__metric-label">Likes</span>
         </Card>
         <Card className="agent-detail__metric">
-          <span className="agent-detail__metric-value">💬 {(m.totalComments || 0).toLocaleString()}</span>
+          <span className="agent-detail__metric-value"><Icon name="message" size={18} /> {(m.totalComments || 0).toLocaleString()}</span>
           <span className="agent-detail__metric-label">Comentários</span>
         </Card>
       </div>
 
       {/* Redes Sociais */}
-      <Panel title="🌐 Redes Conectadas">
+      <Panel title="Redes Conectadas">
         <div className="agent-detail__socials">
           {(['youtube', 'tiktok', 'instagram'] as const).map((platform) => {
             const account = socialAccounts.find(s => s.platform === platform);
             return (
               <Card key={platform} className={`agent-detail__social ${account ? 'agent-detail__social--connected' : ''}`}>
-                <span className="agent-detail__social-icon">{PLATFORM_ICONS[platform]}</span>
+                <span className="agent-detail__social-icon"><Icon name={PLATFORM_ICONS[platform]} size={18} /></span>
                 <span className="agent-detail__social-name">{platform}</span>
                 <Badge tone={account?.active ? 'success' : 'neutral'} dot>
                   {account?.active ? 'Conectado' : account ? 'Inativo' : 'Não conectado'}
@@ -183,7 +184,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
       />
 
       {/* Novo Job */}
-      <Panel title="🎬 Novo Corte">
+      <Panel title="Novo Corte">
         <div className="agent-detail__new-job">
           <Input
             value={newUrl}
@@ -204,7 +205,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
               onClick={handleStartJob}
               disabled={submitting || !newUrl.trim()}
             >
-              {submitting ? 'Iniciando...' : '🚀 Gerar Cortes'}
+              {submitting ? 'Iniciando...' : 'Gerar Cortes'}
             </Button>
           </div>
         </div>
@@ -212,7 +213,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
 
       {/* Jobs Ativos */}
       {jobs.filter(j => !['done', 'error'].includes(j.status)).length > 0 && (
-        <Panel title="⚡ Processando Agora">
+        <Panel title="Processando Agora">
           <div className="agent-detail__jobs">
             {jobs
               .filter(j => !['done', 'error'].includes(j.status))
@@ -224,7 +225,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
       )}
 
       {/* Jobs Recentes */}
-      <Panel title="📋 Jobs Recentes">
+      <Panel title="Jobs Recentes">
         {recentJobs.length === 0 ? (
           <EmptyState
             icon="film"

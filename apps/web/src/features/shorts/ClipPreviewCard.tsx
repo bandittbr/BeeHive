@@ -46,13 +46,13 @@ export function ClipPreviewCard({ clip, onPublish }: ClipPreviewCardProps) {
 
       <div className="clip-card__actions">
         {clip.clipPath && (
-          <Button variant="secondary" size="sm">
-            ▶️ Assistir
+          <Button variant="secondary" size="sm" icon="play">
+            Assistir
           </Button>
         )}
         {onPublish && (
-          <Button variant="primary" size="sm" onClick={() => onPublish(clip.id)}>
-            📤 Publicar
+          <Button variant="primary" size="sm" icon="send" onClick={() => onPublish(clip.id)}>
+            Publicar
           </Button>
         )}
       </div>

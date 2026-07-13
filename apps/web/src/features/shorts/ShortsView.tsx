@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Button, Card, EmptyState, Modal, Alert, Loading, Badge } from '@/components/ui';
+import { Icon } from '@/components/common/Icon';
 import { useAgents, type ShortsAgent } from './useShorts';
 import { AgentDetailView } from './AgentDetailView';
 import { CreateAgentModal } from './CreateAgentModal';
@@ -128,8 +129,9 @@ function AgentCard({ agent, onSelect, onDelete }: {
           className="shorts__agent-delete"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
           title="Remover agent"
+          aria-label="Remover agent"
         >
-          🗑️
+          <Icon name="trash" size={16} />
         </button>
       </div>
       {agent.description && (

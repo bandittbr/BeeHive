@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, EmptyState, Loading, Badge } from '@/components/ui';
+import { Icon } from '@/components/common/Icon';
 import type { ContentItem, Publication } from '@beehive/platform';
 import './affiliates.css';
 
@@ -92,7 +93,7 @@ export function ContentCreatorView() {
               <Card key={item.id} className="affiliates__content-card">
                 <div className="affiliates__content-header">
                   <span className="affiliates__content-type">
-                    {item.mediaType === 'video' ? '🎬 Vídeo' : '🖼️ Imagem'}
+                    {item.mediaType === 'video' ? <><Icon name="video" size={14} /> Vídeo</> : <><Icon name="camera" size={14} /> Imagem</>}
                   </span>
                   {statusBadge(item.status)}
                 </div>
@@ -125,7 +126,7 @@ export function ContentCreatorView() {
               <Card key={pub.id} className="affiliates__pub-card">
                 <div className="affiliates__pub-header">
                   <span className="affiliates__pub-platform">
-                    {pub.socialProvider === 'instagram' ? '📸 Instagram' : '🎵 TikTok'}
+                    {pub.socialProvider === 'instagram' ? <><Icon name="camera" size={14} /> Instagram</> : <><Icon name="music" size={14} /> TikTok</>}
                   </span>
                   {statusBadge(pub.status)}
                 </div>

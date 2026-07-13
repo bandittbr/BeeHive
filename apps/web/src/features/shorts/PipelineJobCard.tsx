@@ -1,17 +1,18 @@
 import { Card, Badge } from '@/components/ui';
+import { Icon, type IconName } from '@/components/common/Icon';
 import type { PipelineJob } from './useShorts';
 import './PipelineJobCard.css';
 
-const STATUS_ICONS: Record<string, string> = {
-  queued: '⏳',
-  downloading: '⬇️',
-  transcribing: '🎤',
-  analyzing: '🧠',
-  cropping: '✂️',
-  generating_metadata: '📝',
-  publishing: '📤',
-  done: '✅',
-  error: '❌',
+const STATUS_ICONS: Record<string, IconName> = {
+  queued: 'clock',
+  downloading: 'download',
+  transcribing: 'mic',
+  analyzing: 'sparkles',
+  cropping: 'pencil',
+  generating_metadata: 'edit',
+  publishing: 'send',
+  done: 'check-circle',
+  error: 'warning',
 };
 
 const STATUS_LABELS: Record<string, string> = {
@@ -33,13 +34,13 @@ interface PipelineJobCardProps {
 
 export function PipelineJobCard({ job, onPublish }: PipelineJobCardProps) {
   const isActive = !['done', 'error'].includes(job.status);
-  const icon = STATUS_ICONS[job.status] || '📋';
+  const icon = STATUS_ICONS[job.status] || 'edit';
   const label = STATUS_LABELS[job.status] || job.status;
 
   return (
     <Card className={`pj-card ${isActive ? 'pj-card--active' : ''} ${job.status === 'error' ? 'pj-card--error' : ''}`}>
       <div className="pj-card__header">
-        <span className="pj-card__icon">{icon}</span>
+        <span className="pj-card__icon"><Icon name={icon} size={18} /></span>
         <div className="pj-card__info">
           <span className="pj-card__url" title={job.youtubeUrl}>
             {job.youtubeUrl.length > 50 ? job.youtubeUrl.slice(0, 50) + '...' : job.youtubeUrl}
@@ -76,12 +77,12 @@ export function PipelineJobCard({ job, onPublish }: PipelineJobCardProps) {
                 {clip.score}%
               </Badge>
               {onPublish && (
-                <button
-                  className="pj-card__clip-publish"
-                  onClick={() => onPublish(clip.id)}
-                >
-                  📤 Publicar
-                </button>
+                 <button
+                   className="pj-card__clip-publish"
+                   onClick={() => onPublish(clip.id)}
+                 >
+                   <Icon name="send" size={14} /> Publicar
+                 </button>
               )}
             </div>
           ))}

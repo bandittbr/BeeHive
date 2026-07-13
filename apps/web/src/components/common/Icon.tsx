@@ -51,7 +51,21 @@ export type IconName =
   | 'shield'
   | 'target'
   | 'users'
-  | 'pie';
+  | 'pie'
+  | 'trash'
+  | 'video'
+  | 'eye'
+  | 'heart'
+  | 'message'
+  | 'key'
+  | 'music'
+  | 'camera'
+  | 'box'
+  | 'pencil'
+  | 'clock'
+  | 'download'
+  | 'mic'
+  | 'send';
 
 interface IconProps {
   name: IconName;
@@ -253,6 +267,47 @@ const PATHS: Record<IconName, JSX.Element> = {
     </>
   ),
   pie: <path d="M12 3v9h9a9 9 0 1 0-9-9z" />,
+  video: (
+    <>
+      <path d="M2 6h11a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z" />
+      <path d="m13 10 6-3v10l-6-3" />
+    </>
+  ),
+  eye: (
+    <>
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
+      <circle cx="12" cy="12" r="3" />
+    </>
+  ),
+  heart: <path d="M12 20.5 4.5 13a4.5 4.5 0 0 1 6.4-6.3l1.1 1 1.1-1A4.5 4.5 0 0 1 19.5 13L12 20.5z" />,
+  message: <path d="M21 12a8 8 0 0 1-11.5 7.2L4 20l1-5.4A8 8 0 1 1 21 12z" />,
+  key: (
+    <>
+      <circle cx="8" cy="8" r="4" />
+      <path d="m11 11 8 8M16 16l2-2M19 19l2-2" />
+    </>
+  ),
+  music: (
+    <>
+      <path d="M9 18V5l11-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="17" cy="16" r="3" />
+    </>
+  ),
+  camera: (
+    <>
+      <path d="M3 7h4l2-2h6l2 2h4v12H3z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  box: (
+    <>
+      <path d="M3 7l9-4 9 4v10l-9 4-9-4z" />
+      <path d="M3 7l9 4 9-4M12 11v10" />
+    </>
+  ),
+  pencil: <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />,
+  download: <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />,
 };
 
 export function Icon({ name, size = 20, strokeWidth = 1.8, className }: IconProps) {
