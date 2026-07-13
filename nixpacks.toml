@@ -13,7 +13,7 @@ cmds = [
 ]
 
 [start]
-cmd = "L=$(dirname $(find /nix/store -maxdepth 5 -name 'libstdc++.so.6' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -maxdepth 5 -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; pnpm --filter @beehive/api run start"
+cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; echo \"[start] libstdcxx_dir=$L libgomp_dir=$G\"; pnpm --filter @beehive/api run start"
 
 [variables]
 PORT = "4000"
