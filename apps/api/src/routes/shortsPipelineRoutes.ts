@@ -2,7 +2,7 @@ import type { Express } from 'express';
 import type { DatabaseManager } from '@beehive/platform/server';
 import type { RuntimeManager } from '@beehive/platform/runtime';
 import { spawn, execSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { dirname, join, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config';
 import { createOpenAIProvider } from '../intelligence/openaiProvider';
@@ -134,11 +134,19 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
       const child = spawn(RESOLVED_PYTHON, [pythonScript], {
         cwd: PIPELINE_DIR,
         stdio: ['pipe', 'pipe', 'pipe'],
+        env: {
+          ...process.env,
+          // O pipeline roda no mesmo container e chama de volta a API de IA.
+          // Aponta para a porta real em que o Node está ouvindo.
+          BEEHIVE_API_URL: `http://localhost:${config.port}`,
+          PYTHONPATH: PIPELINE_DIR + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : ''),
+        },
       });
 
       child.stdin.write(input);
       child.stdin.end();
 
+      let stderrBuf = '';
       child.stdout.on('data', (data: Buffer) => {
         const lines = data.toString().split('\n').filter(Boolean);
         for (const line of lines) {
@@ -147,8 +155,13 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
             if (update.type === 'progress') {
               _updateJob(db, id, update.status, update.progress);
             } else if (update.type === 'result') {
-              _saveResults(db, id, agentId, update);
-              _updateJob(db, id, 'done', 100);
+              const errors: string[] = update.errors ?? [];
+              if (errors.length > 0 && (!update.clips || update.clips.length === 0)) {
+                _updateJobError(db, id, `Pipeline: ${errors.join(' | ')}`);
+              } else {
+                _saveResults(db, id, agentId, update);
+                _updateJob(db, id, 'done', 100);
+              }
             } else if (update.type === 'error') {
               _updateJobError(db, id, update.error);
             }
@@ -159,11 +172,15 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
       });
 
       child.stderr.on('data', (data: Buffer) => {
-        console.error(`[shorts-pipeline] stderr: ${data.toString().slice(0, 500)}`);
+        const text = data.toString();
+        stderrBuf += text;
+        console.error(`[shorts-pipeline] stderr: ${text.slice(0, 500)}`);
       });
 
       child.on('close', (code) => {
-        if (code !== 0) {
+        if (code !== 0 && stderrBuf.trim()) {
+          _updateJobError(db, id, `Pipeline exited (${code}): ${stderrBuf.slice(-800)}`);
+        } else if (code !== 0) {
           _updateJobError(db, id, `Pipeline exited with code ${code}`);
         }
       });
