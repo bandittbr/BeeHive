@@ -36,6 +36,7 @@ def generate_metadata(
     platform: str = "youtube",
     language: str = "pt",
     provider_id: str = "",
+    model: str = "",
 ) -> dict:
     """
     Gera título, descrição e hashtags pra um clip.
@@ -52,7 +53,7 @@ def generate_metadata(
     )
 
     try:
-        result = call_beehive_llm(prompt, provider_id)
+        result = call_beehive_llm(prompt, provider_id, model)
         parsed = _parse_json_loose(result)
 
         if isinstance(parsed, dict):

@@ -9,6 +9,7 @@ export interface ShortsAgent {
   avatarUrl: string;
   niche: string;
   defaultProviderId: string;
+  defaultModel?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -40,6 +41,7 @@ export interface PipelineJob {
   progress: number;
   numClips: number;
   providerId: string;
+  model?: string;
   language: string;
   errorMessage: string;
   startedAt: string;
@@ -89,7 +91,7 @@ export function useAgents() {
 
   useEffect(() => { fetchAgents(); }, [fetchAgents]);
 
-  const createAgent = useCallback(async (data: { name: string; description?: string; niche?: string; defaultProviderId?: string }) => {
+  const createAgent = useCallback(async (data: { name: string; description?: string; niche?: string; defaultProviderId?: string; defaultModel?: string }) => {
     const res = await fetch(`${API}/agents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -131,7 +133,7 @@ export function useAgents() {
 export function usePipeline() {
   const [jobs, setJobs] = useState<PipelineJob[]>([]);
 
-  const startJob = useCallback(async (data: { agentId: string; youtubeUrl: string; numClips?: number; providerId?: string; language?: string }) => {
+  const startJob = useCallback(async (data: { agentId: string; youtubeUrl: string; numClips?: number; providerId?: string; model?: string; language?: string }) => {
     const res = await fetch(`${API}/pipeline`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

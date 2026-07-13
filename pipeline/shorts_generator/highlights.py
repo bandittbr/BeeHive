@@ -56,13 +56,13 @@ Return ONLY valid JSON:
 }"""
 
 
-def detect_content_type(transcript_segments: list) -> dict:
+def detect_content_type(transcript_segments: list, model: str = "") -> dict:
     """Detecta tipo de conteúdo e densidade de informação."""
     text = " ".join(s["text"] for s in transcript_segments[:25])
     prompt = f"{CONTENT_TYPE_PROMPT}\n\nTranscript excerpt:\n{text[:3000]}"
 
     try:
-        result = call_beehive_llm(prompt)
+        result = call_beehive_llm(prompt, model=model)
         return _parse_json_loose(result)
     except Exception:
         return {"content_type": "other", "information_density": "medium", "language": "pt"}
@@ -72,6 +72,7 @@ def identify_highlights(
     transcript: dict,
     num_clips: int = 3,
     provider_id: str = "",
+    model: str = "",
     llm_fn: Optional[Callable] = None,
 ) -> list:
     """
@@ -92,7 +93,7 @@ def identify_highlights(
     if not segments:
         return []
 
-    content_info = detect_content_type(segments)
+    content_info = detect_content_type(segments, model=model)
     content_type = content_info.get("content_type", "other")
     density = content_info.get("information_density", "medium")
 
@@ -101,7 +102,7 @@ def identify_highlights(
     chunks = _split_into_chunks(segments, duration, chunk_size, overlap)
 
     all_highlights = []
-    call_llm = llm_fn or (lambda p: call_beehive_llm(p, provider_id))
+    call_llm = llm_fn or (lambda p: call_beehive_llm(p, provider_id=provider_id, model=model))
 
     for chunk in chunks:
         highlights = _process_chunk(chunk, content_type, density, call_llm)
@@ -237,11 +238,13 @@ def _parse_json_loose(text: str) -> any:
     raise ValueError(f"Could not parse JSON from LLM response: {text[:200]}")
 
 
-def call_beehive_llm(prompt: str, provider_id: str = "") -> str:
+def call_beehive_llm(prompt: str, provider_id: str = "", model: str = "") -> str:
     """Chama o provider LLM configurado no BeeHive via API REST."""
     payload = {"prompt": prompt}
     if provider_id:
         payload["providerId"] = provider_id
+    if model:
+        payload["model"] = model
 
     resp = requests.post(
         f"{BEEHIVE_API_URL}/api/shorts/pipeline/llm",

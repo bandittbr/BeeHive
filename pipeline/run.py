@@ -47,6 +47,7 @@ def main():
             aspect_ratio=input_data.get("aspectRatio", "9:16"),
             language=input_data.get("language", "pt"),
             provider_id=input_data.get("providerId", ""),
+            model=input_data.get("model", ""),
             output_dir=input_data.get("outputDir", "output"),
             progress_callback=progress_callback,
         )

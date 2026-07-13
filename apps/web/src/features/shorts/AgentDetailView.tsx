@@ -33,6 +33,16 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
   const [numClips, setNumClips] = useState('3');
   const [submitting, setSubmitting] = useState(false);
 
+  // Free models (OpenCode Zen) para o seletor
+  const [freeModels, setFreeModels] = useState<Array<{ id: string; label: string }>>([]);
+
+  useEffect(() => {
+    fetch('/api/shorts/free-models')
+      .then((r) => r.json())
+      .then((data: Array<{ id: string; label: string }>) => setFreeModels(data))
+      .catch(() => setFreeModels([]));
+  }, []);
+
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
@@ -76,6 +86,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         youtubeUrl: newUrl.trim(),
         numClips: parseInt(numClips) || 3,
         providerId: detail?.agent.defaultProviderId || '',
+        model: detail?.agent.defaultModel || '',
       });
       setNewUrl('');
       const updated = await getAgentJobs(agentId);
@@ -182,6 +193,34 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
           }
         }}
       />
+
+      {/* Modelo (grátis, OpenCode Zen) */}
+      <Panel title="Modelo de IA (grátis)">
+        <div className="agent-detail__model-row">
+          <span className="agent-detail__model-label"><Icon name="sparkles" size={16} /> Modelo</span>
+          <select
+            className="input"
+            value={agent.defaultModel || 'big-pickle'}
+            onChange={async (e) => {
+              const model = e.target.value;
+              try {
+                await fetch(`/api/shorts/agents/${agentId}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ defaultModel: model }),
+                });
+                loadData();
+              } catch (err) {
+                setError(err instanceof Error ? err.message : 'Erro ao atualizar modelo');
+              }
+            }}
+          >
+            {freeModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
+        </div>
+      </Panel>
 
       {/* Novo Job */}
       <Panel title="Novo Corte">

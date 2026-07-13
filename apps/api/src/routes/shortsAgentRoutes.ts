@@ -5,6 +5,24 @@ import type { DatabaseManager } from '@beehive/platform/server';
  * Rotas CRUD para agentes de Cortes Youtube e suas redes sociais.
  */
 
+/**
+ * Modelos gratuitos do OpenCode Zen (sem chave, sempre free).
+ * Única fonte de verdade — o frontend busca essa lista e o backend
+ * valida o `model` recebido contra ela.
+ */
+export const FREE_ZEN_MODELS: Array<{ id: string; label: string }> = [
+  { id: 'big-pickle', label: 'Big Pickle' },
+  { id: 'hy3-free', label: 'HY3 Free' },
+  { id: 'nemotron-3-ultra-free', label: 'Nemotron 3 Ultra Free' },
+  { id: 'deepseek-v4-flash-free', label: 'DeepSeek V4 Flash Free' },
+  { id: 'mimo-v2.5-free', label: 'Mimo 2.5 Free' },
+  { id: 'north-mini-code-free', label: 'North Mini Code Free' },
+];
+
+export function isFreeZenModel(model: string): boolean {
+  return FREE_ZEN_MODELS.some((m) => m.id === model);
+}
+
 function generateId(): string {
   return `sa-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -14,6 +32,23 @@ function now(): string {
 }
 
 export function mountShortsAgentRoutes(app: Express, db: DatabaseManager): void {
+
+  // Migração: garante as colunas novas em bancos já existentes
+  try {
+    db.execute('ALTER TABLE shorts_agents ADD COLUMN default_model TEXT DEFAULT \'\'');
+  } catch {
+    // coluna já existe
+  }
+  try {
+    db.execute('ALTER TABLE shorts_pipeline_jobs ADD COLUMN model TEXT DEFAULT \'\'');
+  } catch {
+    // coluna já existe
+  }
+
+  // ─── Free models ─────────────────────────────────────────
+  app.get('/api/shorts/free-models', (_req, res) => {
+    res.json(FREE_ZEN_MODELS);
+  });
 
   // ─── Agents ──────────────────────────────────────────────
 
@@ -33,7 +68,7 @@ export function mountShortsAgentRoutes(app: Express, db: DatabaseManager): void 
   // POST /api/shorts/agents
   app.post('/api/shorts/agents', (req, res) => {
     try {
-      const { name, description, niche, defaultProviderId } = req.body;
+      const { name, description, niche, defaultProviderId, defaultModel } = req.body;
       if (!name || typeof name !== 'string') {
         res.status(400).json({ error: 'Campo name é obrigatório' });
         return;
@@ -43,9 +78,9 @@ export function mountShortsAgentRoutes(app: Express, db: DatabaseManager): void 
       const ts = now();
 
       db.execute(
-        `INSERT INTO shorts_agents (id, name, description, avatar_url, niche, default_provider_id, active, created_at, updated_at)
-         VALUES (?, ?, ?, '', ?, ?, 1, ?, ?)`,
-        [id, name, description ?? '', niche ?? '', defaultProviderId ?? '', ts, ts],
+        `INSERT INTO shorts_agents (id, name, description, avatar_url, niche, default_provider_id, default_model, active, created_at, updated_at)
+         VALUES (?, ?, ?, '', ?, ?, ?, 1, ?, ?)`,
+        [id, name, description ?? '', niche ?? '', defaultProviderId ?? '', defaultModel ?? '', ts, ts],
       );
 
       const row = db.queryOne<Record<string, unknown>>('SELECT * FROM shorts_agents WHERE id = ?', [id]);
@@ -121,6 +156,7 @@ export function mountShortsAgentRoutes(app: Express, db: DatabaseManager): void 
       if (req.body.description !== undefined) { updates.push('description = ?'); params.push(req.body.description); }
       if (req.body.niche !== undefined) { updates.push('niche = ?'); params.push(req.body.niche); }
       if (req.body.defaultProviderId !== undefined) { updates.push('default_provider_id = ?'); params.push(req.body.defaultProviderId); }
+      if (req.body.defaultModel !== undefined) { updates.push('default_model = ?'); params.push(req.body.defaultModel); }
       if (req.body.active !== undefined) { updates.push('active = ?'); params.push(req.body.active ? 1 : 0); }
       if (req.body.avatarUrl !== undefined) { updates.push('avatar_url = ?'); params.push(req.body.avatarUrl); }
 
@@ -255,6 +291,7 @@ function mapAgent(row: Record<string, unknown>) {
     avatarUrl: row.avatar_url,
     niche: row.niche,
     defaultProviderId: row.default_provider_id,
+    defaultModel: row.default_model ?? '',
     active: Boolean(row.active),
     createdAt: row.created_at,
     updatedAt: row.updated_at,

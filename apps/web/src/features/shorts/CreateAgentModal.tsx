@@ -1,26 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button, Modal, Input } from '@/components/ui';
+import { Icon } from '@/components/common/Icon';
+
+interface FreeModel {
+  id: string;
+  label: string;
+}
 
 interface CreateAgentModalProps {
   open: boolean;
   onClose: () => void;
-  onCreate: (data: { name: string; description: string; niche: string; defaultProviderId: string }) => void;
+  onCreate: (data: { name: string; description: string; niche: string; defaultProviderId: string; defaultModel: string }) => void;
 }
 
 export function CreateAgentModal({ open, onClose, onCreate }: CreateAgentModalProps) {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [niche, setNiche] = useState('');
+  const [model, setModel] = useState('big-pickle');
+  const [freeModels, setFreeModels] = useState<FreeModel[]>([]);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/shorts/free-models')
+      .then((r) => r.json())
+      .then((data: FreeModel[]) => setFreeModels(data))
+      .catch(() => setFreeModels([]));
+  }, []);
 
   const handleCreate = async () => {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await onCreate({ name: name.trim(), description, niche, defaultProviderId: '' });
+      await onCreate({ name: name.trim(), description, niche, defaultProviderId: '', defaultModel: model });
       setName('');
       setDescription('');
       setNiche('');
+      setModel('big-pickle');
     } finally {
       setSaving(false);
     }
@@ -64,6 +80,18 @@ export function CreateAgentModal({ open, onClose, onCreate }: CreateAgentModalPr
             onChange={(e) => setNiche(e.target.value)}
             placeholder="Ex.: tech, finanças, humor, educação"
           />
+        </div>
+        <div className="form-group">
+          <label><Icon name="bolt" size={14} /> Modelo (grátis, sem chave)</label>
+          <select
+            className="input"
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+          >
+            {freeModels.map((m) => (
+              <option key={m.id} value={m.id}>{m.label}</option>
+            ))}
+          </select>
         </div>
       </div>
     </Modal>

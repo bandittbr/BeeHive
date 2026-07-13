@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS shorts_agents (
   avatar_url TEXT DEFAULT '',
   niche TEXT DEFAULT '',
   default_provider_id TEXT DEFAULT '',
+  default_model TEXT DEFAULT '',
   active INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
@@ -44,6 +45,7 @@ CREATE TABLE IF NOT EXISTS shorts_pipeline_jobs (
   progress INTEGER NOT NULL DEFAULT 0,
   num_clips INTEGER NOT NULL DEFAULT 3,
   provider_id TEXT DEFAULT '',
+  model TEXT DEFAULT '',
   language TEXT DEFAULT 'pt',
   error_message TEXT DEFAULT '',
   started_at TEXT DEFAULT '',

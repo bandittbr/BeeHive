@@ -4,6 +4,9 @@ import type { RuntimeManager } from '@beehive/platform/runtime';
 import { spawn } from 'node:child_process';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { config } from '../config';
+import { createOpenAIProvider } from '../intelligence/openaiProvider';
+import { isFreeZenModel } from './shortsAgentRoutes';
 
 /**
  * Rotas do pipeline de Cortes Youtube.
@@ -27,7 +30,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
   // POST /api/shorts/pipeline/llm
   app.post('/api/shorts/pipeline/llm', async (req, res) => {
     try {
-      const { prompt, providerId } = req.body;
+      const { prompt, providerId, model } = req.body;
       if (!prompt || typeof prompt !== 'string') {
         res.status(400).json({ error: 'prompt é obrigatório' });
         return;
@@ -36,14 +39,30 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
       // Usa o RuntimeManager pra chamar o LLM
       let content = '';
       if (runtime) {
-        const result = await runtime.context.kernel.dispatch<{ content: string }>({
-          type: 'ai.chat',
-          payload: {
-            messages: [{ role: 'user', content: prompt }],
-            options: providerId ? { providerId } : {},
-          },
-        });
-        content = result?.content ?? '';
+        // Modelo grátis do OpenCode Zen (big-pickle, hy3-free, etc.) — sem chave
+        if (model && isFreeZenModel(model)) {
+          try {
+            const zenProvider = createOpenAIProvider({
+              apiKey: '',
+              baseUrl: config.opencode?.baseUrl ?? 'https://opencode.ai/zen/v1',
+              model,
+            });
+            content = await zenProvider.chat([{ role: 'user', content: prompt }]);
+          } catch (err) {
+            console.error('[shorts] Erro no modelo free, caindo no fallback:', err);
+          }
+        }
+
+        if (!content) {
+          const result = await runtime.context.kernel.dispatch<{ content: string }>({
+            type: 'ai.chat',
+            payload: {
+              messages: [{ role: 'user', content: prompt }],
+              options: providerId ? { providerId } : {},
+            },
+          });
+          content = result?.content ?? '';
+        }
       } else {
         // Fallback: chama o provider OpenAI diretamente
         const { createOpenAIProvider } = await import('../intelligence/openaiProvider');
@@ -69,7 +88,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
   // POST /api/shorts/pipeline — iniciar job
   app.post('/api/shorts/pipeline', (req, res) => {
     try {
-      const { agentId, youtubeUrl, numClips, providerId, language } = req.body;
+      const { agentId, youtubeUrl, numClips, providerId, language, model } = req.body;
 
       if (!youtubeUrl || typeof youtubeUrl !== 'string') {
         res.status(400).json({ error: 'youtubeUrl é obrigatório' });
@@ -84,9 +103,9 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
       const ts = now();
 
       db.execute(
-        `INSERT INTO shorts_pipeline_jobs (id, agent_id, youtube_url, status, progress, num_clips, provider_id, language, error_message, started_at, completed_at, created_at)
-         VALUES (?, ?, ?, 'queued', 0, ?, ?, ?, '', '', '', ?)`,
-        [id, agentId, youtubeUrl, numClips ?? 3, providerId ?? '', language ?? 'pt', ts],
+        `INSERT INTO shorts_pipeline_jobs (id, agent_id, youtube_url, status, progress, num_clips, provider_id, model, language, error_message, started_at, completed_at, created_at)
+         VALUES (?, ?, ?, 'queued', 0, ?, ?, ?, ?, '', '', '', ?)`,
+        [id, agentId, youtubeUrl, numClips ?? 3, providerId ?? '', model ?? '', language ?? 'pt', ts],
       );
 
       // Spawn Python pipeline como subprocess
@@ -96,6 +115,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
         agentId,
         numClips: numClips ?? 3,
         providerId: providerId ?? '',
+        model: model ?? '',
         language: language ?? 'pt',
       });
 
@@ -269,6 +289,7 @@ function mapJob(row: Record<string, unknown>) {
     progress: row.progress,
     numClips: row.num_clips,
     providerId: row.provider_id,
+    model: row.model ?? '',
     language: row.language,
     errorMessage: row.error_message,
     startedAt: row.started_at,

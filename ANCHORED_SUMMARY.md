@@ -3,7 +3,11 @@
 ## Deploy Status
 - **Backend: ONLINE** on Railway — https://beehive-production-d934.up.railway.app
   - `/api/runtime/status` → `Running`; `/api/providers` → 10-provider catalog (HTTP 200)
-- **Frontend: built locally & passing**, NOT yet redeployed to Vercel. Needs `VITE_API_URL` + commit/push.
+- **Frontend: DEPLOYED & LIVE & PÚBLICO** on Vercel — projeto `bee-hive-web` (gabrieladv-s-projects)
+  - Domínio de produção: **https://bee-hive-web-six.vercel.app/** (público, sem auth wall)
+  - Commitado + pushado no `master` (commit `31c109d`); deploy `ceed3webd` (Ready).
+  - Verificado: o bundle JS do domínio de produção contém o redesign completo (Dashboard, "Sistema Operacional", "Explore o BeeHive", "Runtime ativo", honeycomb) e `VITE_API_URL` = Railway.
+  - Os URLs com hash (`bee-hive-<hash>-gabrieladv-s-projects.vercel.app`) aparecem atrás de "Login - Vercel" (Vercel Auth em preview) — o domínio de produção está ok.
 
 ## Objective
 - Tornar o BeeHive um produto premium "top de vendas": backend já no ar no Railway; frontend precisa de design coeso de alto impacto em todas as views (Dashboard de destaque), build/typecheck saudável e deploy na Vercel.
@@ -20,10 +24,13 @@
 - Vercel (apps/web) precisa de env `VITE_API_URL=https://beehive-production-d934.up.railway.app`.
 
 ## Remaining Work
-- [ ] Commit/push das mudanças do frontend (tudo local, uncommitted).
-- [ ] Setar `VITE_API_URL` na Vercel e redeployar o frontend.
-- [ ] Setar `OPENAI_API_KEY` real no Railway (placeholder atual).
-- [ ] (Opcional) Refino visual de Projects/Shorts (hoje usam ui.css tokenizado e já coerentes).
+- [x] Commit/push do frontend (feito: `31c109d` e polish `e14606e` no master).
+- [x] Deploy produção Vercel com o redesign (domínio `bee-hive-web-six.vercel.app`, público).
+- [x] `VITE_API_URL` setado corretamente no Vercel (era vazio).
+- [x] **Polish (passo 3)**: removidos todos os emojis soltos (Shorts, Negócios, Afiliados, ProviderSelector, PipelineJobCard, ClipPreviewCard) e substituídos pelo sistema de ícones de linha; corrigidas as abas de Negócios que usavam emoji como `icon` (quebravam no `Icon`).
+- [x] **Backend gratuito-por-padrão (decisão do usuário)**: o app NÃO usa chave paga do dono. `config.aiProvider` agora defaulta para `'llmrouter'`, que sempre inclui OpenCode Zen (modelos free: big-pickle, hy3, nemotron etc., sem chave). Chaves placeholder são ignoradas (`cleanKey`). Verificado ao vivo: `POST /api/conversation/respond` retorna resposta do modelo grátis ("BEEHIVE FREE OK").
+- [x] **Arquitetura BYOK para pago**: quem quiser modelo pago coloca a PRÓPRIA chave na tela "AI Providers" (OpenAI/Anthropic/Gemini/Groq...). Nenhuma chave paga foi setada no Railway (placeholder irrelevante, ignorado).
+- [ ] **Passo 2 (domínio)**: adiado pelo usuário ("espera terminar o app"); quando quiser, add o domínio no Vercel + DNS.
 
 ## Relevant Files
 - `apps/web/src/features/dashboard/DashboardView.tsx` / `.css` — vitrine premium (tela inicial)

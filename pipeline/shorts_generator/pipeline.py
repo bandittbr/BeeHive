@@ -22,6 +22,7 @@ def generate_shorts(
     aspect_ratio: str = DEFAULT_ASPECT_RATIO,
     language: str = DEFAULT_LANGUAGE,
     provider_id: str = DEFAULT_PROVIDER_ID,
+    model: str = "",
     output_dir: str = LOCAL_OUTPUT_DIR,
     progress_callback=None,
 ) -> dict:
@@ -95,6 +96,7 @@ def generate_shorts(
             transcript,
             num_clips=num_clips,
             provider_id=provider_id,
+            model=model,
         )
         result["highlights"] = highlights
         report("analyzing", 60, f"{len(highlights)} cortes identificados")
@@ -158,6 +160,7 @@ def generate_shorts(
                 video_title=video_title,
                 language=language,
                 provider_id=provider_id,
+                model=model,
             )
 
             clip_data = {

@@ -37,3 +37,10 @@ services/omniroute/
 # Local SQLite DB (runtime data)
 apps/api/data/
 
+.vercel
+.env*
+
+# Python cache
+__pycache__/
+*.pyc
+
