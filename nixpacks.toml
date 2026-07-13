@@ -1,5 +1,6 @@
 # Nixpacks config for BeeHive API backend on Railway
 # Só sobe o backend (apps/api). O frontend (apps/web) fica no Vercel.
+# rebuild trigger: use get-pip.py to install pip into nix python
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm", "python311", "gcc", "ffmpeg", "curl"]
