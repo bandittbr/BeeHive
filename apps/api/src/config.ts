@@ -14,11 +14,27 @@
  */
 const omnirouteUrl = process.env.OMNIROUTE_URL?.replace(/\/+$/, '');
 
+/**
+ * Normaliza chaves de API: valores vazios ou placeholders óbvios
+ * (ex.: "sk-or-v1-aqui-sua-chave", "REPLACE_ME") viram '' para que o backend
+ * trate o provider como NÃO configurado e use o caminho gratuito (OpenCode Zen)
+ * por padrão. Quem quiser modelo pago coloca a própria chave na UI.
+ */
+const PLACEHOLDER_RE = /(aqui|sua[-_]?chave|your[-_]?key|replace|placeholder|exemplo|example|xxxx|todo|chave[-_]?aqui|<|>)/i;
+function cleanKey(value?: string): string {
+  const v = (value ?? '').trim();
+  if (!v) return '';
+  if (PLACEHOLDER_RE.test(v)) return '';
+  return v;
+}
+
 export const config = {
   port: Number(process.env.PORT ?? 4000),
 
-  /** Provedor ativo: 'ollama' | 'openai' | 'llmrouter' */
-  aiProvider: process.env.AI_PROVIDER ?? 'openai',
+  /** Provedor ativo: 'ollama' | 'openai' | 'llmrouter'
+   *  Padrão 'llmrouter': usa OpenCode Zen (big-pickle e outros modelos
+   *  gratuitos, sem chave). Quem quiser pago coloca a própria chave na UI. */
+  aiProvider: process.env.AI_PROVIDER ?? 'llmrouter',
 
   ollama: {
     baseUrl: process.env.OLLAMA_BASE_URL ?? 'http://localhost:11434',
@@ -26,7 +42,7 @@ export const config = {
   },
 
   openai: {
-    apiKey: process.env.OPENAI_API_KEY ?? '',
+    apiKey: cleanKey(process.env.OPENAI_API_KEY),
     baseUrl: process.env.OPENAI_BASE_URL ?? (omnirouteUrl ? `${omnirouteUrl}/v1` : 'https://api.openai.com/v1'),
     model: process.env.OPENAI_MODEL ?? 'gpt-4o-mini',
     providerName: process.env.OPENAI_PROVIDER_NAME ?? (omnirouteUrl ? 'omniroute' : 'openai'),
@@ -34,28 +50,28 @@ export const config = {
 
   /** OpenRouter (modelos free, fallback) */
   openrouter: {
-    apiKey: process.env.OPENROUTER_API_KEY ?? '',
+    apiKey: cleanKey(process.env.OPENROUTER_API_KEY),
     baseUrl: process.env.OPENROUTER_BASE_URL ?? 'https://openrouter.ai/api/v1',
     model: process.env.OPENROUTER_MODEL ?? 'meta-llama/llama-3.1-8b-instruct',
   },
 
   /** Groq (rápido, free tier generoso) */
   groq: {
-    apiKey: process.env.GROQ_API_KEY ?? '',
+    apiKey: cleanKey(process.env.GROQ_API_KEY),
     baseUrl: process.env.GROQ_BASE_URL ?? 'https://api.groq.com/openai/v1',
     model: process.env.GROQ_MODEL ?? 'llama3-70b-8192',
   },
 
   /** OpenCode Zen (anomalyco) — modelos free, incluindo big-pickle */
   opencode: {
-    apiKey: process.env.OPENCODE_API_KEY ?? '',
+    apiKey: cleanKey(process.env.OPENCODE_API_KEY),
     baseUrl: process.env.OPENCODE_BASE_URL ?? 'https://opencode.ai/zen/v1',
     model: process.env.OPENCODE_MODEL ?? 'big-pickle',
   },
 
   /** Kiro (AWS) — Claude via AWS Bedrock, requer gateway local */
   kiro: {
-    apiKey: process.env.KIRO_API_KEY ?? '',
+    apiKey: cleanKey(process.env.KIRO_API_KEY),
     baseUrl: process.env.KIRO_BASE_URL ?? 'http://localhost:8000/v1',
     model: process.env.KIRO_MODEL ?? 'claude-sonnet-4-20250514',
   },

@@ -14,7 +14,9 @@ export interface RuntimeConfig {
  * O modelo padrão é escolhido conforme o provedor ativo (AI_PROVIDER).
  */
 function defaultModel(): string {
-  return config.aiProvider === 'openai' ? config.openai.model : config.ollama.model;
+  if (config.aiProvider === 'openai') return config.openai.model;
+  if (config.aiProvider === 'llmrouter') return config.opencode.model;
+  return config.ollama.model;
 }
 
 export const runtime: RuntimeConfig = {
