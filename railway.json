@@ -6,7 +6,7 @@
   },
   "deploy": {
     "numReplicas": 1,
-    "startCommand": "pnpm --filter apps/api run start",
+    "startCommand": "pnpm --filter @beehive/api run start",
     "healthcheckPath": "/api/runtime/status"
   }
 }
