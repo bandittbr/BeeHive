@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, EmptyState, Modal, Input, Alert, Loading } from '@/components/ui';
 import { Icon } from '@/components/common/Icon';
 import type { DiscoveryRule, AutomationSettings, AffiliateProvider } from '@beehive/platform';
+import { API_BASE } from '@/lib/api';
 import './affiliates.css';
 
-const API_BASE = '/api/affiliates';
+
 
 /**
  * View de Afiliados — gerencia regras de discovery e configurações de automação.

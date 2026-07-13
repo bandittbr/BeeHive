@@ -2,9 +2,10 @@ import { useState, useEffect, useCallback } from 'react';
 import { Card, EmptyState, Loading, Badge } from '@/components/ui';
 import { Icon } from '@/components/common/Icon';
 import type { ContentItem, Publication } from '@beehive/platform';
+import { API_BASE } from '@/lib/api';
 import './affiliates.css';
 
-const API_BASE = '/api/affiliates';
+
 
 /**
  * View de Criador de Conteúdo — gerencia conteúdo gerado e publicações.

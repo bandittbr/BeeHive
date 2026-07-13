@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Card, EmptyState, Loading, Badge, Button } from '@/components/ui';
 import type { Product } from '@beehive/platform';
+import { API_BASE } from '@/lib/api';
 import './affiliates.css';
 
-const API_BASE = '/api/affiliates';
+
 
 /**
  * View de Meus Produtos — lista produtos descobertos pelas regras de discovery.

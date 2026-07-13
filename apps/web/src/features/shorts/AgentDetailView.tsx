@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Button, Card, EmptyState, Alert, Loading, Badge, Input, Panel } from '@/components/ui';
 import { Icon, type IconName } from '@/components/common/Icon';
+import { API_BASE } from '@/lib/api';
 import { useAgents, usePipeline, useMetrics, type AgentDetail, type PipelineJob } from './useShorts';
 import { ProviderSelector } from './ProviderSelector';
 import { PipelineJobCard } from './PipelineJobCard';
@@ -37,7 +38,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
   const [freeModels, setFreeModels] = useState<Array<{ id: string; label: string }>>([]);
 
   useEffect(() => {
-    fetch('/api/shorts/free-models')
+    fetch(`${API_BASE}/shorts/free-models`)
       .then((r) => r.json())
       .then((data: Array<{ id: string; label: string }>) => setFreeModels(data))
       .catch(() => setFreeModels([]));
@@ -182,7 +183,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         selectedProviderId={agent.defaultProviderId}
         onSelect={async (providerId) => {
           try {
-            await fetch(`/api/shorts/agents/${agentId}`, {
+            await fetch(`${API_BASE}/shorts/agents/${agentId}`, {
               method: 'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ defaultProviderId: providerId }),
@@ -204,7 +205,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
             onChange={async (e) => {
               const model = e.target.value;
               try {
-                await fetch(`/api/shorts/agents/${agentId}`, {
+                await fetch(`${API_BASE}/shorts/agents/${agentId}`, {
                   method: 'PATCH',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ defaultModel: model }),

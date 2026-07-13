@@ -6,8 +6,7 @@
  */
 
 import type { Project, ProjectFile, ProjectSettings } from './types';
-
-const API_BASE = '/api';
+import { API_BASE } from '@/lib/api';
 
 async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);

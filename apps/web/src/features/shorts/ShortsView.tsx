@@ -44,12 +44,7 @@ export function ShortsView() {
         <EmptyState
           icon="film"
           title="Nenhum agent criado"
-          description="Crie seu primeiro agent pra começar a gerar cortes automáticos do YouTube."
-          action={
-            <Button variant="primary" icon="plus" onClick={() => setShowCreate(true)}>
-              Criar Agent
-            </Button>
-          }
+          description="Clique em “Novo Agent” acima pra começar a gerar cortes automáticos do YouTube."
         />
       ) : (
         <div className="shorts__grid">

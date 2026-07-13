@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react';
 import { Badge } from '@/components/ui';
 import { Icon } from '@/components/common/Icon';
+import { API_BASE } from '@/lib/api';
 import './ProviderSelector.css';
 
-const API = '/api/providers';
+const API = `${API_BASE}/providers`;
 
 interface Provider {
   id: string;

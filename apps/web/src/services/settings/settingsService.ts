@@ -1,5 +1,6 @@
 import { getRuntimeClient } from '@/app/runtimeClient';
 import type { ModelsInfo } from '@/app/runtimeClient';
+import { API_BASE } from '@/lib/api';
 
 /**
  * Serviço de Configurações — fala com o Core para listar e trocar o modelo de
@@ -10,8 +11,6 @@ import type { ModelsInfo } from '@/app/runtimeClient';
  * Sprint 16+: endpoints de providers para gerenciamento completo.
  */
 export type { ModelsInfo };
-
-const API_BASE = '/api';
 
 async function safeJson<T>(res: Response): Promise<T> {
   try { return await res.json() as T; } catch { return {} as T; }

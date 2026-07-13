@@ -10,6 +10,7 @@ import {
   type RuntimeStatus,
   type Unsubscribe,
 } from '@beehive/platform';
+import { wsUrl } from '@/lib/api';
 
 type EventHandler<P = unknown> = (event: BeeHiveEvent<P>) => void;
 
@@ -292,8 +293,7 @@ export class RuntimeClient {
       (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING);
     if (openOrConnecting) return;
 
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}${API_BASE}/runtime/events`);
+    const socket = new WebSocket(wsUrl(`${API_BASE}/runtime/events`));
 
     socket.onmessage = (message) => {
       try {

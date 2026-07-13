@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
+import { API_BASE } from '@/lib/api';
 
-const API = '/api/shorts';
+const API = `${API_BASE}/shorts`;
 
 export interface ShortsAgent {
   id: string;

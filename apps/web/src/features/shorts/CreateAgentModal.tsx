@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button, Modal, Input } from '@/components/ui';
 import { Icon } from '@/components/common/Icon';
+import { API_BASE } from '@/lib/api';
 
 interface FreeModel {
   id: string;
@@ -22,7 +23,7 @@ export function CreateAgentModal({ open, onClose, onCreate }: CreateAgentModalPr
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    fetch('/api/shorts/free-models')
+    fetch(`${API_BASE}/shorts/free-models`)
       .then((r) => r.json())
       .then((data: FreeModel[]) => setFreeModels(data))
       .catch(() => setFreeModels([]));
