@@ -62,6 +62,7 @@ def download_video(url: str, output_dir: str = None) -> dict:
         "-f", YOUTUBE_FORMAT,
         "--merge-output-format", "mp4",
         "--js-runtimes", "node",
+        "--extractor-args", "youtube:EJS=github",
         "-o", cache_path,
         "--no-playlist",
         "--print-json",
