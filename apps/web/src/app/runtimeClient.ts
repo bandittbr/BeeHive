@@ -47,7 +47,7 @@ export interface ModelsInfo {
   current: string;
 }
 
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api';
+import { API_BASE } from '@/lib/api';
 
 async function getJSON<T>(path: string): Promise<T> {
   const response = await fetch(`${API_BASE}${path}`);
@@ -293,7 +293,7 @@ export class RuntimeClient {
       (this.socket.readyState === WebSocket.OPEN || this.socket.readyState === WebSocket.CONNECTING);
     if (openOrConnecting) return;
 
-    const socket = new WebSocket(wsUrl(`${API_BASE}/runtime/events`));
+    const socket = new WebSocket(wsUrl('/api/runtime/events'));
 
     socket.onmessage = (message) => {
       try {
