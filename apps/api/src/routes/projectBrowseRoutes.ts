@@ -1,27 +1,47 @@
 import type { Express } from 'express';
-import { readdirSync } from 'node:fs';
-import { join, resolve } from 'node:path';
-import { homedir } from 'node:os';
+import { readdirSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
+
+function safeReaddir(dirPath: string): { currentPath: string; directories: Array<{ name: string; path: string; isDir: boolean }> } {
+  const entries = readdirSync(dirPath, { withFileTypes: true });
+  const directories = entries
+    .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
+    .map((e) => ({
+      name: e.name,
+      path: join(dirPath, e.name),
+      isDir: true,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return { currentPath: dirPath, directories };
+}
 
 export function mountProjectBrowseRoutes(app: Express): void {
-  app.get('/api/projects/browse', (req, res) => {
+  app.get('/api/projects/browse', (_req, res) => {
     try {
-      const requestedPath = (req.query.path as string) || homedir();
-      const fullPath = resolve(requestedPath);
+      const requestedPath = (_req.query.path as string) || '';
 
-      const entries = readdirSync(fullPath, { withFileTypes: true });
-      const directories = entries
-        .filter((e) => e.isDirectory() && !e.name.startsWith('.'))
-        .map((e) => ({
-          name: e.name,
-          path: join(fullPath, e.name),
-          isDir: true,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+      if (!requestedPath) {
+        const roots = ['/app', '/root', '/home', '/tmp'];
+        const available = roots.filter((p) => existsSync(p));
+        if (available.length > 0) {
+          res.json(safeReaddir(available[0]));
+        } else {
+          res.json({ currentPath: '/', directories: [] });
+        }
+        return;
+      }
 
-      res.json({ currentPath: fullPath, directories });
+      const normalizedPath = requestedPath.replace(/\\/g, '/');
+
+      if (!existsSync(normalizedPath)) {
+        res.json({ currentPath: normalizedPath, directories: [] });
+        return;
+      }
+
+      res.json(safeReaddir(normalizedPath));
     } catch {
-      res.json({ currentPath: req.query.path || '', directories: [] });
+      res.json({ currentPath: '/', directories: [] });
     }
   });
 }

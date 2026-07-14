@@ -110,33 +110,36 @@ export function mountProjectRoutes(app: Express, db: DatabaseManager): void {
         return;
       }
 
-      const resolvedPath = resolve(projectPath);
+      const normalizedPath = projectPath.replace(/\\/g, '/');
 
-      if (!existsSync(resolvedPath)) {
-        res.status(400).json({ error: `Diretório não encontrado: ${resolvedPath}` });
+      if (!existsSync(normalizedPath)) {
+        res.status(400).json({
+          error: `Diretório não encontrado: ${normalizedPath}`,
+          hint: 'No Railway (Linux), use caminhos como /app/data. O backend não tem acesso a discos locais da sua máquina.',
+        });
         return;
       }
 
-      const stat = statSync(resolvedPath);
+      const stat = statSync(normalizedPath);
       if (!stat.isDirectory()) {
         res.status(400).json({ error: 'O caminho deve ser um diretório' });
         return;
       }
 
       const id = `proj_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const folderName = name || resolvedPath.split(/[\\/]/).pop() || 'Projeto';
+      const folderName = name || normalizedPath.split('/').pop() || 'Projeto';
       const now = Date.now();
 
       db.execute(
         `INSERT INTO projects (id, name, path, description, created_at, last_accessed_at, color, icon, pinned, tags)
-         VALUES (?, ?, ?, '', ?, ?, '', '📁', 0, '')`,
-        [id, folderName, resolvedPath, now, now],
+         VALUES (?, ?, ?, '', ?, ?, '', 'folder', 0, '')`,
+        [id, folderName, normalizedPath, now, now],
       );
 
       const project: ProjectRecord = {
         id,
         name: folderName,
-        path: resolvedPath,
+        path: normalizedPath,
         description: '',
         created_at: now,
         last_accessed_at: now,
