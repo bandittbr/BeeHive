@@ -14,7 +14,7 @@ cmds = [
 
 [phases.build]
 cmds = [
-  "npx playwright install chromium",
+  "PLAYWRIGHT_BROWSERS_PATH=/opt/playwright npx playwright install chromium --with-deps 2>&1 | tail -20",
 ]
 
 [start]
@@ -24,3 +24,5 @@ cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1
 PORT = "4000"
 PYTHONUNBUFFERED = "1"
 PYTHONPATH = "/root/.local/lib/python3.11/site-packages"
+PLAYWRIGHT_BROWSERS_PATH = "/opt/playwright"
+PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "/run/current-system/sw/bin/chromium"
