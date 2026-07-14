@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
  */
 
 const REDIRECT_BASE = process.env.OAUTH_REDIRECT_URL || 'https://beehive-production-d934.up.railway.app';
+const FRONTEND_BASE = process.env.FRONTEND_URL || 'https://bee-hive-web-six.vercel.app';
 
 function now(): string {
   return new Date().toISOString();
@@ -269,11 +270,11 @@ export function mountOAuthRoutes(app: Express, db: DatabaseManager): void {
       const socialId = upsertSocialAccount(db, agentId, 'youtube', tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
       console.log(`[oauth] YouTube connected for agent ${agentId}, social ${socialId}`);
 
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents/${agentId}?youtube=connected`);
+      res.redirect(`${FRONTEND_BASE}/agents/${agentId}?youtube=connected`);
     } catch (err) {
       console.error('[oauth] YouTube callback error:', err);
       const msg = encodeURIComponent(err instanceof Error ? err.message : 'Unknown error');
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents?oauth_error=${msg}`);
+      res.redirect(`${FRONTEND_BASE}/agents?oauth_error=${msg}`);
     }
   });
 
@@ -307,11 +308,11 @@ export function mountOAuthRoutes(app: Express, db: DatabaseManager): void {
       const socialId = upsertSocialAccount(db, agentId, 'tiktok', tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
       console.log(`[oauth] TikTok connected for agent ${agentId}, social ${socialId}`);
 
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents/${agentId}?tiktok=connected`);
+      res.redirect(`${FRONTEND_BASE}/agents/${agentId}?tiktok=connected`);
     } catch (err) {
       console.error('[oauth] TikTok callback error:', err);
       const msg = encodeURIComponent(err instanceof Error ? err.message : 'Unknown error');
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents?oauth_error=${msg}`);
+      res.redirect(`${FRONTEND_BASE}/agents?oauth_error=${msg}`);
     }
   });
 
@@ -345,11 +346,11 @@ export function mountOAuthRoutes(app: Express, db: DatabaseManager): void {
       const socialId = upsertSocialAccount(db, agentId, 'instagram', tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
       console.log(`[oauth] Instagram connected for agent ${agentId}, social ${socialId}`);
 
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents/${agentId}?instagram=connected`);
+      res.redirect(`${FRONTEND_BASE}/agents/${agentId}?instagram=connected`);
     } catch (err) {
       console.error('[oauth] Instagram callback error:', err);
       const msg = encodeURIComponent(err instanceof Error ? err.message : 'Unknown error');
-      res.redirect(`${REDIRECT_BASE.replace(/\/$/, '')}/agents?oauth_error=${msg}`);
+      res.redirect(`${FRONTEND_BASE}/agents?oauth_error=${msg}`);
     }
   });
 

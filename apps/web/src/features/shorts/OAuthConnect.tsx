@@ -39,7 +39,7 @@ export function OAuthConnect({ agentId, socialAccounts, onConnected }: OAuthConn
     setConnecting(platform);
 
     const popup = window.open(
-      `${API_BASE}/../oauth/${platform}/authorize?agentId=${agentId}`,
+      `${API_BASE}/oauth/${platform}/authorize?agentId=${agentId}`,
       `${platform}_oauth`,
       'width=600,height=700,scrollbars=yes',
     );
