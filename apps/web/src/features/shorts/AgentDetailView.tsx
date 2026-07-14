@@ -5,18 +5,16 @@ import { API_BASE } from '@/lib/api';
 import { useAgents, usePipeline, useMetrics, type AgentDetail, type PipelineJob } from './useShorts';
 import { ProviderSelector } from './ProviderSelector';
 import { PipelineJobCard } from './PipelineJobCard';
+import { NicheSearch } from './NicheSearch';
+import { OAuthConnect } from './OAuthConnect';
 import './AgentDetailView.css';
+import './NicheSearch.css';
+import './OAuthConnect.css';
 
 interface AgentDetailViewProps {
   agentId: string;
   onBack: () => void;
 }
-
-const PLATFORM_ICONS: Record<string, IconName> = {
-  youtube: 'play',
-  tiktok: 'music',
-  instagram: 'camera',
-};
 
 export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
   const { getAgentDetail } = useAgents();
@@ -29,12 +27,11 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // New job form
   const [newUrl, setNewUrl] = useState('');
   const [numClips, setNumClips] = useState('3');
   const [submitting, setSubmitting] = useState(false);
+  const [jobTab, setJobTab] = useState<'url' | 'nich'>('url');
 
-  // Free models (OpenCode Zen) para o seletor
   const [freeModels, setFreeModels] = useState<Array<{ id: string; label: string }>>([]);
 
   useEffect(() => {
@@ -65,16 +62,13 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  // Polling for active jobs
   useEffect(() => {
     const hasActive = jobs.some(j => !['done', 'error'].includes(j.status));
     if (!hasActive) return;
-
     const interval = setInterval(async () => {
       const updated = await getAgentJobs(agentId);
       setJobs(updated);
     }, 3000);
-
     return () => clearInterval(interval);
   }, [jobs, agentId, getAgentJobs]);
 
@@ -110,7 +104,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
 
   if (loading) return <Loading label="Carregando dashboard do agent..." />;
   if (error && !detail) return <Alert variant="danger">{error}</Alert>;
-  if (!detail) return <Alert variant="warning">Agent não encontrado</Alert>;
+  if (!detail) return <Alert variant="warning">Agent nao encontrado</Alert>;
 
   const { agent, socialAccounts, totalClips, recentJobs } = detail;
   const m = metrics || {};
@@ -119,9 +113,8 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
     <div className="agent-detail">
       {error && <Alert variant="danger">{error}</Alert>}
 
-      {/* Header */}
       <div className="agent-detail__header">
-        <Button variant="ghost" onClick={onBack}>← Voltar</Button>
+        <Button variant="ghost" onClick={onBack}>&larr; Voltar</Button>
         <div className="agent-detail__title-row">
           <div className="agent-detail__avatar">
             {agent.avatarUrl ? (
@@ -140,7 +133,6 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         </div>
       </div>
 
-      {/* Métricas */}
       <div className="agent-detail__metrics">
         <Card className="agent-detail__metric">
           <span className="agent-detail__metric-value"><Icon name="video" size={18} /> {totalClips}</span>
@@ -156,29 +148,16 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         </Card>
         <Card className="agent-detail__metric">
           <span className="agent-detail__metric-value"><Icon name="message" size={18} /> {(m.totalComments || 0).toLocaleString()}</span>
-          <span className="agent-detail__metric-label">Comentários</span>
+          <span className="agent-detail__metric-label">Comentarios</span>
         </Card>
       </div>
 
-      {/* Redes Sociais */}
-      <Panel title="Redes Conectadas">
-        <div className="agent-detail__socials">
-          {(['youtube', 'tiktok', 'instagram'] as const).map((platform) => {
-            const account = socialAccounts.find(s => s.platform === platform);
-            return (
-              <Card key={platform} className={`agent-detail__social ${account ? 'agent-detail__social--connected' : ''}`}>
-                <span className="agent-detail__social-icon"><Icon name={PLATFORM_ICONS[platform]} size={18} /></span>
-                <span className="agent-detail__social-name">{platform}</span>
-                <Badge tone={account?.active ? 'success' : 'neutral'} dot>
-                  {account?.active ? 'Conectado' : account ? 'Inativo' : 'Não conectado'}
-                </Badge>
-              </Card>
-            );
-          })}
-        </div>
-      </Panel>
+      <OAuthConnect
+        agentId={agentId}
+        socialAccounts={socialAccounts}
+        onConnected={loadData}
+      />
 
-      {/* Provider Selector */}
       <ProviderSelector
         selectedProviderId={agent.defaultProviderId}
         onSelect={async (providerId) => {
@@ -195,8 +174,7 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         }}
       />
 
-      {/* Modelo (grátis, OpenCode Zen) */}
-      <Panel title="Modelo de IA (grátis)">
+      <Panel title="Modelo de IA (gratis)">
         <div className="agent-detail__model-row">
           <span className="agent-detail__model-label"><Icon name="sparkles" size={16} /> Modelo</span>
           <select
@@ -223,35 +201,57 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         </div>
       </Panel>
 
-      {/* Novo Job */}
       <Panel title="Novo Corte">
-        <div className="agent-detail__new-job">
-          <Input
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            placeholder="Cole a URL do vídeo do YouTube..."
-            icon="link"
-          />
-          <div className="agent-detail__new-job-row">
-            <Input
-              type="number"
-              value={numClips}
-              onChange={(e) => setNumClips(e.target.value)}
-              label="Clips"
-              placeholder="3"
-            />
-            <Button
-              variant="primary"
-              onClick={handleStartJob}
-              disabled={submitting || !newUrl.trim()}
-            >
-              {submitting ? 'Iniciando...' : 'Gerar Cortes'}
-            </Button>
-          </div>
+        <div className="agent-detail__tabs">
+          <button
+            className={`agent-detail__tab ${jobTab === 'url' ? 'agent-detail__tab--active' : ''}`}
+            onClick={() => setJobTab('url')}
+          >
+            <Icon name="link" size={14} /> Colar Link
+          </button>
+          <button
+            className={`agent-detail__tab ${jobTab === 'nich' ? 'agent-detail__tab--active' : ''}`}
+            onClick={() => setJobTab('nich')}
+          >
+            <Icon name="search" size={14} /> Buscar por Nicho
+          </button>
         </div>
+
+        {jobTab === 'url' ? (
+          <div className="agent-detail__new-job">
+            <Input
+              value={newUrl}
+              onChange={(e) => setNewUrl(e.target.value)}
+              placeholder="Cole a URL do video do YouTube..."
+              icon="link"
+            />
+            <div className="agent-detail__new-job-row">
+              <Input
+                type="number"
+                value={numClips}
+                onChange={(e) => setNumClips(e.target.value)}
+                label="Clips"
+                placeholder="3"
+              />
+              <Button
+                variant="primary"
+                onClick={handleStartJob}
+                disabled={submitting || !newUrl.trim()}
+              >
+                {submitting ? 'Iniciando...' : 'Gerar Cortes'}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <NicheSearch
+            onSelect={(url) => {
+              setNewUrl(url);
+              setJobTab('url');
+            }}
+          />
+        )}
       </Panel>
 
-      {/* Jobs Ativos */}
       {jobs.filter(j => !['done', 'error'].includes(j.status)).length > 0 && (
         <Panel title="Processando Agora">
           <div className="agent-detail__jobs">
@@ -264,13 +264,12 @@ export function AgentDetailView({ agentId, onBack }: AgentDetailViewProps) {
         </Panel>
       )}
 
-      {/* Jobs Recentes */}
       <Panel title="Jobs Recentes">
         {recentJobs.length === 0 ? (
           <EmptyState
             icon="film"
             title="Nenhum job ainda"
-            description="Cole uma URL do YouTube acima pra começar."
+            description="Cole uma URL do YouTube ou busque por nicho pra comecar."
           />
         ) : (
           <div className="agent-detail__jobs">

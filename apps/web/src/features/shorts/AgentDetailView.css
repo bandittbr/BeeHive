@@ -119,6 +119,36 @@
   gap: var(--space-3);
 }
 
+.agent-detail__tabs {
+  display: flex;
+  gap: 0;
+  margin-bottom: 16px;
+  border-bottom: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+}
+
+.agent-detail__tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary, #888);
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.15s;
+}
+
+.agent-detail__tab:hover {
+  color: var(--text-primary, #fff);
+}
+
+.agent-detail__tab--active {
+  color: var(--accent, #f59e0b);
+  border-bottom-color: var(--accent, #f59e0b);
+}
+
 @media (max-width: 768px) {
   .agent-detail__metrics {
     grid-template-columns: repeat(2, 1fr);

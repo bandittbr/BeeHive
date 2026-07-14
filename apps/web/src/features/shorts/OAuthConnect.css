@@ -1,0 +1,61 @@
+.oauth-connect__platforms {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-3);
+}
+
+.oauth-connect__platform {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: var(--space-4);
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.08));
+  background: var(--bg-tertiary, rgba(255, 255, 255, 0.03));
+  text-align: center;
+  transition: border-color 0.15s;
+}
+
+.oauth-connect__platform--connected {
+  border-color: var(--success, #22c55e);
+}
+
+.oauth-connect__platform-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.06));
+}
+
+.oauth-connect__platform--connected .oauth-connect__platform-icon {
+  background: var(--success-soft, rgba(34, 197, 94, 0.12));
+}
+
+.oauth-connect__platform-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-transform: capitalize;
+}
+
+.oauth-connect__platform-status {
+  font-size: 0.8rem;
+  color: var(--text-secondary, #888);
+}
+
+.oauth-connect__platform--connected .oauth-connect__platform-status {
+  color: var(--success, #22c55e);
+}
+
+.oauth-connect__btn {
+  margin-top: 4px;
+}
+
+@media (max-width: 768px) {
+  .oauth-connect__platforms {
+    grid-template-columns: 1fr;
+  }
+}

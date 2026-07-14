@@ -22,6 +22,7 @@ import { mountShortsAgentRoutes } from './routes/shortsAgentRoutes';
 import { mountShortsPipelineRoutes } from './routes/shortsPipelineRoutes';
 import { mountShortsPublishRoutes } from './routes/shortsPublishRoutes';
 import { mountBrowserRoutes } from './routes/browserRoutes';
+import { mountProjectBrowseRoutes } from './routes/projectBrowseRoutes';
 import { mountOAuthRoutes } from './routes/oauthRoutes';
 import { mountNicheRoutes } from './routes/nicheRoutes';
 import { MetricsWorker } from './shorts/metricsWorker';
@@ -45,6 +46,7 @@ const db = new DatabaseManager({ dbPath: 'data/beehive.db' });
 
 // --- Rotas de Projetos (sempre disponíveis, independente do provider) ---
 mountProjectRoutes(app, db);
+mountProjectBrowseRoutes(app);
 
 // --- Rotas de Afiliados (sempre disponíveis) ---
 mountAffiliatesRoutes(app, db);
