@@ -217,11 +217,10 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
         console.error(`[shorts-pipeline] stderr: ${text.slice(0, 500)}`);
       });
 
-      child.on('close', (code) => {
-        if (code !== 0 && stderrBuf.trim()) {
-          _updateJobError(db, id, `Pipeline exited (${code}): ${stderrBuf.slice(-800)}`);
-        } else if (code !== 0) {
-          _updateJobError(db, id, `Pipeline exited with code ${code}`);
+      child.on('close', (code, signal) => {
+        if (code !== 0) {
+          const sig = signal ? ` signal=${signal}` : '';
+          _updateJobError(db, id, `Pipeline exited (code=${code}${sig}): ${stderrBuf.slice(-800)}`);
         }
       });
 
