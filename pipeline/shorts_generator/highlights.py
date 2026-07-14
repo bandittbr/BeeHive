@@ -163,18 +163,37 @@ Find the top viral moments. Return ONLY the JSON array."""
             if not isinstance(highlights, list):
                 raise ValueError("Not a list")
 
-            for h in highlights:
-                h["start_time"] = h.get("start_time", 0) + offset
-                h["end_time"] = h.get("end_time", 0) + offset
-                h["score"] = max(0, min(100, int(h.get("score", 50))))
-
-            return highlights
+            normalized = [_normalize_highlight(h, offset) for h in highlights]
+            return normalized
 
         except Exception:
             if attempt < 2:
                 prompt += "\n\nIMPORTANT: Return ONLY a valid JSON array. No markdown, no explanation."
 
     return []
+
+
+def _normalize_highlight(h: any, offset: float) -> dict:
+    """Normaliza um highlight que pode vir como dict OU como lista posicional
+    (ex.: [title, start_time, end_time, score, hook, reason])."""
+    if isinstance(h, list):
+        h = {
+            "title": h[0] if len(h) > 0 else "",
+            "start_time": h[1] if len(h) > 1 else 0,
+            "end_time": h[2] if len(h) > 2 else 0,
+            "score": h[3] if len(h) > 3 else 50,
+            "hook_sentence": h[4] if len(h) > 4 else "",
+            "virality_reason": h[5] if len(h) > 5 else "",
+        }
+
+    return {
+        "title": str(h.get("title", "")) if isinstance(h, dict) else str(h),
+        "start_time": float(h.get("start_time", 0)) + offset if isinstance(h, dict) else 0,
+        "end_time": float(h.get("end_time", 0)) + offset if isinstance(h, dict) else 0,
+        "score": max(0, min(100, int(h.get("score", 50)))) if isinstance(h, dict) else 50,
+        "hook_sentence": str(h.get("hook_sentence", "")) if isinstance(h, dict) else "",
+        "virality_reason": str(h.get("virality_reason", "")) if isinstance(h, dict) else "",
+    }
 
 
 def _dedupe_highlights(highlights: list) -> list:
