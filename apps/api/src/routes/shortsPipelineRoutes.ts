@@ -278,7 +278,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
   // O Python roda com cwd=PIPELINE_DIR, então os clips ficam em PIPELINE_DIR/output/...
   app.get('/api/shorts/clips/*', (req, res) => {
     try {
-      const rel = decodeURIComponent(req.params[0] ?? '');
+      const rel = decodeURIComponent((req.params as Record<string, string>)[0] ?? '');
       const full = resolve(PIPELINE_DIR, rel);
       if (!full.startsWith(PIPELINE_DIR)) {
         res.status(400).json({ error: 'Caminho inválido' });

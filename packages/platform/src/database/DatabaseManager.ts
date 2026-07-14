@@ -15,6 +15,7 @@ import { dirname } from 'node:path';
 import type { ILogger } from '../kernel';
 import { AFFILIATES_SCHEMA } from './affiliatesSchema';
 import { SHORTS_SCHEMA } from './shortsSchema';
+import { BROWSER_SCHEMA } from './browserSchema';
 
 export interface DatabaseManagerOptions {
   /** Caminho do arquivo SQLite. Padrão: data/beehive.db */
@@ -113,6 +114,7 @@ export class DatabaseManager {
     this.db.exec(SCHEMA_SQL);
     this.db.exec(AFFILIATES_SCHEMA);
     this.db.exec(SHORTS_SCHEMA);
+    this.db.exec(BROWSER_SCHEMA);
   }
 
   /** Fecha o banco com segurança. */

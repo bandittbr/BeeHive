@@ -44,6 +44,8 @@ export interface BrowserConfig {
   readonly proxy?: string;
   /** Viewport padrão */
   readonly viewport?: BrowserViewport;
+  /** User-Agent customizado (padrão: usa o do navegador) */
+  readonly userAgent?: string;
 }
 
 /** Viewport do navegador */
@@ -201,4 +203,49 @@ export interface IBrowserManager {
   getDefault(): Promise<IBrowserInstance>;
   /** Snapshot de todas as instâncias */
   snapshots(): BrowserInstanceSnapshot[];
+}
+
+// ---------------------------------------------------------------------------
+// Browser Profiles (persistência)
+// ---------------------------------------------------------------------------
+
+/** Perfil de navegador persistido no banco. */
+export interface BrowserProfile {
+  id: string;
+  name: string;
+  browserType: BrowserType;
+  userDataDir: string;
+  proxy: string;
+  viewportWidth: number;
+  viewportHeight: number;
+  userAgent: string;
+  cookies: string;       // JSON array
+  localStorage: string;  // JSON object
+  metadata: string;      // JSON object
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string;
+}
+
+/** Input para criar um perfil de navegador. */
+export interface BrowserProfileInputCreate {
+  name: string;
+  browserType?: 'chromium' | 'firefox' | 'chrome';
+  userDataDir: string;
+  proxy?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  userAgent?: string;
+}
+
+/** Input para atualizar um perfil existente. */
+export interface BrowserProfileInputUpdate {
+  name?: string;
+  proxy?: string;
+  viewportWidth?: number;
+  viewportHeight?: number;
+  userAgent?: string;
+  cookies?: unknown[];
+  localStorage?: Record<string, string>;
+  metadata?: Record<string, unknown>;
 }

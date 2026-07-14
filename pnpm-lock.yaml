@@ -136,6 +136,12 @@ importers:
       better-sqlite3:
         specifier: ^12.11.1
         version: 12.11.1
+      playwright:
+        specifier: ^1.47.0
+        version: 1.61.1
+      playwright-stealth:
+        specifier: ^0.0.1
+        version: 0.0.1
     devDependencies:
       '@types/node':
         specifier: ^20.14.9
@@ -2263,6 +2269,9 @@ packages:
     resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
     hasBin: true
+
+  playwright-stealth@0.0.1:
+    resolution: {integrity: sha512-z7iJllbLk4AroVisI2yjTP3F6I6wLBNbaQiohJ8E8pHB2n6UMYYqtaAL1CubSFHWJ7VJ1vVfy40NTE6WSijXUg==}
 
   playwright@1.61.1:
     resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
@@ -5045,6 +5054,8 @@ snapshots:
   picomatch@4.0.5: {}
 
   playwright-core@1.61.1: {}
+
+  playwright-stealth@0.0.1: {}
 
   playwright@1.61.1:
     dependencies:

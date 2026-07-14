@@ -12,12 +12,16 @@ export { PlaywrightBrowser } from './PlaywrightBrowser';
 export { CDPBrowser } from './CDPBrowser';
 export { BaseBrowserInstance } from './BaseBrowserInstance';
 export { BaseTab } from './BaseTab';
+export { BrowserProfileStore } from './BrowserProfileStore';
 
 export type {
   AutomationMode,
   BrowserConfig,
   BrowserInstanceSnapshot,
   BrowserMetrics,
+  BrowserProfile,
+  BrowserProfileInputCreate,
+  BrowserProfileInputUpdate,
   BrowserType,
   BrowserViewport,
   IBrowserInstance,

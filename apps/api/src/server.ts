@@ -21,6 +21,7 @@ import { mountProviderRoutes } from './routes/providerRoutes';
 import { mountShortsAgentRoutes } from './routes/shortsAgentRoutes';
 import { mountShortsPipelineRoutes } from './routes/shortsPipelineRoutes';
 import { mountShortsPublishRoutes } from './routes/shortsPublishRoutes';
+import { mountBrowserRoutes } from './routes/browserRoutes';
 import { bootstrapWorker } from './affiliates';
 import { DatabaseManager } from '@beehive/platform/server';
 
@@ -78,6 +79,7 @@ if (config.aiProvider === 'llmrouter') {
     mountBusinessRoutes(app, provider);
     mountMediaRoutes(app, imageProvider);
     mountShortsPipelineRoutes(app, db, beehiveRuntime);
+    mountBrowserRoutes(app, db);
     const httpServer = createServer(app);
     attachRuntimeEventsSocket(httpServer, beehiveRuntime);
     httpServer.listen(config.port, () => {
@@ -101,8 +103,9 @@ if (config.aiProvider === 'llmrouter') {
   mountConversationRoutes(app, orchestrator);
   mountBusinessRoutes(app, provider);
   mountMediaRoutes(app, imageProvider);
-  mountShortsPipelineRoutes(app, db, beehiveRuntime);
-  const httpServer = createServer(app);
+mountShortsPipelineRoutes(app, db, beehiveRuntime);
+    mountBrowserRoutes(app, db);
+    const httpServer = createServer(app);
   attachRuntimeEventsSocket(httpServer, beehiveRuntime);
   httpServer.listen(config.port, () => {
     console.log(

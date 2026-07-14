@@ -12,10 +12,14 @@ import type {
  *
  * Suporta Chromium, Firefox e WebKit. Usa o Playwright para controle
  * completo do navegador (navegação, cliques, screenshots, etc.).
+ *
+ * Integra playwright-stealth para anti-detect e suporta contextos persistentes
+ * (userDataDir) para manter sessão/cookies entre runs.
  */
 export class PlaywrightBrowser extends BaseBrowserInstance {
   private browserProcess: any = null;
   private _debugUrl: string | undefined;
+  private _context: any = null;
 
   async start(): Promise<void> {
     if (this._state === 'running') return;
@@ -26,9 +30,23 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
       const browserType = this.mapBrowserType(this.type);
       const launcher = pw[browserType];
 
-      this.browserProcess = await launcher.launch({
-        ...this.buildLaunchOptions(),
-      });
+      // Contexto persistente para manter cookies/sessão
+      const launchOptions = this.buildLaunchOptions();
+      const isPersistent = !!this.config.userDataDir;
+
+      if (isPersistent) {
+        this.browserProcess = await launcher.launchPersistentContext(
+          this.config.userDataDir!,
+          launchOptions,
+        );
+        this._context = this.browserProcess;
+      } else {
+        this.browserProcess = await launcher.launch(launchOptions);
+        this._context = await this.browserProcess.newContext(launchOptions);
+      }
+
+      // Injeta stealth no contexto
+      await this.injectStealth();
 
       this._debugUrl = this.browserProcess?.wsEndpoint?.() ?? undefined;
       this._startedAt = Date.now();
@@ -54,6 +72,7 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
         await this.browserProcess.close().catch(() => {});
         this.browserProcess = null;
       }
+      this._context = null;
 
       this._state = 'stopped';
       this._startedAt = null;
@@ -62,19 +81,30 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
     }
   }
 
+  private async injectStealth(): Promise<void> {
+    if (!this._context) return;
+    try {
+      // playwright-stealth: injeta scripts anti-detect no contexto
+      const stealth = await import('playwright-stealth');
+      await stealth.default(this._context);
+    } catch {
+      // stealth opcional; continua sem se falhar
+    }
+  }
+
   async newTab(url?: string): Promise<IBrowserTab> {
-    if (!this.browserProcess) {
+    const context = this._context ?? this.browserProcess;
+    if (!context) {
       throw new Error('Navegador não iniciado');
     }
 
-    const page = await this.browserProcess.newPage();
+    const page = await context.newPage();
     const tabId = `tab_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
     if (url) {
-      await page.goto(url);
+      await page.goto(url, { waitUntil: 'networkidle' });
     }
 
-    // Configura viewport se especificado
     if (this.config.viewport) {
       await page.setViewportSize(this.config.viewport);
     }
@@ -114,6 +144,8 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
   private buildLaunchOptions(): Record<string, unknown> {
     const options: Record<string, unknown> = {
       headless: this.config.headless ?? true,
+      viewport: this.config.viewport ?? { width: 1280, height: 720 },
+      userAgent: this.config.userAgent,
     };
 
     if (this.config.executablePath) {
@@ -124,10 +156,7 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
       options.args = [...this.config.args];
     }
 
-    if (this.config.userDataDir) {
-      options.userDataDir = this.config.userDataDir;
-    }
-
+    // Proxy
     if (this.config.proxy) {
       options.proxy = { server: this.config.proxy };
     }
@@ -135,6 +164,20 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
     if (this.config.defaultTimeout) {
       options.timeout = this.config.defaultTimeout;
     }
+
+    // Argumentos de stealth/anti-detect adicionais
+    const stealthArgs = [
+      '--disable-blink-features=AutomationControlled',
+      '--disable-features=IsolateOrigins,site-per-process',
+      '--disable-site-isolation-trials',
+      '--no-first-run',
+      '--no-default-browser-check',
+      '--disable-infobars',
+      '--disable-breakpad',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+    ];
+    options.args = [...(options.args as string[] ?? []), ...stealthArgs];
 
     return options;
   }
@@ -155,7 +198,6 @@ class PlaywrightTab extends BaseTab {
     this.page = page;
     this.timeout = timeout;
 
-    // Escuta eventos da página
     page.on('close', () => { this._state = 'closed'; });
     page.on('load', () => { this._state = 'open'; });
     page.on('crash', () => { this._state = 'crashed'; });
@@ -201,7 +243,6 @@ class PlaywrightTab extends BaseTab {
   }
 
   async getText(): Promise<string> {
-    // @ts-ignore - document existe no contexto do navegador
     return this.page.evaluate(() => document.body.innerText);
   }
 
