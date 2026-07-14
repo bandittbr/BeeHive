@@ -69,7 +69,20 @@ def download_video(url: str, output_dir: str = None) -> dict:
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
 
     if result.returncode != 0:
-        raise RuntimeError(f"yt-dlp error: {result.stderr}")
+        raise RuntimeError(f"yt-dlp error: {result.stderr[-1500:]}")
+
+    if not os.path.exists(cache_path):
+        listing = []
+        try:
+            for f in os.listdir(YOUTUBE_CACHE_DIR):
+                listing.append(f)
+        except Exception:
+            listing = ["<no listing>"]
+        raise RuntimeError(
+            f"yt-dlp retornou 0 mas não criou '{cache_path}'. "
+            f"Arquivos em {YOUTUBE_CACHE_DIR}: {listing}. "
+            f"stdout: {result.stdout.strip()[-500:]}"
+        )
 
     try:
         info = json.loads(result.stdout.strip().split('\n')[-1])
