@@ -3,13 +3,14 @@
 # rebuild trigger: use get-pip.py to install pip into nix python
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl", "libx11", "libxcomposite", "libxdamage", "libxrandr", "libxkbcommon", "libglib", "libnss", "libcups", "libdrm", "libxshmfence", "libasound", "mesa"]
+nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl", "libx11", "libxcomposite", "libxdamage", "libxrandr", "libxkbcommon", "libglib", "libnss", "libcups", "libdrm", "libxshmfence", "libasound", "mesa", "alsa-lib", "libxcb", "libxfixes", "libxext", "libxi", "libxtst", "atk", "at-spi2-core", "gtk3", "libdrm", "libgbm", "libxkbfile", "libxss", "nspr", "nss"]
 
 [phases.install]
 cmds = [
   "pnpm install",
   "pnpm rebuild better-sqlite3",
   "pip install --user --break-system-packages -r pipeline/requirements.txt",
+  "npx playwright install chromium --with-deps",
 ]
 
 [start]
