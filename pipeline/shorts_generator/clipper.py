@@ -61,7 +61,7 @@ def add_subtitles(video_path: str, srt_path: str, output_path: str) -> str:
         "ffmpeg", "-y",
         "-i", video_path,
         "-vf", f"subtitles={srt_path}:force_style='FontSize=20,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'",
-        "-c:v", "libx264", "-preset", "fast", "-crf", "20",
+        "-c:v", "libx264", "-preset", "veryfast", "-crf", "23",
         "-c:a", "copy",
         "-movflags", "+faststart",
         output_path,
@@ -125,43 +125,13 @@ def _parse_aspect(ratio: str) -> tuple:
 
 
 def _calculate_crop(src_w: int, src_h: int, target_w: int, target_h: int,
-                    video_path: str, start_time: float, end_time: float) -> dict:
+                    video_path: str = "", start_time: float = 0.0, end_time: float = 0.0) -> dict:
     """
-    Calcula parâmetros de crop com face detection.
-    Tenta detectar rosto; se falhar, usa crop centralizado.
+    Calcula parâmetros de crop centralizado (9:16).
+    O detection de rosto via OpenCV foi removido: carregar o cv2 no momento
+    do crop adiciona ~100MB+ exatamente no pico de memória do container,
+    causando OOM. Crop centralizado é suficiente para a v1.
     """
-    try:
-        import cv2
-
-        cap = cv2.VideoCapture(video_path)
-        fps = cap.get(cv2.CAP_PROP_FPS) or 30
-        mid_frame = int((start_time + (end_time - start_time) / 2) * fps)
-        cap.set(cv2.CAP_PROP_POS_FRAMES, mid_frame)
-
-        ret, frame = cap.read()
-        cap.release()
-
-        if ret:
-            face_cascade = cv2.CascadeClassifier(
-                cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
-            )
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(50, 50))
-
-            if len(faces) > 0:
-                fx, fy, fw, fh = max(faces, key=lambda f: f[2] * f[3])
-                face_cx = fx + fw // 2
-
-                crop_w = int(src_h * target_w / target_h)
-                crop_x = max(0, min(face_cx - crop_w // 2, src_w - crop_w))
-
-                return {"w": crop_w, "h": src_h, "x": crop_x, "y": 0}
-
-    except ImportError:
-        pass
-    except Exception:
-        pass
-
     crop_w = int(src_h * target_w / target_h)
     crop_x = max(0, (src_w - crop_w) // 2)
     return {"w": crop_w, "h": src_h, "x": crop_x, "y": 0}

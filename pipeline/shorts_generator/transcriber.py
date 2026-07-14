@@ -10,6 +10,7 @@ um numpy array diretamente ao modelo (sem passar pelo PyAV).
 import os
 import json
 import wave
+import gc
 import subprocess
 import numpy as np
 from .config import (
@@ -94,6 +95,10 @@ def transcribe_video(video_path: str, language: str = "pt") -> dict:
             "end": seg.end,
             "text": seg.text.strip(),
         })
+
+    # Libera o modelo da memória antes do crop (evita OOM no container pequeno).
+    del model
+    gc.collect()
 
     result = {
         "duration": info.duration if info else (segments[-1]["end"] if segments else 0),
