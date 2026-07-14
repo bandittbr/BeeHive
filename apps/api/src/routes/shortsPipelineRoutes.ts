@@ -35,26 +35,24 @@ for (const candidate of ['python3', 'python', 'python3.11']) {
   }
 }
 
-// faster-whisper (ctranslate2/onnxruntime) precisa de libstdc++/libgomp em runtime.
-// O ambiente nix não os deixa no LD_LIBRARY_PATH por padrão; localizamos no /nix/store.
-function _findLibDir(pattern: string): string {
+// faster-whisper (ctranslate2/onnxruntime) precisa de libstdc++ em runtime.
+// O ambiente nix não a deixa no LD_LIBRARY_PATH por padrão. Mas há várias
+// versões de libstdc++ no /nix/store; precisamos da que expõe CXXABI_1.3.15
+// (a que o ffmpeg e seus pacotes esperam), senão quebramos o ffmpeg.
+function _findLibstdcxxDir(): string {
   try {
-    const out = execSync(`find /nix/store -maxdepth 6 -name '${pattern}' 2>/dev/null | head -1`, { stdio: ['ignore', 'pipe', 'ignore'] })
-      .toString()
-      .trim();
-    if (!out) return '';
-    return out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : '';
+    const cmd = `for f in $(find /nix/store -name 'libstdc++.so*' 2>/dev/null); do if grep -aq 'CXXABI_1.3.15' "$f" 2>/dev/null; then dirname "$f"; break; fi; done`;
+    const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
+    return out || '';
   } catch {
     return '';
   }
 }
 
-const _LIBSTDCXX_DIR = _findLibDir('libstdc++.so*');
-const _LIBGOMP_DIR = _findLibDir('libgomp.so*');
-const _EXTRA_LD = [_LIBSTDCXX_DIR, _LIBGOMP_DIR].filter(Boolean).join(':');
+const _LIBSTDCXX_DIR = _findLibstdcxxDir();
 function _ldLibraryPath(): string {
   const base = process.env.LD_LIBRARY_PATH ?? '';
-  return _EXTRA_LD ? `${_EXTRA_LD}:${base}` : base;
+  return _LIBSTDCXX_DIR ? `${_LIBSTDCXX_DIR}:${base}` : base;
 }
 
 export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, runtime?: RuntimeManager): void {
