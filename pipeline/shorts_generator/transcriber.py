@@ -27,7 +27,9 @@ def _extract_wav(video_path: str) -> str:
         "ffmpeg", "-y", "-i", video_path,
         "-vn", "-ac", "1", "-ar", "16000", "-f", "wav", wav_path,
     ]
-    subprocess.run(cmd, capture_output=True, text=True, timeout=300, check=True)
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+    if proc.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed ({proc.returncode}): {proc.stderr[-1000:]}")
     return wav_path
 
 
