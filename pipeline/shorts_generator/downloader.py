@@ -6,6 +6,7 @@ import re
 import sys
 import subprocess
 import json
+import hashlib
 from .config import LOCAL_OUTPUT_DIR, YOUTUBE_CACHE_DIR, YOUTUBE_FORMAT
 
 
@@ -36,6 +37,11 @@ def download_video(url: str, output_dir: str = None) -> dict:
 
     video_id = extract_video_id(url)
     cache_path = os.path.join(YOUTUBE_CACHE_DIR, f"source_{video_id}.mp4")
+    # URLs genéricas (não-YouTube) retornam a URL inteira em video_id,
+    # gerando nome de arquivo inválido. Usa hash curto e seguro.
+    if not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', video_id):
+        safe = hashlib.md5(url.encode('utf-8')).hexdigest()
+        cache_path = os.path.join(YOUTUBE_CACHE_DIR, f"source_{safe}.mp4")
 
     if os.path.exists(cache_path):
         info = _probe(cache_path)
