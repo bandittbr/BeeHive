@@ -107,6 +107,22 @@ def generate_shorts(
         report("error", 0, error_msg)
         return result
 
+    # Fallback: vídeo sem falas detectadas ou sem highlights -> recorta
+    # trechos do próprio vídeo para não entregar zero clips.
+    if not result["highlights"] and video_info.get("duration"):
+        dur = float(video_info["duration"]) or 0
+        if dur > 0:
+            seg = min(dur, 45)
+            result["highlights"] = [{
+                "title": str(video_info.get("title", "Clip"))[:60],
+                "start_time": 0.0,
+                "end_time": seg,
+                "score": 50,
+                "hook_sentence": "",
+                "virality_reason": "Recorte automático (sem falas detectadas)",
+            }]
+            report("analyzing", 60, "Usando recorte automático de fallback")
+
     # STEP 4: Generate clips
     video_title = video_info.get("title", "")
     agent_dir = os.path.join(output_dir, agent_id or "default")
