@@ -54,9 +54,13 @@ def download_video(url: str, output_dir: str = None) -> dict:
 
     cmd = [
         sys.executable, "-m", "yt_dlp",
+    ]
+    proxy = os.getenv("YTDLP_PROXY")
+    if proxy:
+        cmd += ["--proxy", proxy]
+    cmd += [
         "-f", YOUTUBE_FORMAT,
         "--merge-output-format", "mp4",
-        "-o", cache_path,
         "--no-playlist",
         "--print-json",
         url,
