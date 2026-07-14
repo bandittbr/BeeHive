@@ -49,7 +49,7 @@ def crop_clip(video_path: str, start_time: float, end_time: float,
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
 
     if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg crop error: {result.stderr[:500]}")
+        raise RuntimeError(f"ffmpeg crop error: {result.stderr[-1500:]}")
 
     return output_path
 
