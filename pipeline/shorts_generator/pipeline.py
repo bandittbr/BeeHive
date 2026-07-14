@@ -124,6 +124,7 @@ def generate_shorts(
             report("analyzing", 60, "Usando recorte automático de fallback")
 
     # STEP 4: Generate clips
+    highlights = result["highlights"]
     video_title = video_info.get("title", "")
     agent_dir = os.path.join(output_dir, agent_id or "default")
     os.makedirs(agent_dir, exist_ok=True)
