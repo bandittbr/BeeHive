@@ -3,7 +3,7 @@
 # rebuild trigger: use get-pip.py to install pip into nix python
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl", "chromium", "libx11", "libxcomposite", "libxdamage", "libxrandr", "libxkbcommon", "libglib", "libnss", "libcups", "libdrm", "libxshmfence", "libasound", "mesa", "alsa-lib", "libxcb", "libxfixes", "libxext", "libxi", "libxtst", "atk", "at-spi2-core", "gtk3", "libdrm", "libgbm", "libxkbfile", "libxss", "nspr", "nss"]
+nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl", "chromium"]
 
 [phases.install]
 cmds = [
@@ -13,11 +13,10 @@ cmds = [
 ]
 
 [start]
-cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; echo \"[start] libstdcxx_dir=$L libgomp_dir=$G\"; pnpm --filter @beehive/api run start"
+cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); CR=$(which chromium 2>/dev/null || find /nix/store -name 'chromium' -type f -executable 2>/dev/null | head -1); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=\"$CR\"; echo \"[start] libstdcxx=$L libgomp=$G chromium=$CR\"; pnpm --filter @beehive/api run start"
 
 [variables]
 PORT = "4000"
 PYTHONUNBUFFERED = "1"
 PYTHONPATH = "/root/.local/lib/python3.11/site-packages"
-PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH = "/run/current-system/sw/bin/chromium"
 PLAYWRIGHT_BROWSERS_PATH = "/opt/playwright"

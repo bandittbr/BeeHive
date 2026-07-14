@@ -148,8 +148,9 @@ export class PlaywrightBrowser extends BaseBrowserInstance {
       userAgent: this.config.userAgent,
     };
 
-    if (this.config.executablePath) {
-      options.executablePath = this.config.executablePath;
+    const exePath = this.config.executablePath || process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH;
+    if (exePath) {
+      options.executablePath = exePath;
     }
 
     if (this.config.args && this.config.args.length > 0) {
