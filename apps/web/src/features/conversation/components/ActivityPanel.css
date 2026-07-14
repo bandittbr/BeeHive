@@ -1,0 +1,168 @@
+/* ── Activity Panel — painel de atividade em tempo real ─────────────────── */
+
+.activity-panel {
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  min-width: 280px;
+  max-width: 320px;
+  border-left: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow: hidden;
+}
+
+.activity-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-4) var(--space-2);
+}
+
+.activity-panel__title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+/* ── Filters ────────────────────────────────────────────────────────────── */
+
+.activity-panel__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 0 var(--space-4) var(--space-3);
+}
+
+.activity-panel__filter {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xs);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.activity-panel__filter:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.activity-panel__filter--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 500;
+}
+
+/* ── Activity List ──────────────────────────────────────────────────────── */
+
+.activity-panel__list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-3);
+}
+
+.activity-item {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--transition-fast);
+}
+
+.activity-item:hover {
+  background: var(--bg-hover);
+}
+
+.activity-item:last-child {
+  border-bottom: none;
+}
+
+.activity-item__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated);
+  flex-shrink: 0;
+}
+
+.activity-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.activity-item__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.activity-item__title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-item__time {
+  font-size: 10px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.activity-item__detail {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+  font-family: var(--font-mono);
+}
+
+.activity-item__status {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+}
+
+.activity-item__status--success {
+  color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.activity-item__status--error {
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.activity-item__status--running {
+  color: #f59e0b;
+  background: rgba(245, 158, 11, 0.1);
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}

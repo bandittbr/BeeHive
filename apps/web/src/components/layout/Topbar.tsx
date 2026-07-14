@@ -2,7 +2,10 @@
  * Topbar — barra superior do BeeHive.
  */
 
+import { useState, useEffect } from 'react';
 import { Icon } from '@/components/common/Icon';
+import { UsageRing } from '@/components/common/UsageRing';
+import { getActiveProvider } from '@/services/settings/settingsService';
 import type { Theme } from '@/theme/useTheme';
 import './Topbar.css';
 
@@ -23,6 +26,22 @@ const VIEW_LABELS: Record<string, string> = {
 
 export function Topbar({ theme, onToggleTheme, onToggleSidebar, activeView }: TopbarProps) {
   const viewLabel = VIEW_LABELS[activeView] || 'BeeHive';
+  const [modelName, setModelName] = useState<string>('carregando...');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const info = await getActiveProvider();
+        if (!cancelled) {
+          setModelName(info.activeModel ?? 'nenhum modelo');
+        }
+      } catch {
+        if (!cancelled) setModelName('big-pickle');
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   return (
     <header className="topbar">
@@ -50,9 +69,10 @@ export function Topbar({ theme, onToggleTheme, onToggleSidebar, activeView }: To
       </div>
 
       <div className="topbar__actions">
+        <UsageRing />
         <div className="topbar__model-badge">
           <span className="status-dot status-dot--online" />
-          <span>big-pickle</span>
+          <span>{modelName}</span>
         </div>
         <button type="button" className="topbar__icon-btn" aria-label="Buscar">
           <Icon name="search" size={20} />

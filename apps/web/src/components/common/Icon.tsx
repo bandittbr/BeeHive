@@ -65,7 +65,9 @@ export type IconName =
   | 'clock'
   | 'download'
   | 'mic'
-  | 'send';
+  | 'send'
+  | 'activity'
+  | 'git';
 
 interface IconProps {
   name: IconName;
@@ -308,6 +310,19 @@ const PATHS: Record<IconName, JSX.Element> = {
   ),
   pencil: <path d="M4 20h4L19 9l-4-4L4 16zM14 6l4 4" />,
   download: <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />,
+  activity: (
+    <>
+      <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+    </>
+  ),
+  git: (
+    <>
+      <circle cx="12" cy="18" r="3" />
+      <circle cx="6" cy="6" r="3" />
+      <circle cx="18" cy="6" r="3" />
+      <path d="M18 9v12M6 15V9M12 12V6" />
+    </>
+  ),
 };
 
 export function Icon({ name, size = 20, strokeWidth = 1.8, className }: IconProps) {

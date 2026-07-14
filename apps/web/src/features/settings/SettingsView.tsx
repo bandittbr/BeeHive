@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { AreaPage } from '@/components/area/AreaPage';
 import { Panel } from '@/components/ui';
 import { AIProvidersSettings } from './components/AIProvidersSettings';
-import { KernelCheck } from './components/KernelCheck';
 import './SettingsView.css';
 
 type SettingsTab = 'general' | 'ai-providers';
@@ -32,14 +31,16 @@ export function SettingsView() {
             className={`settings-tab ${activeTab === 'ai-providers' ? 'active' : ''}`}
             onClick={() => setActiveTab('ai-providers')}
           >
-            AI Providers
+            Ai Providers
           </button>
         </aside>
         
         <main className="settings-content">
           {activeTab === 'general' && (
             <Panel title="Configurações Gerais">
-              <KernelCheck />
+              <div className="settings__general-info">
+                <p>BeeHive v1.0 — Seu assistente AI pessoal.</p>
+              </div>
             </Panel>
           )}
           

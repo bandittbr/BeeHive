@@ -4,7 +4,7 @@ import { ActionCards } from './components/ActionCards';
 import { QuickSuggestions } from './components/QuickSuggestions';
 import { MessageComposer } from './components/MessageComposer';
 import { MessageList } from './components/MessageList';
-import { HistoryPanel } from './components/HistoryPanel';
+import { ActivityPanel } from './components/ActivityPanel';
 import { useConversations } from './ConversationStore';
 import { Button, Modal } from '@/components/ui';
 import './ConversationView.css';
@@ -18,16 +18,13 @@ import './ConversationView.css';
  */
 export function ConversationView() {
   const {
-    conversations,
     activeId,
     activeMessages,
     respondingId,
     sendMessage,
     stop,
     newConversation,
-    selectConversation,
     deleteConversation,
-    renameConversation,
   } = useConversations();
 
   const [value, setValue] = useState('');
@@ -107,14 +104,7 @@ export function ConversationView() {
         </div>
       </section>
 
-      <HistoryPanel
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={selectConversation}
-        onNew={newConversation}
-        onRequestDelete={setPendingDelete}
-        onRename={renameConversation}
-      />
+      <ActivityPanel />
 
       {/* Aviso de conflito: outra conversa está gerando resposta. */}
       <Modal

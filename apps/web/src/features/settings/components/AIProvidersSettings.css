@@ -223,3 +223,64 @@
 .retry-btn {
   margin-top: var(--space-3);
 }
+
+/* ── Active Provider Bar ───────────────────────────────────────────────── */
+
+.providers-active-bar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-bottom: var(--space-4);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.providers-active-bar__name {
+  font-weight: 600;
+}
+
+.providers-active-bar__model {
+  margin-left: auto;
+  color: var(--text-secondary);
+}
+
+.providers-active-bar__model strong {
+  color: var(--accent);
+  font-family: var(--font-mono);
+}
+
+/* ── Model Selector Section ────────────────────────────────────────────── */
+
+.provider-config__model-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-elevated);
+}
+
+.provider-config__model-row {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.provider-config__model-row input {
+  flex: 1;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+}
+
+/* ── General Info ──────────────────────────────────────────────────────── */
+
+.settings__general-info {
+  padding: var(--space-3) 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}

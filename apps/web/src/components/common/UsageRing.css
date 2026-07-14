@@ -1,0 +1,107 @@
+/* ── UsageRing — anel circular de consumo de tokens ────────────────────── */
+
+.usage-ring {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.usage-ring__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 36px;
+  height: 36px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: color var(--transition);
+}
+
+.usage-ring__trigger:hover {
+  color: var(--accent);
+}
+
+.usage-ring__bg {
+  opacity: 0.2;
+}
+
+.usage-ring__fill {
+  color: var(--accent);
+  transition: stroke-dashoffset var(--transition);
+}
+
+.usage-ring__label {
+  position: absolute;
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+/* ── Popup ────────────────────────────────────────────────────────────── */
+
+.usage-ring__popup {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 220px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: var(--space-4);
+  z-index: 200;
+}
+
+.usage-ring__popup-header {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-3);
+}
+
+.usage-ring__popup-ring {
+  display: flex;
+  justify-content: center;
+  position: relative;
+  margin-bottom: var(--space-3);
+}
+
+.usage-ring__popup-percent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: var(--text-lg);
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.usage-ring__popup-stats {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.usage-ring__stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.usage-ring__stat-label {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+.usage-ring__stat-value {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+}

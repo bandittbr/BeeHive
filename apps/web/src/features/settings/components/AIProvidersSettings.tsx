@@ -7,7 +7,9 @@ import {
   testProvider,
   activateProvider,
   setDefaultModel,
+  getActiveProvider,
   type ProviderCatalogStatus,
+  type ActiveProviderInfo,
   type TestResult,
 } from '@/services/settings/settingsService';
 import './AIProvidersSettings.css';
@@ -18,13 +20,15 @@ type View = 'grid' | 'config';
  * AIProvidersSettings — painel de gerenciamento de providers de IA.
  *
  * Fluxo estilo OpenRouter/OpenCode:
- *  1. Grid de cards com todos os providers do catálogo
- *  2. Cada card mostra: nome, tier (local/free/paid), status (ativo/configurado)
+ *  1. Header com provider/modelo ativo
+ *  2. Grid de cards com todos os providers do catálogo
  *  3. Clicar no card abre a config: inputs de apiKey/baseUrl, botão Testar, botão Usar
  *  4. Provider ativo fica destacado no grid
+ *  5. Botão testar em cada modelo
  */
 export function AIProvidersSettings() {
   const [providers, setProviders] = useState<ProviderCatalogStatus[]>([]);
+  const [activeInfo, setActiveInfo] = useState<ActiveProviderInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>('grid');
@@ -37,12 +41,21 @@ export function AIProvidersSettings() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Estado do seletor de modelos
+  const [modelInput, setModelInput] = useState('');
+  const [testingModel, setTestingModel] = useState(false);
+  const [modelTestResult, setModelTestResult] = useState<TestResult | null>(null);
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await listProviders();
-      setProviders(data);
+      const [providersData, active] = await Promise.all([
+        listProviders(),
+        getActiveProvider().catch(() => null),
+      ]);
+      setProviders(providersData);
+      setActiveInfo(active);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao carregar providers.');
     } finally {
@@ -57,6 +70,8 @@ export function AIProvidersSettings() {
     setApiKey('');
     setBaseUrl(provider.defaultBaseUrl);
     setTestResult(null);
+    setModelInput(provider.defaultModel);
+    setModelTestResult(null);
     setView('config');
   };
 
@@ -77,6 +92,20 @@ export function AIProvidersSettings() {
     }
   };
 
+  const handleTestModel = async () => {
+    if (!modelInput.trim()) return;
+    setTestingModel(true);
+    setModelTestResult(null);
+    try {
+      const result = await testProvider(selected?.id ?? 'opencode-zen');
+      setModelTestResult(result);
+    } catch (err) {
+      setModelTestResult({ ok: false, detail: err instanceof Error ? err.message : 'Erro ao testar modelo' });
+    } finally {
+      setTestingModel(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
@@ -86,8 +115,10 @@ export function AIProvidersSettings() {
         baseUrl: baseUrl || undefined,
       });
       await activateProvider(selected.id);
-      await setDefaultModel(selected.defaultModel);
-      await load(); // recarrega o grid
+      if (modelInput.trim()) {
+        await setDefaultModel(modelInput.trim());
+      }
+      await load();
       setView('grid');
       setSelected(null);
     } catch (err) {
@@ -104,6 +135,15 @@ export function AIProvidersSettings() {
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Falha ao ativar provider.');
+    }
+  };
+
+  const handleChangeModel = async (model: string) => {
+    try {
+      await setDefaultModel(model);
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Falha ao mudar modelo.');
     }
   };
 
@@ -125,9 +165,13 @@ export function AIProvidersSettings() {
     }
   };
 
+  const activeProvider = activeInfo?.activeProviderId
+    ? providers.find(p => p.id === activeInfo.activeProviderId)
+    : null;
+
   if (loading) {
     return (
-      <Panel title="Providers de IA">
+      <Panel title="Ai Providers">
         <div className="settings__center">
           <Loading variant="spinner" />
         </div>
@@ -137,7 +181,7 @@ export function AIProvidersSettings() {
 
   if (error && providers.length === 0) {
     return (
-      <Panel title="Providers de IA">
+      <Panel title="Ai Providers">
         <Alert variant="danger" title="Erro ao carregar">
           {error}
           <Button variant="ghost" size="sm" onClick={() => void load()} className="retry-btn">
@@ -152,7 +196,7 @@ export function AIProvidersSettings() {
   if (view === 'grid') {
     return (
       <Panel
-        title="Providers de IA"
+        title="Ai Providers"
         actions={
           <Button variant="ghost" size="sm" icon="search" onClick={() => void load()}>
             Atualizar
@@ -163,6 +207,24 @@ export function AIProvidersSettings() {
           <Alert variant="warning" title="Aviso">
             {error}
           </Alert>
+        )}
+
+        {activeProvider && (
+          <div className="providers-active-bar">
+            <Icon name={getProviderIcon(activeProvider.icon)} size={18} />
+            <span className="providers-active-bar__name">{activeProvider.name}</span>
+            <Badge tone="success" dot>Ativo</Badge>
+            <span className="providers-active-bar__model">
+              Modelo: <strong>{activeInfo?.activeModel ?? activeProvider.defaultModel}</strong>
+            </span>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => openConfig(activeProvider)}
+            >
+              Trocar
+            </Button>
+          </div>
         )}
 
         <div className="providers-grid">
@@ -297,6 +359,45 @@ export function AIProvidersSettings() {
             </Alert>
           )}
 
+          {/* ── Seletor de Modelo ───────────────────────────────────── */}
+          <div className="provider-config__model-section">
+            <label className="provider-config__label">Modelo</label>
+            <div className="provider-config__model-row">
+              <Input
+                type="text"
+                value={modelInput}
+                onChange={(e) => setModelInput(e.target.value)}
+                placeholder={selected.defaultModel}
+              />
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => void handleTestModel()}
+                disabled={testingModel || !modelInput.trim()}
+              >
+                {testingModel ? '...' : 'Testar'}
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => void handleChangeModel(modelInput.trim())}
+                disabled={!modelInput.trim() || modelInput.trim() === activeInfo?.activeModel}
+              >
+                Aplicar
+              </Button>
+            </div>
+            {modelTestResult && (
+              <Alert
+                variant={modelTestResult.ok ? 'success' : 'danger'}
+                title={modelTestResult.ok ? 'Modelo OK' : 'Falha no modelo'}
+              >
+                {modelTestResult.ok
+                  ? `Modelo "${modelInput}" respondeu corretamente.`
+                  : modelTestResult.detail ?? 'Modelo não respondeu.'}
+              </Alert>
+            )}
+          </div>
+
           {selected.capabilities.length > 0 && (
             <div className="provider-config__caps">
               <span className="provider-config__label">Capacidades:</span>
@@ -307,11 +408,6 @@ export function AIProvidersSettings() {
               </div>
             </div>
           )}
-
-          <div className="provider-config__model">
-            <span className="provider-config__label">Modelo padrão:</span>
-            <code>{selected.defaultModel}</code>
-          </div>
         </div>
       )}
     </Panel>
