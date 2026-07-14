@@ -41,6 +41,19 @@ for (const candidate of ['python3', 'python', 'python3.11']) {
 // (a que o ffmpeg e seus pacotes esperam), senão quebramos o ffmpeg.
 function _findLibstdcxxDir(): string {
   try {
+    // Preferir a libstdc++ que o próprio ffmpeg usa (via ldd): garante que
+    // ffmpeg e o faster-whisper compartilham a MESMA lib (sem conflito de ABI).
+    const ldd = execSync(
+      "ldd $(command -v ffmpeg) 2>/dev/null | grep -oE '/nix/store/[^ ]*libstdc\\+\\+.so[^ ]*' | head -1",
+      { stdio: ['ignore', 'pipe', 'ignore'] },
+    ).toString().trim();
+    if (ldd && ldd.includes('/')) {
+      return ldd.slice(0, ldd.lastIndexOf('/'));
+    }
+  } catch {
+    // ignora e tenta o fallback abaixo
+  }
+  try {
     const cmd = `for f in $(find /nix/store -name 'libstdc++.so*' 2>/dev/null); do if grep -aq 'CXXABI_1.3.15' "$f" 2>/dev/null; then dirname "$f"; break; fi; done`;
     const out = execSync(cmd, { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
     return out || '';
