@@ -26,5 +26,5 @@ DEFAULT_ASPECT_RATIO = os.getenv("DEFAULT_ASPECT_RATIO", "9:16")
 DEFAULT_LANGUAGE = os.getenv("DEFAULT_LANGUAGE", "pt")
 
 # YouTube download
-YOUTUBE_FORMAT = os.getenv("YOUTUBE_FORMAT", "bestvideo[height<=720]+bestaudio/best[height<=720]")
+YOUTUBE_FORMAT = os.getenv("YOUTUBE_FORMAT", "bestvideo[height<=720]+bestaudio/best[height<=720]/best")
 YOUTUBE_CACHE_DIR = os.getenv("YOUTUBE_CACHE_DIR", os.path.join(LOCAL_OUTPUT_DIR, "cache"))
