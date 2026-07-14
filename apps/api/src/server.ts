@@ -45,8 +45,8 @@ app.use(express.json({ limit: '10mb' }));
 const db = new DatabaseManager({ dbPath: 'data/beehive.db' });
 
 // --- Rotas de Projetos (sempre disponíveis, independente do provider) ---
+mountProjectBrowseRoutes(app); // DEVE vir antes de mountProjectRoutes (/:id captura /browse)
 mountProjectRoutes(app, db);
-mountProjectBrowseRoutes(app);
 
 // --- Rotas de Afiliados (sempre disponíveis) ---
 mountAffiliatesRoutes(app, db);
