@@ -3,17 +3,18 @@
 # rebuild trigger: use get-pip.py to install pip into nix python
 
 [phases.setup]
-nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl", "chromium"]
+nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl"]
 
 [phases.install]
 cmds = [
   "pnpm install",
   "pnpm rebuild better-sqlite3",
   "pip install --user --break-system-packages -r pipeline/requirements.txt",
+  "mkdir -p /opt/playwright && PLAYWRIGHT_BROWSERS_PATH=/opt/playwright npx playwright install chromium",
 ]
 
 [start]
-cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); CR=$(which chromium 2>/dev/null || find /nix/store -name 'chromium' -type f -executable 2>/dev/null | head -1); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=\"$CR\"; echo \"[start] libstdcxx=$L libgomp=$G chromium=$CR\"; pnpm --filter @beehive/api run start"
+cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; echo \"[start] libstdcxx=$L libgomp=$G\"; pnpm --filter @beehive/api run start"
 
 [variables]
 PORT = "4000"
