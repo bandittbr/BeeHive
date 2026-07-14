@@ -53,9 +53,6 @@ def download_video(url: str, output_dir: str = None) -> dict:
         "-o", cache_path,
         "--no-playlist",
         "--print-json",
-        "--js-runtimes", "node",
-        "--remote-components", "ejs:jsdelivr",
-        "--extractor-args", "youtube:player_client=web_safari",
         url,
     ]
 
