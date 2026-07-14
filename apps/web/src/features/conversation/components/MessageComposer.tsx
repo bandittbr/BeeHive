@@ -1,6 +1,13 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import { Icon } from '@/components/common/Icon';
-import { projectFiles, type LocalFile } from '@/services/files/projectFiles';
+
+interface AttachedFile {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+  preview?: string;
+}
 
 interface MessageComposerProps {
   value: string;
@@ -8,13 +15,22 @@ interface MessageComposerProps {
   onSubmit: () => void;
   isResponding: boolean;
   onStop: () => void;
-  /** Callback quando o usuário seleciona arquivos para anexar */
-  onAttachFiles?: (files: LocalFile[]) => void;
-  /** Callback quando o usuário seleciona um comando */
   onCommand?: (command: string) => void;
-  /** Callback quando o usuário seleciona um agente */
   onAgent?: (agent: string) => void;
 }
+
+const ALLOWED_EXTENSIONS = new Set([
+  'jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico',
+  'pdf', 'md', 'txt', 'rtf',
+  'doc', 'docx', 'csv', 'json', 'xml', 'yaml', 'yml', 'toml',
+  'js', 'ts', 'jsx', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp', 'h', 'hpp',
+  'css', 'scss', 'less', 'html', 'htm', 'vue', 'svelte', 'astro',
+  'sh', 'bash', 'zsh', 'sql', 'graphql', 'prisma',
+  'env', 'gitignore', 'dockerignore', 'editorconfig',
+  'Dockerfile', 'Makefile', 'README', 'LICENSE',
+]);
+
+const IMAGE_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg', 'bmp', 'ico']);
 
 const COMMANDS = [
   { id: 'terminal', label: 'Terminal', icon: 'command' as const, description: 'Executar comando no terminal' },
@@ -34,50 +50,44 @@ const AGENTS = [
   { id: 'analyst', label: 'Analyst', icon: 'search' as const, description: 'Análise de dados' },
 ];
 
+function isAllowedFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return ALLOWED_EXTENSIONS.has(ext) || ALLOWED_EXTENSIONS.has(filename);
+}
+
+function isImageFile(filename: string): boolean {
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  return IMAGE_EXTENSIONS.has(ext);
+}
+
+function getFileIcon(filename: string): 'camera' | 'folder' | 'edit' | 'code' {
+  if (isImageFile(filename)) return 'camera';
+  const ext = filename.split('.').pop()?.toLowerCase() ?? '';
+  if (['js', 'ts', 'jsx', 'tsx', 'py', 'rb', 'go', 'rs', 'java', 'c', 'cpp'].includes(ext)) return 'code';
+  if (['md', 'txt', 'pdf', 'doc', 'docx'].includes(ext)) return 'edit';
+  return 'folder';
+}
+
 export function MessageComposer({
   value,
   onChange,
   onSubmit,
   isResponding,
   onStop,
-  onAttachFiles,
   onCommand,
   onAgent,
 }: MessageComposerProps) {
-  const [showAttach, setShowAttach] = useState(false);
   const [showCommands, setShowCommands] = useState(false);
   const [showAgents, setShowAgents] = useState(false);
-  const [projectFilesList, setProjectFilesList] = useState<LocalFile[]>([]);
-  const [attachedFiles, setAttachedFiles] = useState<LocalFile[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
-  const attachRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const commandsRef = useRef<HTMLDivElement>(null);
   const agentsRef = useRef<HTMLDivElement>(null);
 
-  // Carrega arquivos do projeto ao abrir o menu de anexar
-  useEffect(() => {
-    if (showAttach) {
-      (async () => {
-        try {
-          await projectFiles.init();
-          const projects = await projectFiles.listProjects();
-          if (projects.length > 0) {
-            const files = await projectFiles.readProjectFiles(projects[0].id);
-            setProjectFilesList(files.filter(f => !f.isDirectory));
-          }
-        } catch {
-          setProjectFilesList([]);
-        }
-      })();
-    }
-  }, [showAttach]);
-
-  // Fecha menus ao clicar fora
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (attachRef.current && !attachRef.current.contains(e.target as Node)) {
-        setShowAttach(false);
-      }
       if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
         setShowCommands(false);
       }
@@ -96,16 +106,76 @@ export function MessageComposer({
     }
   };
 
-  const handleAttachFile = (file: LocalFile) => {
-    if (!attachedFiles.find(f => f.path === file.path)) {
-      setAttachedFiles(prev => [...prev, file]);
-      onAttachFiles?.([...attachedFiles, file]);
+  const handleFileSelect = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+
+    setError(null);
+    const newAttached: AttachedFile[] = [];
+
+    for (const file of Array.from(files)) {
+      if (!isAllowedFile(file.name)) {
+        setError(`Arquivo não permitido: ${file.name}`);
+        continue;
+      }
+
+      if (file.size > 10 * 1024 * 1024) {
+        setError(`Arquivo muito grande: ${file.name} (máx 10MB)`);
+        continue;
+      }
+
+      try {
+        const content = await readFileContent(file);
+        const attached: AttachedFile = {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+          content,
+        };
+
+        if (isImageFile(file.name)) {
+          attached.preview = URL.createObjectURL(file);
+        }
+
+        newAttached.push(attached);
+      } catch {
+        setError(`Erro ao ler: ${file.name}`);
+      }
     }
-    setShowAttach(false);
+
+    if (newAttached.length > 0) {
+      setAttachedFiles(prev => [...prev, ...newAttached]);
+    }
+
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
-  const handleRemoveAttached = (path: string) => {
-    setAttachedFiles(prev => prev.filter(f => f.path !== path));
+  const readFileContent = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+
+      if (isImageFile(file.name)) {
+        reader.readAsDataURL(file);
+      } else {
+        reader.readAsText(file);
+      }
+    });
+  };
+
+  const handleRemoveAttached = (index: number) => {
+    setAttachedFiles(prev => {
+      const removed = prev[index];
+      if (removed?.preview) URL.revokeObjectURL(removed.preview);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const handleAttachClick = () => {
+    fileInputRef.current?.click();
   };
 
   const handleCommand = (cmd: typeof COMMANDS[0]) => {
@@ -118,6 +188,12 @@ export function MessageComposer({
     setShowAgents(false);
   };
 
+  const formatSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes}B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
+  };
+
   return (
     <form
       className="composer"
@@ -126,21 +202,47 @@ export function MessageComposer({
         if (!isResponding) onSubmit();
       }}
     >
-      {/* Arquivos anexados */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        multiple
+        accept=".jpg,.jpeg,.png,.gif,.webp,.svg,.bmp,.ico,.pdf,.md,.txt,.rtf,.doc,.docx,.csv,.json,.xml,.yaml,.yml,.toml,.js,.ts,.jsx,.tsx,.py,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.css,.scss,.less,.html,.htm,.vue,.svelte,.astro,.sh,.bash,.zsh,.sql,.graphql,.prisma,.env,.gitignore,.dockerignore,.editorconfig"
+        onChange={handleFileSelect}
+        style={{ display: 'none' }}
+      />
+
       {attachedFiles.length > 0 && (
         <div className="composer__attached">
-          {attachedFiles.map(file => (
-            <span key={file.path} className="composer__attached-file">
-              {file.path}
+          {attachedFiles.map((file, i) => (
+            <div key={`${file.name}-${i}`} className="composer__attached-file">
+              {file.preview ? (
+                <img src={file.preview} alt={file.name} className="composer__attached-thumb" />
+              ) : (
+                <Icon name={getFileIcon(file.name)} size={14} />
+              )}
+              <div className="composer__attached-info">
+                <span className="composer__attached-name">{file.name}</span>
+                <span className="composer__attached-size">{formatSize(file.size)}</span>
+              </div>
               <button
                 type="button"
                 className="composer__attached-remove"
-                onClick={() => handleRemoveAttached(file.path)}
+                onClick={() => handleRemoveAttached(i)}
               >
                 <Icon name="x" size={12} />
               </button>
-            </span>
+            </div>
           ))}
+        </div>
+      )}
+
+      {error && (
+        <div className="composer__error">
+          <Icon name="warning" size={14} />
+          <span>{error}</span>
+          <button type="button" onClick={() => setError(null)}>
+            <Icon name="x" size={12} />
+          </button>
         </div>
       )}
 
@@ -155,50 +257,21 @@ export function MessageComposer({
 
       <div className="composer__toolbar">
         <div className="composer__tools">
-          {/* Botão Anexar */}
-          <div ref={attachRef} style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className="composer__tool"
-              onClick={() => {
-                setShowAttach(!showAttach);
-                setShowCommands(false);
-                setShowAgents(false);
-              }}
-            >
-              <Icon name="plus" size={18} />
-              <span>Anexar</span>
-            </button>
-            {showAttach && (
-              <div className="composer__dropdown">
-                <div className="composer__dropdown-header">Arquivos do Projeto</div>
-                {projectFilesList.length === 0 ? (
-                  <div className="composer__dropdown-empty">Nenhum projeto aberto</div>
-                ) : (
-                  projectFilesList.map(file => (
-                    <button
-                      key={file.path}
-                      type="button"
-                      className="composer__dropdown-item"
-                      onClick={() => handleAttachFile(file)}
-                    >
-                      <Icon name="folder" size={14} />
-                      <span>{file.path}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
+          <button
+            type="button"
+            className="composer__tool"
+            onClick={handleAttachClick}
+          >
+            <Icon name="plus" size={18} />
+            <span>Anexar</span>
+          </button>
 
-          {/* Botão Comandos */}
           <div ref={commandsRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="composer__tool"
               onClick={() => {
                 setShowCommands(!showCommands);
-                setShowAttach(false);
                 setShowAgents(false);
               }}
             >
@@ -226,14 +299,12 @@ export function MessageComposer({
             )}
           </div>
 
-          {/* Botão Agentes */}
           <div ref={agentsRef} style={{ position: 'relative' }}>
             <button
               type="button"
               className="composer__tool"
               onClick={() => {
                 setShowAgents(!showAgents);
-                setShowAttach(false);
                 setShowCommands(false);
               }}
             >
@@ -280,7 +351,7 @@ export function MessageComposer({
               type="submit"
               className="composer__send"
               aria-label="Enviar mensagem"
-              disabled={value.trim().length === 0}
+              disabled={value.trim().length === 0 && attachedFiles.length === 0}
             >
               <Icon name="send" size={18} />
             </button>
