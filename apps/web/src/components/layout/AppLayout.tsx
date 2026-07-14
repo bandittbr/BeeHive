@@ -1,9 +1,3 @@
-/**
- * AppLayout — moldura principal do BeeHive.
- *
- * Sidebar à esquerda (navegação), topbar no topo, conteúdo no centro.
- */
-
 import { useState, type ReactNode } from 'react';
 import { BeeHiveSidebar } from './BeeHiveSidebar';
 import { Topbar } from './Topbar';
@@ -16,6 +10,7 @@ interface AppLayoutProps {
   activeBusinessTab?: string;
   onNavigate: (view: string) => void;
   onBusinessTabChange?: (tab: string) => void;
+  onOpenCowork?: (projectId: string, projectName: string) => void;
   theme: Theme;
   onToggleTheme: () => void;
 }
@@ -26,6 +21,7 @@ export function AppLayout({
   activeBusinessTab,
   onNavigate,
   onBusinessTabChange,
+  onOpenCowork,
   theme,
   onToggleTheme,
 }: AppLayoutProps) {
@@ -39,6 +35,7 @@ export function AppLayout({
           activeBusinessTab={activeBusinessTab}
           onNavigate={onNavigate}
           onBusinessTabChange={onBusinessTabChange}
+          onOpenCowork={onOpenCowork}
         />
       )}
 

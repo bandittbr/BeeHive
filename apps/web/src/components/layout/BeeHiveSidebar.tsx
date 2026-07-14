@@ -1,10 +1,3 @@
-/**
- * BeeHiveSidebar — sidebar principal do BeeHive.
- *
- * Navegação entre áreas, projetos, conversas e configurações.
- * Sub-itens para Negócios (Afiliados, Meus Produtos, Criador de Conteúdo).
- */
-
 import { useState } from 'react';
 import { Icon, type IconName } from '@/components/common/Icon';
 import { useProjectStore } from '../../services/projects/projectStore';
@@ -40,9 +33,16 @@ interface BeeHiveSidebarProps {
   activeBusinessTab?: string;
   onNavigate: (view: string) => void;
   onBusinessTabChange?: (tab: string) => void;
+  onOpenCowork?: (projectId: string, projectName: string) => void;
 }
 
-export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBusinessTabChange }: BeeHiveSidebarProps) {
+export function BeeHiveSidebar({
+  activeView,
+  activeBusinessTab,
+  onNavigate,
+  onBusinessTabChange,
+  onOpenCowork,
+}: BeeHiveSidebarProps) {
   const { projects, activeProject, setActiveProject } = useProjectStore();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [businessExpanded, setBusinessExpanded] = useState(
@@ -55,6 +55,13 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
     } else {
       setBusinessExpanded(true);
       onNavigate('business');
+    }
+  };
+
+  const handleProjectClick = (project: { id: string; name: string; path: string }) => {
+    setActiveProject(project.id);
+    if (onOpenCowork) {
+      onOpenCowork(project.id, project.name || project.path.split(/[\\/]/).pop() || 'Projeto');
     }
   };
 
@@ -100,7 +107,6 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
               )}
             </button>
 
-            {/* Sub-itens de Negócios */}
             {item.id === 'business' && item.children && businessExpanded && (
               <div className="sidebar__subnav">
                 {item.children.map((child) => (
@@ -125,7 +131,6 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
               </div>
             )}
 
-            {/* Projetos na sidebar */}
             {item.id === 'projects' && projects.length > 0 && (
               <div className="sidebar__subnav">
                 <button
@@ -147,11 +152,12 @@ export function BeeHiveSidebar({ activeView, activeBusinessTab, onNavigate, onBu
                       return (
                         <button
                           key={project.id}
-                          className={`sidebar__project-item ${activeProject?.id === project.id ? 'sidebar__project-item--active' : ''}`}
-                          onClick={() => {
-                            setActiveProject(project.id);
-                            onNavigate('projects');
-                          }}
+                          className={`sidebar__project-item ${
+                            activeView === 'cowork' && activeProject?.id === project.id
+                              ? 'sidebar__project-item--active'
+                              : ''
+                          }`}
+                          onClick={() => handleProjectClick(project)}
                           title={project.path}
                         >
                           <span className="sidebar__project-icon">

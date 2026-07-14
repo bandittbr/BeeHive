@@ -1,14 +1,3 @@
-/**
- * Raiz da aplicação BeeHive.
- *
- * Integra:
- * - Navegação por views (dashboard, conversation, projects, business, settings)
- * - Sistema de projetos (diretórios locais)
- * - Tema claro/escuro
- * - Serviço de conversa
- * - Sub-navegação de Negócios (Projetos, Afiliados, Meus Produtos, Criador de Conteúdo)
- */
-
 import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AreaScreen, AREA_IDS } from '@/app/areas';
@@ -22,24 +11,29 @@ import { ProjectsView } from '@/features/projects/ProjectsView';
 import { BusinessView } from '@/features/business/BusinessView';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { DashboardView } from '@/features/dashboard/DashboardView';
+import { CoworkView } from '@/features/cowork/CoworkView';
 import { useLocalProject } from '@/features/projects/useLocalProject';
 import { projectFiles } from '@/services/files/projectFiles';
 
-type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings';
+type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings' | 'cowork';
+
+interface CoworkProject {
+  id: string;
+  name: string;
+}
 
 export default function App() {
   const { theme, toggleTheme } = useTheme();
   const { id, navigate } = useHashRoute(AREA_IDS, 'conversa');
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [activeBusinessTab, setActiveBusinessTab] = useState<string>('projetos');
+  const [coworkProject, setCoworkProject] = useState<CoworkProject | null>(null);
   const localProject = useLocalProject();
 
-  // Inicializa o IndexedDB dos projetos locais
   useEffect(() => {
     projectFiles.init();
   }, []);
 
-  // Auto-seleciona o primeiro projeto local se houver
   useEffect(() => {
     (async () => {
       const projects = await projectFiles.listProjects();
@@ -50,10 +44,22 @@ export default function App() {
   }, []);
 
   const handleNavigate = (view: string) => {
+    if (view === 'cowork') return;
     setActiveView(view as ViewType);
+    setCoworkProject(null);
     if (view === 'conversation') {
       navigate('conversa');
     }
+  };
+
+  const handleOpenCowork = (projectId: string, projectName: string) => {
+    setCoworkProject({ id: projectId, name: projectName });
+    setActiveView('cowork');
+  };
+
+  const handleCoworkBack = () => {
+    setCoworkProject(null);
+    setActiveView('projects');
   };
 
   const handleBusinessTabChange = (tab: string) => {
@@ -61,9 +67,19 @@ export default function App() {
   };
 
   const renderView = () => {
+    if (activeView === 'cowork' && coworkProject) {
+      return (
+        <CoworkView
+          projectId={coworkProject.id}
+          projectName={coworkProject.name}
+          onBack={handleCoworkBack}
+        />
+      );
+    }
+
     switch (activeView) {
       case 'projects':
-        return <ProjectsView />;
+        return <ProjectsView onOpenCowork={handleOpenCowork} />;
       case 'business':
         return (
           <BusinessView

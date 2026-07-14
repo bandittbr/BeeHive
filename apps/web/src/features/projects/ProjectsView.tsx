@@ -1,13 +1,13 @@
-/**
- * ProjectsView — página de gerenciamento de projetos.
- */
-
 import { useState } from 'react';
 import { useProjectStore } from '../../services/projects/projectStore';
 import { ProjectCard } from '../../components/projects/ProjectCard';
 import { AddProjectModal } from '../../components/projects/AddProjectModal';
 
-export function ProjectsView() {
+interface ProjectsViewProps {
+  onOpenCowork?: (projectId: string, projectName: string) => void;
+}
+
+export function ProjectsView({ onOpenCowork }: ProjectsViewProps) {
   const { projects, activeProject, loading, error, setActiveProject, removeProject } =
     useProjectStore();
   const [showAddModal, setShowAddModal] = useState(false);
@@ -52,7 +52,12 @@ export function ProjectsView() {
               key={project.id}
               project={project}
               isActive={activeProject?.id === project.id}
-              onSelect={setActiveProject}
+              onSelect={(id) => {
+                setActiveProject(id);
+                if (onOpenCowork) {
+                  onOpenCowork(project.id, project.name);
+                }
+              }}
               onRemove={removeProject}
             />
           ))}
