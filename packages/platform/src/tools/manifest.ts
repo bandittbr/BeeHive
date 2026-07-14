@@ -1,4 +1,7 @@
 import { createFilesystemTool } from './filesystem';
+import { createTerminalTool } from './terminal';
+import { createGitTool } from './git';
+import { createBrowserTool } from './web';
 import type { Tool } from './types';
 
 /**
@@ -9,4 +12,9 @@ import type { Tool } from './types';
  * já consome `TOOL_MANIFEST` via `toolManager.load(TOOL_MANIFEST)` no boot —
  * registrar uma Tool nova é só isto, sem tocar em Runtime/ToolManager.
  */
-export const TOOL_MANIFEST: readonly Tool[] = [createFilesystemTool()];
+export const TOOL_MANIFEST: readonly Tool[] = [
+  createFilesystemTool(),
+  createTerminalTool(),
+  createGitTool(),
+  createBrowserTool(),
+];
