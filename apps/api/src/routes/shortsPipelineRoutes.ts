@@ -163,6 +163,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
           BEEHIVE_API_URL: `http://localhost:${config.port}`,
           PYTHONPATH: PIPELINE_DIR + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : ''),
           LD_LIBRARY_PATH: _ldLibraryPath(),
+          DEBUG: '1',
         },
       });
 
