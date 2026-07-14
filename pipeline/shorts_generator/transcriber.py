@@ -111,6 +111,18 @@ def transcribe_video(video_path: str, language: str = "pt") -> dict:
     return result
 
 
+def _transcribe_worker(video_path: str, language: str, child_conn) -> None:
+    """Worker de subprocesso — carrega o modelo, transcreve e devolve o dict.
+    Função de módulo (top-level) pq o spawn exige alvo picklável."""
+    try:
+        res = transcribe_video(video_path, language)
+        child_conn.send(res)
+    except Exception as e:  # noqa: BLE001
+        child_conn.send({"_error": f"{type(e).__name__}: {e}"})
+    finally:
+        child_conn.close()
+
+
 def transcribe_video_isolated(video_path: str, language: str = "pt") -> dict:
     """
     Transcreve em um subprocesso SEPARADO.
@@ -122,18 +134,9 @@ def transcribe_video_isolated(video_path: str, language: str = "pt") -> dict:
     `join()`, todo aquele memory é liberado antes do ffmpeg do crop.
     """
     ctx = mp.get_context("spawn")
-    parent_conn, child_conn = mp.Pipe()
+    parent_conn, child_conn = ctx.Pipe()
 
-    def _worker():
-        try:
-            res = transcribe_video(video_path, language)
-            child_conn.send(res)
-        except Exception as e:  # noqa: BLE001
-            child_conn.send({"_error": f"{type(e).__name__}: {e}"})
-        finally:
-            child_conn.close()
-
-    p = ctx.Process(target=_worker)
+    p = ctx.Process(target=_transcribe_worker, args=(video_path, language, child_conn))
     p.start()
     child_conn.close()
     res = parent_conn.recv()
