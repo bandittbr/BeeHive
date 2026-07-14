@@ -117,7 +117,7 @@ def identify_highlights(
 def _split_into_chunks(segments: list, duration: float, chunk_size: int, overlap: int) -> list:
     """Divide segmentos em chunks sobrepostos para vídeos longos."""
     if duration <= chunk_size:
-        return [segments]
+        return [{"segments": segments, "offset": 0}]
 
     chunks = []
     chunk_start = 0
