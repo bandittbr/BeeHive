@@ -7,7 +7,7 @@ import json
 import traceback
 from .config import LOCAL_OUTPUT_DIR, DEFAULT_NUM_CLIPS, DEFAULT_ASPECT_RATIO, DEFAULT_LANGUAGE, DEFAULT_PROVIDER_ID
 from .downloader import download_video
-from .transcriber import transcribe_video
+from .transcriber import transcribe_video_isolated
 from .highlights import identify_highlights
 from .clipper import crop_clip, add_subtitles, generate_thumbnail
 from .subtitles import generate_srt, clip_segments
@@ -79,7 +79,7 @@ def generate_shorts(
     # STEP 2: Transcribe
     report("transcribing", 25, "Transcrevendo áudio...")
     try:
-        transcript = transcribe_video(video_info["path"], language)
+        transcript = transcribe_video_isolated(video_info["path"], language)
         result["transcript"] = transcript
         report("transcribing", 40, f"Transcrição: {len(transcript['segments'])} segmentos")
     except Exception as e:

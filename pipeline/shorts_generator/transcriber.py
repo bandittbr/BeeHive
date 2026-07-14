@@ -11,6 +11,7 @@ import os
 import json
 import wave
 import gc
+import multiprocessing as mp
 import subprocess
 import numpy as np
 from .config import (
@@ -108,6 +109,39 @@ def transcribe_video(video_path: str, language: str = "pt") -> dict:
     _save_srt_cache(cache_path, result)
 
     return result
+
+
+def transcribe_video_isolated(video_path: str, language: str = "pt") -> dict:
+    """
+    Transcreve em um subprocesso SEPARADO.
+
+    O faster-whisper (ctranslate2) aloca uma pool nativa de memória que o
+    GC do Python não devolve ao SO. Se transcrevermos no mesmo processo do
+    crop, essa memória (~300MB) persiste e causa OOM no container pequeno
+    durante o corte. Rodar num subprocesso isolado garante que, após
+    `join()`, todo aquele memory é liberado antes do ffmpeg do crop.
+    """
+    ctx = mp.get_context("spawn")
+    parent_conn, child_conn = mp.Pipe()
+
+    def _worker():
+        try:
+            res = transcribe_video(video_path, language)
+            child_conn.send(res)
+        except Exception as e:  # noqa: BLE001
+            child_conn.send({"_error": f"{type(e).__name__}: {e}"})
+        finally:
+            child_conn.close()
+
+    p = ctx.Process(target=_worker)
+    p.start()
+    child_conn.close()
+    res = parent_conn.recv()
+    p.join()
+
+    if isinstance(res, dict) and "_error" in res:
+        raise RuntimeError(res["_error"])
+    return res
 
 
 def _load_srt_cache(path: str) -> dict:
