@@ -12,7 +12,7 @@ BEEHIVE_API_URL = os.getenv("BEEHIVE_API_URL", "http://localhost:4000")
 
 # Pipeline settings
 LOCAL_OUTPUT_DIR = os.getenv("LOCAL_OUTPUT_DIR", "output")
-LOCAL_WHISPER_MODEL = os.getenv("LOCAL_WHISPER_MODEL", "base")
+LOCAL_WHISPER_MODEL = os.getenv("LOCAL_WHISPER_MODEL", "small")
 LOCAL_WHISPER_DEVICE = os.getenv("LOCAL_WHISPER_DEVICE", "auto")
 LOCAL_WHISPER_COMPUTE_TYPE = os.getenv("LOCAL_WHISPER_COMPUTE_TYPE", "int8")
 LOCAL_WHISPER_VAD_FILTER = os.getenv("LOCAL_WHISPER_VAD_FILTER", "false").lower() == "true"
