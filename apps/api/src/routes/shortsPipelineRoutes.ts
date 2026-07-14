@@ -35,6 +35,28 @@ for (const candidate of ['python3', 'python', 'python3.11']) {
   }
 }
 
+// faster-whisper (ctranslate2/onnxruntime) precisa de libstdc++/libgomp em runtime.
+// O ambiente nix não os deixa no LD_LIBRARY_PATH por padrão; localizamos no /nix/store.
+function _findLibDir(pattern: string): string {
+  try {
+    const out = execSync(`find /nix/store -maxdepth 6 -name '${pattern}' 2>/dev/null | head -1`, { stdio: ['ignore', 'pipe', 'ignore'] })
+      .toString()
+      .trim();
+    if (!out) return '';
+    return out.includes('/') ? out.slice(0, out.lastIndexOf('/')) : '';
+  } catch {
+    return '';
+  }
+}
+
+const _LIBSTDCXX_DIR = _findLibDir('libstdc++.so*');
+const _LIBGOMP_DIR = _findLibDir('libgomp.so*');
+const _EXTRA_LD = [_LIBSTDCXX_DIR, _LIBGOMP_DIR].filter(Boolean).join(':');
+function _ldLibraryPath(): string {
+  const base = process.env.LD_LIBRARY_PATH ?? '';
+  return _EXTRA_LD ? `${_EXTRA_LD}:${base}` : base;
+}
+
 export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, runtime?: RuntimeManager): void {
 
   // ─── LLM endpoint pro Python pipeline ────────────────────
@@ -140,6 +162,7 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
           // Aponta para a porta real em que o Node está ouvindo.
           BEEHIVE_API_URL: `http://localhost:${config.port}`,
           PYTHONPATH: PIPELINE_DIR + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : ''),
+          LD_LIBRARY_PATH: _ldLibraryPath(),
         },
       });
 
