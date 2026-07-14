@@ -26,3 +26,11 @@ export {
   registerProviderCommands,
   PROVIDER_COMMANDS,
 } from '../ai/commands';
+export {
+  createStorage,
+  S3Storage,
+  LocalStorage,
+  type StorageConfig,
+  type IStorage,
+  type UploadResult,
+} from '../storage';

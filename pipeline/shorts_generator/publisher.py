@@ -58,7 +58,7 @@ class Publisher:
                 elif platform == "tiktok":
                     result = self._publish_tiktok(account, clip_data, caption)
                 elif platform == "instagram":
-                    result = self._publish.instagram(account, clip_data, caption)
+                    result = self._publish_instagram(account, clip_data, caption)
                 else:
                     result = {"success": False, "error": f"Plataforma não suportada: {platform}"}
 
