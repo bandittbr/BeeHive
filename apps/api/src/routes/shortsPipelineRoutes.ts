@@ -176,6 +176,10 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
           PYTHONPATH: PIPELINE_DIR + (process.env.PYTHONPATH ? delimiter + process.env.PYTHONPATH : ''),
           LD_LIBRARY_PATH: _ldLibraryPath(),
           DEBUG: '1',
+          // HuggingFace passou a usar o cliente Xet (CAS) p/ baixar modelos grandes;
+          // ele falha com 401 no Railway. Desliga e usa o download LFS tradicional.
+          HF_HUB_DISABLE_XET: '1',
+          HF_HUB_DISABLE_TELEMETRY: '1',
         },
       });
 
