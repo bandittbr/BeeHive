@@ -83,7 +83,7 @@ def generate_shorts(
         result["transcript"] = transcript
         report("transcribing", 40, f"Transcrição: {len(transcript['segments'])} segmentos")
     except Exception as e:
-        error_msg = f"Erro na transcrição: {e}"
+        error_msg = f"Erro na transcrição: {e}\n{traceback.format_exc()}"
         errors.append(error_msg)
         result["errors"].append(error_msg)
         report("error", 0, error_msg)
