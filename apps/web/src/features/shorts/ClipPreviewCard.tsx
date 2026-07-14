@@ -1,5 +1,6 @@
 import { Card, Badge, Button } from '@/components/ui';
 import type { PipelineClip } from './useShorts';
+import { API_BASE } from '@/lib/api';
 import './ClipPreviewCard.css';
 
 interface ClipPreviewCardProps {
@@ -44,11 +45,19 @@ export function ClipPreviewCard({ clip, onPublish }: ClipPreviewCardProps) {
         </div>
       )}
 
+      {clip.clipPath && (
+        <div className="clip-card__video">
+          <video src={`${API_BASE}${clip.clipPath}`} controls preload="metadata" className="clip-card__player" />
+        </div>
+      )}
+
       <div className="clip-card__actions">
         {clip.clipPath && (
-          <Button variant="secondary" size="sm" icon="play">
-            Assistir
-          </Button>
+          <a href={`${API_BASE}${clip.clipPath}`} target="_blank" rel="noreferrer">
+            <Button variant="secondary" size="sm" icon="play">
+              Assistir
+            </Button>
+          </a>
         )}
         {onPublish && (
           <Button variant="primary" size="sm" icon="send" onClick={() => onPublish(clip.id)}>

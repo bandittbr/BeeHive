@@ -2,7 +2,8 @@ import type { Express } from 'express';
 import type { DatabaseManager } from '@beehive/platform/server';
 import type { RuntimeManager } from '@beehive/platform/runtime';
 import { spawn, execSync } from 'node:child_process';
-import { dirname, join, delimiter } from 'node:path';
+import { dirname, join, delimiter, resolve } from 'node:path';
+import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { config } from '../config';
 import { createOpenAIProvider } from '../intelligence/openaiProvider';
@@ -270,6 +271,31 @@ export function mountShortsPipelineRoutes(app: Express, db: DatabaseManager, run
     }
   });
 
+  // GET /api/shorts/clips/* — serve arquivos de clip gerados (output/<agentId>/...)
+  // O Python roda com cwd=PIPELINE_DIR, então os clips ficam em PIPELINE_DIR/output/...
+  app.get('/api/shorts/clips/*', (req, res) => {
+    try {
+      const rel = decodeURIComponent(req.params[0] ?? '');
+      const full = resolve(PIPELINE_DIR, rel);
+      if (!full.startsWith(PIPELINE_DIR)) {
+        res.status(400).json({ error: 'Caminho inválido' });
+        return;
+      }
+      if (!fs.existsSync(full) || !fs.statSync(full).isFile()) {
+        res.status(404).json({ error: 'Clip não encontrado' });
+        return;
+      }
+      const stat = fs.statSync(full);
+      res.setHeader('Content-Type', 'video/mp4');
+      res.setHeader('Content-Length', stat.size);
+      res.setHeader('Accept-Ranges', 'bytes');
+      fs.createReadStream(full).pipe(res);
+    } catch (err) {
+      console.error('[shorts] Erro ao servir clip:', err);
+      res.status(500).json({ error: 'Erro ao servir clip' });
+    }
+  });
+
   // DELETE /api/shorts/pipeline/:id — cancelar job
   app.delete('/api/shorts/pipeline/:id', (req, res) => {
     try {
@@ -375,9 +401,9 @@ function mapClip(row: Record<string, unknown>) {
     score: row.score,
     hookSentence: row.hook_sentence,
     viralityReason: row.virality_reason,
-    clipPath: row.clip_path,
-    thumbnailPath: row.thumbnail_path,
-    subtitlePath: row.subtitle_path,
+    clipPath: row.clip_path ? `/shorts/clips/${String(row.clip_path).replace(/^\/+/, '')}` : '',
+    thumbnailPath: row.thumbnail_path ? `/shorts/clips/${String(row.thumbnail_path).replace(/^\/+/, '')}` : '',
+    subtitlePath: row.subtitle_path ? `/shorts/clips/${String(row.subtitle_path).replace(/^\/+/, '')}` : '',
     duration: row.duration,
     status: row.status,
     createdAt: row.created_at,
