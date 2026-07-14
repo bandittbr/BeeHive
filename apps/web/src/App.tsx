@@ -9,7 +9,7 @@
  * - Sub-navegação de Negócios (Projetos, Afiliados, Meus Produtos, Criador de Conteúdo)
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { AppLayout } from '@/components/layout/AppLayout';
 import { AreaScreen, AREA_IDS } from '@/app/areas';
 import { useHashRoute } from '@/app/router/useHashRoute';
@@ -22,6 +22,8 @@ import { ProjectsView } from '@/features/projects/ProjectsView';
 import { BusinessView } from '@/features/business/BusinessView';
 import { SettingsView } from '@/features/settings/SettingsView';
 import { DashboardView } from '@/features/dashboard/DashboardView';
+import { useLocalProject } from '@/features/projects/useLocalProject';
+import { projectFiles } from '@/services/files/projectFiles';
 
 type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings';
 
@@ -30,6 +32,22 @@ export default function App() {
   const { id, navigate } = useHashRoute(AREA_IDS, 'conversa');
   const [activeView, setActiveView] = useState<ViewType>('dashboard');
   const [activeBusinessTab, setActiveBusinessTab] = useState<string>('projetos');
+  const localProject = useLocalProject();
+
+  // Inicializa o IndexedDB dos projetos locais
+  useEffect(() => {
+    projectFiles.init();
+  }, []);
+
+  // Auto-seleciona o primeiro projeto local se houver
+  useEffect(() => {
+    (async () => {
+      const projects = await projectFiles.listProjects();
+      if (projects.length > 0 && !localProject.project) {
+        localProject.selectProject(projects[0].id);
+      }
+    })();
+  }, []);
 
   const handleNavigate = (view: string) => {
     setActiveView(view as ViewType);
@@ -69,7 +87,7 @@ export default function App() {
 
   return (
     <ConversationServiceProvider service={runtimeConversationService}>
-      <ConversationStoreProvider>
+      <ConversationStoreProvider projectContext={localProject.buildContext()}>
         <ProjectStoreProvider>
           <AppLayout
             activeView={activeView}

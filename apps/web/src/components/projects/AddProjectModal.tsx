@@ -1,198 +1,177 @@
 /**
- * AddProjectModal — modal para criar ou adicionar um projeto no SERVIDOR.
+ * AddProjectModal — abre pasta LOCAL do PC via File System Access API.
  *
- * O backend roda no Railway (Linux), então os caminhos são paths do container.
- * O modal mostra diretórios existentes no servidor e permite criar novos.
+ * O navegador (Chrome/Edge) abre um seletor nativo de pastas. O usuario
+ * escolhe uma pasta, o app ganha permissão de leitura/escrita, e os
+ * arquivos ficam disponíveis para a AI editar via browser.
+ *
+ * Requer Chrome 86+ ou Edge 86+. Firefox/Safari: fallback manual.
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { useProjectStore } from '../../services/projects/projectStore';
-import { API_BASE } from '../../lib/api';
+import React, { useState, useRef } from 'react';
 import { Icon } from '../common/Icon';
+import { projectFiles } from '@/services/files/projectFiles';
 
 interface AddProjectModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onProjectAdded?: () => void;
 }
 
-interface DirEntry {
-  name: string;
-  path: string;
+declare global {
+  interface Window {
+    showDirectoryPicker?: (options?: {
+      id?: string;
+      mode?: 'read' | 'readwrite';
+    }) => Promise<FileSystemDirectoryHandle>;
+  }
 }
 
-export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
-  const [path, setPath] = useState('');
+export function AddProjectModal({ isOpen, onClose, onProjectAdded }: AddProjectModalProps) {
   const [name, setName] = useState('');
-  const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { addProject } = useProjectStore();
-
-  const [browseOpen, setBrowseOpen] = useState(false);
-  const [currentBrowsePath, setCurrentBrowsePath] = useState('');
-  const [dirs, setDirs] = useState<DirEntry[]>([]);
-  const [browseLoading, setBrowseLoading] = useState(false);
-  const [browseError, setBrowseError] = useState<string | null>(null);
-
-  const fetchDirs = useCallback(async (dirPath?: string) => {
-    setBrowseLoading(true);
-    setBrowseError(null);
-    try {
-      const url = dirPath
-        ? `${API_BASE}/projects/browse?path=${encodeURIComponent(dirPath)}`
-        : `${API_BASE}/projects/browse`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(`Erro ${res.status}`);
-      const data = await res.json();
-      setDirs(data.directories || []);
-      setCurrentBrowsePath(data.currentPath || '');
-    } catch (err) {
-      setBrowseError(err instanceof Error ? err.message : 'Erro ao listar pastas');
-    } finally {
-      setBrowseLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (browseOpen) fetchDirs();
-  }, [browseOpen, fetchDirs]);
+  const [loading, setLoading] = useState(false);
+  const [selectedPath, setSelectedPath] = useState<string | null>(null);
+  const handleRef = useRef<FileSystemDirectoryHandle | null>(null);
 
   if (!isOpen) return null;
 
+  const supportsFSAPI = typeof window !== 'undefined' && !!window.showDirectoryPicker;
+
+  const handlePickFolder = async () => {
+    if (!window.showDirectoryPicker) {
+      setError('Seu navegador não suporta File System Access API. Use Chrome ou Edge.');
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const handle = await window.showDirectoryPicker({
+        mode: 'readwrite',
+      });
+
+      handleRef.current = handle;
+      setSelectedPath(handle.name);
+      if (!name.trim()) setName(handle.name);
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        // Usuario cancelou — nao mostra erro
+        return;
+      }
+      setError(err?.message ?? 'Erro ao abrir pasta');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!path.trim()) return;
+    if (!handleRef.current) return;
 
-    setAdding(true);
+    setLoading(true);
     setError(null);
+
     try {
-      await addProject(path.trim(), name.trim() || undefined);
-      setPath('');
+      const handle = handleRef.current;
+      const projectName = name.trim() || handle.name;
+
+      // Verifica permissão
+      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') {
+        setError('Permissão de leitura/escrita negada.');
+        setLoading(false);
+        return;
+      }
+
+      // Salva o projeto no IndexedDB
+      await projectFiles.saveProject({
+        id: `local_${Date.now()}`,
+        name: projectName,
+        handle,
+        mode: 'local',
+      });
+
+      setSelectedPath(null);
       setName('');
+      handleRef.current = null;
+      onProjectAdded?.();
       onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erro ao adicionar projeto');
+    } catch (err: any) {
+      setError(err?.message ?? 'Erro ao salvar projeto');
     } finally {
-      setAdding(false);
+      setLoading(false);
     }
   };
 
-  const handleDirClick = (dir: DirEntry) => {
-    setPath(dir.path);
-    setBrowseOpen(false);
-    if (!name.trim()) {
-      setName(dir.name);
-    }
-  };
-
-  const handleParentDir = () => {
-    const parts = currentBrowsePath.replace(/\\/g, '/').split('/');
-    parts.pop();
-    const parent = parts.join('/') || '/';
-    fetchDirs(parent);
+  const handleClose = () => {
+    setSelectedPath(null);
+    setName('');
+    handleRef.current = null;
+    setError(null);
+    onClose();
   };
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h2>Adicionar Projeto</h2>
-          <button className="modal-close" onClick={onClose}>
-            &times;
-          </button>
+          <button className="modal-close" onClick={handleClose}>&times;</button>
         </div>
         <form onSubmit={handleSubmit}>
           <div className="modal-body">
-            <div className="form-group">
-              <label htmlFor="project-path">Caminho da pasta no servidor</label>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <input
-                  id="project-path"
-                  type="text"
-                  value={path}
-                  onChange={(e) => setPath(e.target.value)}
-                  placeholder="/app/data/meu-projeto"
-                  className="form-input"
-                  style={{ flex: 1 }}
-                  required
-                />
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => setBrowseOpen(!browseOpen)}
-                  title="Navegar pastas do servidor"
-                  style={{ padding: '8px 10px', display: 'flex', alignItems: 'center' }}
-                >
-                  <Icon name="folder" size={18} />
-                </button>
+            {!supportsFSAPI ? (
+              <div className="form-error" style={{ marginBottom: 12 }}>
+                Seu navegador não suporta acesso a arquivos locais.
+                Use <strong>Chrome</strong> ou <strong>Edge</strong>.
               </div>
-              <p className="form-hint">
-                Caminho absoluto no servidor. Clique na pasta para navegar o filesystem do servidor.
-              </p>
-            </div>
-
-            {browseOpen && (
-              <div className="browse-panel" style={{
-                border: '1px solid var(--border, rgba(255,255,255,0.1))',
-                borderRadius: '8px',
-                padding: '12px',
-                marginTop: '8px',
-                maxHeight: '250px',
-                overflow: 'auto',
-                background: 'var(--bg-secondary, rgba(255,255,255,0.03))',
-              }}>
-                {browseLoading ? (
-                  <p style={{ color: 'var(--text-secondary, #888)', fontSize: '0.85rem' }}>Carregando...</p>
-                ) : browseError ? (
-                  <p style={{ color: '#ef4444', fontSize: '0.85rem' }}>{browseError}</p>
-                ) : (
-                  <>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginBottom: '8px', fontSize: '0.8rem', color: 'var(--text-secondary, #888)' }}>
-                      <button
-                        type="button"
-                        onClick={handleParentDir}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent, #f59e0b)', cursor: 'pointer', padding: '2px 4px' }}
-                      >
-                        ..
-                      </button>
-                      <span style={{ marginLeft: '4px' }}>{currentBrowsePath}</span>
-                    </div>
-                    {dirs.length === 0 ? (
-                      <p style={{ color: 'var(--text-secondary, #888)', fontSize: '0.85rem' }}>Nenhuma subpasta encontrada.</p>
+            ) : (
+              <div className="form-group">
+                <label>Pasta do projeto</label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div
+                    className="addproject__folder-display"
+                    style={{
+                      flex: 1,
+                      padding: '10px 12px',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border)',
+                      background: 'var(--bg-panel)',
+                      color: selectedPath ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      fontSize: '0.9rem',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {selectedPath ? (
+                      <><Icon name="folder" size={14} /> {selectedPath}</>
                     ) : (
-                      dirs.map((dir) => (
-                        <button
-                          key={dir.path}
-                          type="button"
-                          onClick={() => handleDirClick(dir)}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            width: '100%',
-                            padding: '6px 8px',
-                            background: 'none',
-                            border: 'none',
-                            color: 'var(--text-primary, #fff)',
-                            cursor: 'pointer',
-                            borderRadius: '4px',
-                            fontSize: '0.85rem',
-                            textAlign: 'left',
-                          }}
-                          onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
-                          onMouseLeave={(e) => (e.currentTarget.style.background = 'none')}
-                        >
-                          <Icon name="folder" size={14} />
-                          {dir.name}
-                        </button>
-                      ))
+                      'Nenhuma pasta selecionada'
                     )}
-                  </>
-                )}
+                  </div>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={handlePickFolder}
+                    disabled={loading}
+                    style={{ padding: '8px 14px', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                  >
+                    <Icon name="folder" size={16} />
+                    {selectedPath ? 'Trocar' : 'Selecionar'}
+                  </button>
+                </div>
+                <p className="form-hint">
+                  O navegador vai abrir o seletor de pastas do seu PC.
+                  A IA poderá ler e editar os arquivos dessa pasta.
+                </p>
               </div>
             )}
 
             <div className="form-group">
-              <label htmlFor="project-name">Nome (opcional)</label>
+              <label htmlFor="project-name">Nome do projeto</label>
               <input
                 id="project-name"
                 type="text"
@@ -202,14 +181,19 @@ export function AddProjectModal({ isOpen, onClose }: AddProjectModalProps) {
                 className="form-input"
               />
             </div>
+
             {error && <div className="form-error">{error}</div>}
           </div>
           <div className="modal-footer">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>
+            <button type="button" className="btn btn-secondary" onClick={handleClose}>
               Cancelar
             </button>
-            <button type="submit" className="btn btn-primary" disabled={adding || !path.trim()}>
-              {adding ? 'Adicionando...' : 'Adicionar'}
+            <button
+              type="submit"
+              className="btn btn-primary"
+              disabled={loading || !handleRef.current}
+            >
+              {loading ? 'Salvando...' : 'Adicionar Projeto'}
             </button>
           </div>
         </form>

@@ -72,7 +72,13 @@ function loadState(): { conversations: Conversation[]; activeId: string | null }
 
 const ConversationStoreContext = createContext<ConversationStoreValue | null>(null);
 
-export function ConversationStoreProvider({ children }: { children: ReactNode }) {
+interface ConversationStoreProviderProps {
+  children: ReactNode;
+  /** Contexto do projeto local (arquivos) para injetar nas mensagens. */
+  projectContext?: string;
+}
+
+export function ConversationStoreProvider({ children, projectContext }: ConversationStoreProviderProps) {
   const service = useConversationService();
   const initial = loadState();
   const [conversations, setConversations] = useState<Conversation[]>(initial.conversations);
@@ -180,6 +186,7 @@ export function ConversationStoreProvider({ children }: { children: ReactNode })
             onError: (message) => updateAssistant(() => ({ role: 'system', content: message })),
           },
           controller.signal,
+          projectContext,
         );
       } finally {
         // Só limpa se ainda for esta geração (evita corrida ao "Começar aqui").
@@ -201,7 +208,7 @@ export function ConversationStoreProvider({ children }: { children: ReactNode })
         );
       }
     },
-    [conversations, activeId, service],
+    [conversations, activeId, service, projectContext],
   );
 
   // Interrompe a resposta em andamento e DESCARTA o que já foi gerado.

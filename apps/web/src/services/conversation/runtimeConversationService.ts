@@ -15,9 +15,13 @@ const nextRequestId = () => `stream-${Date.now()}-${seq++}`;
  * Mantém o contrato da UI e centraliza a integração com o WebSocket do runtime.
  */
 export const runtimeConversationService: ConversationService = {
-  respond(conversationId, userMessage, _history, handlers, signal) {
+  respond(conversationId, userMessage, _history, handlers, signal, context) {
     const client = getRuntimeClient();
     const id = nextRequestId();
+
+    const fullText = context
+      ? `${context}\n\n---\n\n${userMessage.content}`
+      : userMessage.content;
 
     return new Promise<void>((resolve) => {
       let settled = false;
@@ -68,7 +72,7 @@ export const runtimeConversationService: ConversationService = {
       client
         .dispatch({
           type: CONVERSATION_COMMANDS.sendMessageStream,
-          payload: { text: userMessage.content, id, conversationId },
+          payload: { text: fullText, id, conversationId },
         })
         .catch((error: unknown) => {
           if (settled) return;

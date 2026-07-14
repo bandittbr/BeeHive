@@ -40,5 +40,6 @@ export interface ConversationService {
     history: ChatMessage[],
     handlers: StreamHandlers,
     signal?: AbortSignal,
+    context?: string,
   ): Promise<void>;
 }
