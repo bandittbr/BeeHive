@@ -120,3 +120,11 @@ export async function setDefaultModel(model: string): Promise<{ ok: boolean }> {
   }
   return res.json() as Promise<{ ok: boolean }>;
 }
+
+/** Lista modelos de um provider específico. */
+export async function getProviderModels(providerId: string): Promise<string[]> {
+  const res = await fetch(`${API_BASE}/providers/${providerId}/models`);
+  if (!res.ok) throw new Error(`Erro ${res.status}`);
+  const data = await res.json() as { models: string[] };
+  return data.models ?? [];
+}

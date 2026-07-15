@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import { Icon } from '@/components/common/Icon';
+import { ModelSelector } from '@/components/ModelSelector';
 
 interface AttachedFile {
   name: string;
@@ -21,7 +22,6 @@ interface MessageComposerProps {
   isResponding: boolean;
   onStop: () => void;
   onCommand?: (command: string) => void;
-  onAgent?: (agent: string) => void;
 }
 
 const ALLOWED_EXTENSIONS = new Set([
@@ -44,15 +44,6 @@ const COMMANDS = [
   { id: 'read', label: 'Ler arquivo', icon: 'folder' as const, description: 'Ler conteúdo de arquivo' },
   { id: 'write', label: 'Escrever arquivo', icon: 'edit' as const, description: 'Criar/editar arquivo' },
   { id: 'search', label: 'Buscar', icon: 'search' as const, description: 'Buscar no projeto' },
-];
-
-const AGENTS = [
-  { id: 'coder', label: 'Coder', icon: 'code' as const, description: 'Programador Full Stack' },
-  { id: 'reviewer', label: 'Reviewer', icon: 'eye' as const, description: 'Revisão de código' },
-  { id: 'debugger', label: 'Debugger', icon: 'bolt' as const, description: 'Encontrar e corrigir bugs' },
-  { id: 'devops', label: 'DevOps', icon: 'rocket' as const, description: 'Deploy e infraestrutura' },
-  { id: 'designer', label: 'Designer', icon: 'brush' as const, description: 'UI/UX Design' },
-  { id: 'analyst', label: 'Analyst', icon: 'search' as const, description: 'Análise de dados' },
 ];
 
 function isAllowedFile(filename: string): boolean {
@@ -80,24 +71,18 @@ export function MessageComposer({
   isResponding,
   onStop,
   onCommand,
-  onAgent,
 }: MessageComposerProps) {
   const [showCommands, setShowCommands] = useState(false);
-  const [showAgents, setShowAgents] = useState(false);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFile[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const commandsRef = useRef<HTMLDivElement>(null);
-  const agentsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (commandsRef.current && !commandsRef.current.contains(e.target as Node)) {
         setShowCommands(false);
-      }
-      if (agentsRef.current && !agentsRef.current.contains(e.target as Node)) {
-        setShowAgents(false);
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
@@ -198,11 +183,6 @@ export function MessageComposer({
     setShowCommands(false);
   };
 
-  const handleAgent = (agent: typeof AGENTS[0]) => {
-    onAgent?.(agent.id);
-    setShowAgents(false);
-  };
-
   const formatSize = (bytes: number) => {
     if (bytes < 1024) return `${bytes}B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)}KB`;
@@ -290,7 +270,6 @@ export function MessageComposer({
               className="composer__tool"
               onClick={() => {
                 setShowCommands(!showCommands);
-                setShowAgents(false);
               }}
             >
               <Icon name="command" size={18} />
@@ -317,38 +296,7 @@ export function MessageComposer({
             )}
           </div>
 
-          <div ref={agentsRef} style={{ position: 'relative' }}>
-            <button
-              type="button"
-              className="composer__tool"
-              onClick={() => {
-                setShowAgents(!showAgents);
-                setShowCommands(false);
-              }}
-            >
-              <Icon name="agents" size={18} />
-              <span>Agentes</span>
-            </button>
-            {showAgents && (
-              <div className="composer__dropdown">
-                <div className="composer__dropdown-header">Agentes IA</div>
-                {AGENTS.map(agent => (
-                  <button
-                    key={agent.id}
-                    type="button"
-                    className="composer__dropdown-item"
-                    onClick={() => handleAgent(agent)}
-                  >
-                    <Icon name={agent.icon} size={14} />
-                    <div>
-                      <div className="composer__dropdown-item-label">{agent.label}</div>
-                      <div className="composer__dropdown-item-desc">{agent.description}</div>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ModelSelector compact />
         </div>
 
         <div className="composer__send-group">

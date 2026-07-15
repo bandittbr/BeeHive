@@ -1,35 +1,43 @@
 import { useState, useRef, useEffect } from 'react';
-import { Icon } from '@/components/common/Icon';
+import { Icon, type IconName } from '@/components/common/Icon';
 import { useModel } from '@/context/ModelContext';
 import './ModelSelector.css';
 
+const PROVIDER_ICONS: Record<string, string> = {
+  ollama: 'agents',
+  opencode: 'code',
+  openrouter: 'grid',
+  openai: 'code',
+  anthropic: 'code',
+  groq: 'code',
+  together: 'code',
+  nvidia: 'code',
+  gemini: 'code',
+  custom: 'gear',
+};
+
+const TIER_LABELS: Record<string, string> = {
+  local: 'Local',
+  free: 'Gratuito',
+  paid: 'Pago',
+};
+
 interface ModelSelectorProps {
-  /** Texto curto para label */
   label?: string;
-  /** Se true, mostra apenas o modelo atual com ícone de troca */
   compact?: boolean;
 }
 
-const MODEL_OPTIONS = [
-  // OpenCode (free) - models with vision
-  { providerId: 'opencode', model: 'gpt-4o-mini', label: 'GPT-4o Mini', vision: true, free: true },
-  { providerId: 'opencode', model: 'gpt-4o', label: 'GPT-4o', vision: true, free: false },
-  { providerId: 'opencode', model: 'claude-3-haiku-20240307', label: 'Claude 3 Haiku', vision: true, free: false },
-  { providerId: 'opencode', model: 'claude-3-sonnet-20240229', label: 'Claude 3 Sonnet', vision: true, free: false },
-  // Ollama local
-  { providerId: 'ollama', model: 'llama3.2', label: 'Llama 3.2 (Ollama)', vision: false, free: true },
-  { providerId: 'ollama', model: 'llava', label: 'LLaVA (Ollama)', vision: true, free: true },
-  { providerId: 'ollama', model: 'llama3.2-vision', label: 'Llama 3.2 Vision (Ollama)', vision: true, free: true },
-  // OpenRouter
-  { providerId: 'openrouter', model: 'openai/gpt-4o-mini', label: 'GPT-4o Mini (OpenRouter)', vision: true, free: false },
-  { providerId: 'openrouter', model: 'anthropic/claude-3-haiku', label: 'Claude 3 Haiku (OpenRouter)', vision: true, free: false },
-  { providerId: 'openrouter', model: 'google/gemini-pro-vision', label: 'Gemini Pro Vision (OpenRouter)', vision: true, free: false },
-];
-
 export function ModelSelector({ label = 'Modelo', compact = false }: ModelSelectorProps) {
-  const { activeModel, activeProviderId, setModel, setProvider, loading, refresh } = useModel();
+  const {
+    activeModel,
+    activeProviderId,
+    providers,
+    loadingProviders,
+    setModel,
+    refresh,
+  } = useModel();
+
   const [open, setOpen] = useState(false);
-  const [providerLoading, setProviderLoading] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,24 +48,29 @@ export function ModelSelector({ label = 'Modelo', compact = false }: ModelSelect
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const currentOption = MODEL_OPTIONS.find(o => o.model === activeModel && o.providerId === activeProviderId);
-  const displayName = currentOption?.label ?? activeModel ?? 'Carregando...';
+  const activeProvider = providers.find(p => p.id === activeProviderId);
+  const currentModel = activeProvider?.models.find(m => m.id === activeModel);
+  const displayName = currentModel?.name ?? activeModel ?? 'Carregando...';
 
-  const handleSelect = async (option: typeof MODEL_OPTIONS[0]) => {
-    if (option.providerId !== activeProviderId) {
-      setProviderLoading(option.providerId);
-      try {
-        await setProvider(option.providerId);
-      } finally {
-        setProviderLoading(null);
-      }
-    }
-    await setModel(option.model);
+  const connectedProviders = providers.filter(p => p.hasCredentials && p.isEnabled && p.isRegistered);
+
+  const handleSelectModel = async (model: { id: string; name: string; vision: boolean }) => {
+    if (model.id === activeModel) return;
+    await setModel(model.id);
     setOpen(false);
   };
 
-  if (loading) {
-    return <div className="model-selector loading" title="Carregando modelo...">⟳</div>;
+  if (loadingProviders) {
+    return <div className="model-selector loading" title="Carregando provedores...">⟳</div>;
+  }
+
+  if (!connectedProviders.length) {
+    return (
+      <div className="model-selector no-providers" title="Nenhum provedor conectado">
+        <Icon name="warning" size={16} />
+        <span>Conecte um provedor em Configurações → Ai Providers</span>
+      </div>
+    );
   }
 
   if (compact) {
@@ -68,13 +81,13 @@ export function ModelSelector({ label = 'Modelo', compact = false }: ModelSelect
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-label={`Trocar modelo (atual: ${displayName})`}
-          title={`Modelo atual: ${displayName}${currentOption?.vision ? ' 👁️' : ''}`}
+          title={`Modelo atual: ${displayName}${currentModel?.vision ? ' 👁️' : ''}`}
         >
           <span className="model-selector__name">{displayName}</span>
-          {currentOption?.vision && <span className="model-selector__vision" title="Suporta visão/imagens">👁️</span>}
+          {currentModel?.vision && <span className="model-selector__vision" title="Suporta visão/imagens">👁️</span>}
           <Icon name="chevron" size={14} className={open ? 'model-selector__chevron--open' : ''} />
         </button>
-        {open && <ModelDropdown onSelect={handleSelect} current={currentOption} providerLoading={providerLoading} />}
+        {open && <ModelDropdown providers={connectedProviders} activeModel={activeModel} onSelectModel={handleSelectModel} />}
       </div>
     );
   }
@@ -90,73 +103,68 @@ export function ModelSelector({ label = 'Modelo', compact = false }: ModelSelect
           aria-label={`Trocar modelo (atual: ${displayName})`}
         >
           <span className="model-selector__name">{displayName}</span>
-          {currentOption?.vision && <span className="model-selector__vision" title="Suporta visão/imagens">👁️</span>}
+          {currentModel?.vision && <span className="model-selector__vision" title="Suporta visão/imagens">👁️</span>}
           <Icon name="chevron" size={14} className={open ? 'model-selector__chevron--open' : ''} />
         </button>
-        <button className="model-selector__refresh" onClick={() => void refresh()} title="Recarregar" disabled={loading}>
-          <Icon name={loading ? 'stop' : 'command'} size={14} />
+        <button className="model-selector__refresh" onClick={() => void refresh()} title="Recarregar" disabled={loadingProviders}>
+          <Icon name={loadingProviders ? 'stop' : 'command'} size={14} />
         </button>
       </div>
-      {open && <ModelDropdown onSelect={handleSelect} current={currentOption} providerLoading={providerLoading} />}
+      {open && <ModelDropdown providers={connectedProviders} activeModel={activeModel} onSelectModel={handleSelectModel} />}
     </div>
   );
 }
 
-function ModelDropdown({
-  onSelect,
-  current,
-  providerLoading,
-}: {
-  onSelect: (opt: typeof MODEL_OPTIONS[0]) => void;
-  current: typeof MODEL_OPTIONS[0] | undefined;
-  providerLoading: string | null;
-}) {
+interface ModelDropdownProps {
+  providers: any[];
+  activeModel: string;
+  onSelectModel: (model: { id: string; name: string; vision: boolean }) => Promise<void>;
+}
+
+function ModelDropdown({ providers, activeModel, onSelectModel }: ModelDropdownProps) {
+  const { loadProviderModels } = useModel();
+
   return (
     <div className="model-selector__dropdown">
-      <div className="model-selector__section">
-        <span className="model-selector__section-title">OpenCode (gratuito, vision)</span>
-        {MODEL_OPTIONS.filter(o => o.providerId === 'opencode').map(opt => (
-          <button
-            key={opt.model}
-            className={`model-selector__option${current?.model === opt.model && current?.providerId === 'opencode' ? ' model-selector__option--active' : ''}`}
-            onClick={() => onSelect(opt)}
-            disabled={providerLoading === 'opencode'}
-          >
-            <span className="model-selector__opt-name">{opt.label}</span>
-            {opt.vision && <span className="model-selector__vision">👁️</span>}
-            {opt.free && <span className="model-selector__free">grátis</span>}
-          </button>
-        ))}
-      </div>
-      <div className="model-selector__section">
-        <span className="model-selector__section-title">Ollama (local)</span>
-        {MODEL_OPTIONS.filter(o => o.providerId === 'ollama').map(opt => (
-          <button
-            key={opt.model}
-            className={`model-selector__option${current?.model === opt.model && current?.providerId === 'ollama' ? ' model-selector__option--active' : ''}`}
-            onClick={() => onSelect(opt)}
-            disabled={providerLoading === 'ollama'}
-          >
-            <span className="model-selector__opt-name">{opt.label}</span>
-            {opt.vision && <span className="model-selector__vision">👁️</span>}
-            {opt.free && <span className="model-selector__free">grátis</span>}
-          </button>
-        ))}
-      </div>
-      <div className="model-selector__section">
-        <span className="model-selector__section-title">OpenRouter (pago)</span>
-        {MODEL_OPTIONS.filter(o => o.providerId === 'openrouter').map(opt => (
-          <button
-            key={opt.model}
-            className={`model-selector__option${current?.model === opt.model && current?.providerId === 'openrouter' ? ' model-selector__option--active' : ''}`}
-            onClick={() => onSelect(opt)}
-            disabled={providerLoading === 'openrouter'}
-          >
-            <span className="model-selector__opt-name">{opt.label}</span>
-            {opt.vision && <span className="model-selector__vision">👁️</span>}
-          </button>
-        ))}
-      </div>
+      {providers.map(provider => (
+        <div key={provider.id} className="model-selector__section">
+          <div className="model-selector__section-header">
+            <Icon name={(provider.icon && PROVIDER_ICONS[provider.icon] ? PROVIDER_ICONS[provider.icon] : 'gear') as IconName} size={14} />
+            <span className="model-selector__provider-name">{provider.name}</span>
+            <span className={`model-selector__tier model-selector__tier--${provider.tier}`}>
+              {TIER_LABELS[provider.tier] ?? provider.tier}
+            </span>
+            {provider.loadingModels && <span className="model-selector__loading">⟳</span>}
+            {provider.error && <span className="model-selector__error" title={provider.error}>⚠</span>}
+          </div>
+
+          <div className="model-selector__models">
+            {provider.loadingModels ? (
+              <div className="model-selector__loading">Carregando modelos...</div>
+            ) : provider.models.length === 0 ? (
+              <button
+                className="model-selector__load-btn"
+                onClick={() => loadProviderModels(provider.id)}
+                disabled={provider.loadingModels}
+              >
+                Carregar modelos
+              </button>
+            ) : (
+              provider.models.map((model: { id: string; name: string; vision: boolean }) => (
+                <button
+                  key={model.id}
+                  className={`model-selector__model${activeModel === model.id ? ' model-selector__model--active' : ''}`}
+                  onClick={() => onSelectModel(model)}
+                  title={model.vision ? 'Suporta visão/imagens' : ''}
+                >
+                  <span className="model-selector__model-name">{model.name}</span>
+                  {model.vision && <span className="model-selector__vision">👁️</span>}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
