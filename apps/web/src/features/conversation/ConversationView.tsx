@@ -4,8 +4,6 @@ import { ActionCards } from './components/ActionCards';
 import { QuickSuggestions } from './components/QuickSuggestions';
 import { MessageComposer, type SubmitPayload } from './components/MessageComposer';
 import { MessageList } from './components/MessageList';
-import { ActivityPanel } from './components/ActivityPanel';
-import { ModelSelector } from '@/components/ModelSelector';
 import { useConversations } from './ConversationStore';
 import { Button, Modal } from '@/components/ui';
 import './ConversationView.css';
@@ -74,7 +72,6 @@ export function ConversationView() {
         {hasMessages && (
           <header className="conversation__bar">
             <span className="conversation__bar-title">Conversa</span>
-            <ModelSelector />
             <Button variant="ghost" size="sm" icon="plus" onClick={newConversation}>
               Nova conversa
             </Button>
@@ -95,9 +92,6 @@ export function ConversationView() {
         </div>
 
         <div className="conversation__composer-area">
-          <div className="conversation__header-tools">
-            <ModelSelector label="Modelo" compact />
-          </div>
           <MessageComposer
             value={value}
             onChange={setValue}
@@ -108,8 +102,6 @@ export function ConversationView() {
           {!hasMessages && <QuickSuggestions onPick={pickSuggestion} />}
         </div>
       </section>
-
-      <ActivityPanel />
 
       {/* Aviso de conflito: outra conversa está gerando resposta. */}
       <Modal
