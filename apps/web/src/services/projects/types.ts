@@ -26,6 +26,8 @@ export interface Project {
   pinned: boolean;
   /** Tags para organização */
   tags?: string[];
+  /** Modo do projeto: 'api' (backend) ou 'local' (File System Access API) */
+  mode?: 'api' | 'local';
 }
 
 export interface ProjectFile {

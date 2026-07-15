@@ -200,7 +200,7 @@ class ProjectFilesService {
     if (!entry || entry.mode !== 'local') return [];
 
     try {
-      const perm = await entry.handle.requestPermission({ mode: 'read' });
+      const perm = await (entry.handle as any).requestPermission({ mode: 'read' });
       if (perm !== 'granted') return [];
     } catch {
       return [];
@@ -236,7 +236,7 @@ class ProjectFilesService {
     if (!entry || entry.mode !== 'local') return false;
 
     try {
-      const perm = await entry.handle.requestPermission({ mode: 'readwrite' });
+      const perm = await (entry.handle as any).requestPermission({ mode: 'readwrite' });
       if (perm !== 'granted') return false;
 
       const parts = filePath.split('/');
@@ -266,7 +266,7 @@ class ProjectFilesService {
     if (!entry || entry.mode !== 'local') return false;
 
     try {
-      const perm = await entry.handle.queryPermission({ mode: 'read' });
+      const perm = await (entry.handle as any).queryPermission({ mode: 'read' });
       return perm === 'granted';
     } catch {
       return false;

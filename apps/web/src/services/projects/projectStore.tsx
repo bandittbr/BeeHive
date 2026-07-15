@@ -25,6 +25,8 @@ export interface ProjectStoreActions {
   loadProjects: () => Promise<void>;
   /** Adiciona um projeto */
   addProject: (path: string, name?: string) => Promise<void>;
+  /** Registra um projeto local (File System Access API) sem chamar backend */
+  registerLocalProject: (project: Project) => void;
   /** Remove um projeto */
   removeProject: (id: string) => Promise<void>;
   /** Define o projeto ativo */

@@ -11,6 +11,7 @@
 import React, { useState, useRef } from 'react';
 import { Icon } from '../common/Icon';
 import { projectFiles } from '@/services/files/projectFiles';
+import { useProjectStore } from '@/services/projects/projectStore';
 
 interface AddProjectModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ declare global {
 }
 
 export function AddProjectModal({ isOpen, onClose, onProjectAdded }: AddProjectModalProps) {
+  const { registerLocalProject } = useProjectStore();
   const [name, setName] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -78,18 +80,33 @@ export function AddProjectModal({ isOpen, onClose, onProjectAdded }: AddProjectM
       const projectName = name.trim() || handle.name;
 
       // Verifica permissão
-      const perm = await handle.requestPermission({ mode: 'readwrite' });
+      const perm = await (handle as any).requestPermission({ mode: 'readwrite' });
       if (perm !== 'granted') {
         setError('Permissão de leitura/escrita negada.');
         setLoading(false);
         return;
       }
 
+      const id = `local_${Date.now()}`;
+      const now = Date.now();
+
       // Salva o projeto no IndexedDB
       await projectFiles.saveProject({
-        id: `local_${Date.now()}`,
+        id,
         name: projectName,
         handle,
+        mode: 'local',
+        createdAt: now,
+      });
+
+      // Registra no store para aparecer na UI
+      registerLocalProject({
+        id,
+        name: projectName,
+        path: `local://${projectName}`,
+        createdAt: now,
+        lastAccessedAt: now,
+        pinned: false,
         mode: 'local',
       });
 

@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { getProjectService } from './projectService';
 import { ProjectStoreContext, type ProjectStore } from './projectStore';
 import type { Project, ProjectFile, ProjectSettings } from './types';
+import { projectFiles } from '../files/projectFiles';
 
 export function ProjectStoreProvider({ children }: { children: React.ReactNode }) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -50,11 +51,52 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
     [service],
   );
 
+  const registerLocalProject = useCallback((project: Project) => {
+    setProjects((prev) => {
+      if (prev.some((p) => p.id === project.id)) return prev;
+      return [...prev, project];
+    });
+  }, []);
+
+  const loadLocalProjects = useCallback(async () => {
+    try {
+      const entries = await projectFiles.listProjects();
+      if (entries.length === 0) return;
+      setProjects((prev) => {
+        const localProjects: Project[] = entries
+          .filter((e) => !prev.some((p) => p.id === e.id))
+          .map((e) => ({
+            id: e.id,
+            name: e.name,
+            path: `local://${e.name}`,
+            createdAt: e.createdAt,
+            lastAccessedAt: e.createdAt,
+            pinned: false,
+            mode: 'local' as const,
+          }));
+        return [...prev, ...localProjects];
+      });
+    } catch {
+      // IndexedDB indisponível
+    }
+  }, []);
+
   const removeProject = useCallback(
     async (id: string) => {
       setError(null);
       try {
-        await service.removeProject(id);
+        // Tenta remover do backend (pode falhar para projetos locais)
+        try {
+          await service.removeProject(id);
+        } catch {
+          // ignora — projeto local não existe no backend
+        }
+        // Remove do IndexedDB se for projeto local
+        try {
+          await projectFiles.removeProject(id);
+        } catch {
+          // ignora
+        }
         setProjects((prev) => prev.filter((p) => p.id !== id));
         if (activeProject?.id === id) {
           setActiveProjectState(null);
@@ -75,9 +117,11 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
         if (id) {
           const project = projects.find((p) => p.id === id);
           setActiveProjectState(project ?? null);
-          if (project) {
-            const projectFiles = await service.listFiles(id);
-            setFiles(projectFiles);
+          if (project && project.mode !== 'local') {
+            const projectFilesList = await service.listFiles(id);
+            setFiles(projectFilesList);
+          } else {
+            setFiles([]);
           }
         } else {
           setActiveProjectState(null);
@@ -108,21 +152,27 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
     async (id: string, data: Partial<Project>) => {
       setError(null);
       try {
-        const updated = await service.updateProject(id, data);
-        setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
-        if (activeProject?.id === id) {
-          setActiveProjectState(updated);
+        const project = projects.find((p) => p.id === id);
+        if (project?.mode === 'local') {
+          // Atualiza localmente sem API
+          const updated = { ...project, ...data };
+          setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+          if (activeProject?.id === id) setActiveProjectState(updated);
+        } else {
+          const updated = await service.updateProject(id, data);
+          setProjects((prev) => prev.map((p) => (p.id === id ? updated : p)));
+          if (activeProject?.id === id) setActiveProjectState(updated);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Erro ao atualizar projeto');
       }
     },
-    [service, activeProject],
+    [service, activeProject, projects],
   );
 
   useEffect(() => {
-    loadProjects();
-  }, [loadProjects]);
+    loadProjects().then(() => loadLocalProjects());
+  }, [loadProjects, loadLocalProjects]);
 
   const store = useMemo<ProjectStore>(
     () => ({
@@ -134,6 +184,7 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
       error,
       loadProjects,
       addProject,
+      registerLocalProject,
       removeProject,
       setActiveProject,
       loadFiles,
@@ -148,6 +199,7 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
       error,
       loadProjects,
       addProject,
+      registerLocalProject,
       removeProject,
       setActiveProject,
       loadFiles,
