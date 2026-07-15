@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Icon, type IconName } from '@/components/common/Icon';
 import { useProjectStore } from '../../services/projects/projectStore';
+import { useConversations } from '@/features/conversation/ConversationStore';
 
 interface NavItem {
   id: string;
@@ -44,6 +45,7 @@ export function BeeHiveSidebar({
   onOpenCowork,
 }: BeeHiveSidebarProps) {
   const { projects, activeProject, setActiveProject } = useProjectStore();
+  const { newConversation } = useConversations();
   const [projectsExpanded, setProjectsExpanded] = useState(true);
   const [businessExpanded, setBusinessExpanded] = useState(
     activeView === 'business' || activeBusinessTab !== undefined,
@@ -82,30 +84,45 @@ export function BeeHiveSidebar({
       <nav className="sidebar__nav" aria-label="Áreas">
         {NAV_ITEMS.map((item) => (
           <div key={item.id}>
-            <button
-              className={`sidebar__nav-item ${activeView === item.id ? 'sidebar__nav-item--active' : ''}`}
-              onClick={() => {
-                if (item.id === 'business') {
-                  handleBusinessClick();
-                } else {
-                  onNavigate(item.id);
-                }
-              }}
-            >
-              <span className="sidebar__nav-icon">
-                <Icon name={item.icon} size={18} />
-              </span>
-              <span className="sidebar__nav-label">{item.label}</span>
-              {item.children && (
-                <span className="sidebar__nav-chevron">
-                  <Icon
-                    name="chevron"
-                    size={14}
-                    className={`sidebar__chevron${businessExpanded ? ' sidebar__chevron--open' : ''}`}
-                  />
+            <div className="sidebar__nav-item-row">
+              <button
+                className={`sidebar__nav-item ${activeView === item.id ? 'sidebar__nav-item--active' : ''}`}
+                onClick={() => {
+                  if (item.id === 'business') {
+                    handleBusinessClick();
+                  } else {
+                    onNavigate(item.id);
+                  }
+                }}
+              >
+                <span className="sidebar__nav-icon">
+                  <Icon name={item.icon} size={18} />
                 </span>
+                <span className="sidebar__nav-label">{item.label}</span>
+                {item.children && (
+                  <span className="sidebar__nav-chevron">
+                    <Icon
+                      name="chevron"
+                      size={14}
+                      className={`sidebar__chevron${businessExpanded ? ' sidebar__chevron--open' : ''}`}
+                    />
+                  </span>
+                )}
+              </button>
+              {item.id === 'conversation' && (
+                <button
+                  className="sidebar__nav-add"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    newConversation();
+                    if (activeView !== 'conversation') onNavigate('conversation');
+                  }}
+                  title="Nova conversa"
+                >
+                  <Icon name="plus" size={16} />
+                </button>
               )}
-            </button>
+            </div>
 
             {item.id === 'business' && item.children && businessExpanded && (
               <div className="sidebar__subnav">

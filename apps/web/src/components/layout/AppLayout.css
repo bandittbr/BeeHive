@@ -111,6 +111,36 @@
   gap: 2px;
 }
 
+.sidebar__nav-item-row {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.sidebar__nav-item-row .sidebar__nav-item {
+  flex: 1;
+  min-width: 0;
+}
+
+.sidebar__nav-add {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast), color var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.sidebar__nav-add:hover {
+  background: var(--bg-hover);
+  color: var(--accent);
+}
+
 .sidebar__nav-item {
   display: flex;
   align-items: center;

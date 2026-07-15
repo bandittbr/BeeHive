@@ -22,7 +22,6 @@ export function ConversationView() {
     respondingId,
     sendMessage,
     stop,
-    newConversation,
     deleteConversation,
   } = useConversations();
 
@@ -66,18 +65,9 @@ export function ConversationView() {
     }
   };
 
-  return (
+return (
     <div className="conversation">
       <section className="conversation__main">
-        {hasMessages && (
-          <header className="conversation__bar">
-            <span className="conversation__bar-title">Conversa</span>
-            <Button variant="ghost" size="sm" icon="plus" onClick={newConversation}>
-              Nova conversa
-            </Button>
-          </header>
-        )}
-
         <div className="conversation__scroll">
           {hasMessages ? (
             <div className="conversation__thread">
