@@ -1,0 +1,228 @@
+/* ── ModelSelector ────────────────────────────────────────────────────── */
+
+.model-selector {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.model-selector__label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.model-selector__trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-selector__trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+  min-width: 200px;
+  justify-content: space-between;
+}
+
+.model-selector__trigger:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover);
+}
+
+.model-selector__trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.model-selector__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.model-selector__vision {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.model-selector__chevron {
+  transition: transform var(--transition-fast);
+}
+
+.model-selector__chevron--open {
+  transform: rotate(180deg);
+}
+
+.model-selector__refresh {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color var(--transition-fast), color var(--transition-fast);
+}
+
+.model-selector__refresh:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.model-selector__refresh:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Dropdown */
+.model-selector__dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+.model-selector__section {
+  margin-bottom: 8px;
+}
+
+.model-selector__section:last-child {
+  margin-bottom: 0;
+}
+
+.model-selector__section-title {
+  display: block;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  margin-bottom: 4px;
+}
+
+.model-selector__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.model-selector__option:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.model-selector__option:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.model-selector__option:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.model-selector__option--active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.model-selector__opt-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-selector__vision {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.model-selector__free {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(16, 185, 129, 0.12);
+  padding: 1px 6px;
+  border-radius: var(--radius-xs);
+  text-transform: uppercase;
+}
+
+/* Compact variant */
+.model-selector.compact .model-selector__label {
+  display: none;
+}
+
+.model-selector.compact .model-selector__trigger-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.model-selector.compact .model-selector__trigger {
+  min-width: auto;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.model-selector.compact .model-selector__vision {
+  font-size: 11px;
+}
+
+/* Loading state */
+.model-selector.loading {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.model-selector.loading .model-selector__trigger::after {
+  content: ' ⟳';
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Provider loading in dropdown */
+.model-selector__option[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}

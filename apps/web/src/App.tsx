@@ -14,6 +14,7 @@ import { DashboardView } from '@/features/dashboard/DashboardView';
 import { CoworkView } from '@/features/cowork/CoworkView';
 import { useLocalProject } from '@/features/projects/useLocalProject';
 import { projectFiles } from '@/services/files/projectFiles';
+import { ModelProvider } from '@/context/ModelContext';
 
 type ViewType = 'dashboard' | 'conversation' | 'projects' | 'business' | 'settings' | 'cowork';
 
@@ -105,16 +106,18 @@ export default function App() {
     <ConversationServiceProvider service={runtimeConversationService}>
       <ConversationStoreProvider projectContext={localProject.buildContext()}>
         <ProjectStoreProvider>
-          <AppLayout
-            activeView={activeView}
-            activeBusinessTab={activeBusinessTab}
-            onNavigate={handleNavigate}
-            onBusinessTabChange={handleBusinessTabChange}
-            theme={theme}
-            onToggleTheme={toggleTheme}
-          >
-            {renderView()}
-          </AppLayout>
+          <ModelProvider>
+            <AppLayout
+              activeView={activeView}
+              activeBusinessTab={activeBusinessTab}
+              onNavigate={handleNavigate}
+              onBusinessTabChange={handleBusinessTabChange}
+              theme={theme}
+              onToggleTheme={toggleTheme}
+            >
+              {renderView()}
+            </AppLayout>
+          </ModelProvider>
         </ProjectStoreProvider>
       </ConversationStoreProvider>
     </ConversationServiceProvider>

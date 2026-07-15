@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { Icon } from '@/components/common/Icon';
 import { projectFiles, type LocalFile } from '@/services/files/projectFiles';
 import { useConversations } from '@/features/conversation/ConversationStore';
+import { ModelSelector } from '@/components/ModelSelector';
 import './CoworkView.css';
 
 interface CoworkViewProps {
@@ -171,6 +172,7 @@ export function CoworkView({ projectId, projectName, onBack }: CoworkViewProps) 
             <span>Cowork — {projectName}</span>
           </div>
           <div className="cowork__header-actions">
+            <ModelSelector compact />
             <button
               className={`cowork__toggle-terminal ${terminalOpen ? 'cowork__toggle-terminal--active' : ''}`}
               onClick={() => setTerminalOpen(!terminalOpen)}
