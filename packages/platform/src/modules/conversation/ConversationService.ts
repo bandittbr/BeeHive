@@ -174,12 +174,16 @@ export class ConversationService extends BaseService {
       controller.abort();
     }, this.timeoutMs);
 
+    // Detect if any files are images -> use 'vision' capability
+    const hasImages = files?.some((f) => f.type.startsWith('image/')) ?? false;
+    const capability = hasImages ? 'vision' : 'chat';
+
     try {
       const history = await this.memory.history(conversationId);
       const model = aiManager.activeModel();
       const response = await aiManager.execute<ChatOutput>(
         {
-          capability: 'chat',
+          capability,
           input: { messages: [...toChatMessages(history), { role: 'user', content: text, files }] },
           options: model ? { model } : undefined,
         },
@@ -263,7 +267,7 @@ export class ConversationService extends BaseService {
    * falhar/expirar/for cancelado antes disso, nada é gravado (sem resposta
    * parcial no histórico).
    */
-  private async streamAI(
+private async streamAI(
     id: string,
     conversationId: string,
     text: string,
@@ -292,6 +296,10 @@ export class ConversationService extends BaseService {
       controller.abort();
     }, this.timeoutMs);
 
+    // Detect if any files are images -> use 'vision' capability
+    const hasImages = files?.some((f) => f.type.startsWith('image/')) ?? false;
+    const capability = hasImages ? 'vision' : 'chat';
+
     this.context?.events.emit(CONVERSATION_EVENTS.streamStarted, { id, timestamp: Date.now() });
 
     let finalText: string | null = null;
@@ -300,15 +308,12 @@ export class ConversationService extends BaseService {
       const model = aiManager.activeModel();
       await aiManager.stream(
         {
-          capability: 'chat',
+          capability,
           input: { messages: [...toChatMessages(history), { role: 'user', content: text, files }] },
           options: model ? { model } : undefined,
         },
         {
           onDelta: (delta) => {
-            // Pedaço vazio é repassado fielmente pelo Provider (Sprint 17) —
-            // aqui não vira evento (nada de útil pra UI mostrar), mas também
-            // não é erro: só não gera ruído no Event Bus.
             if (!delta) return;
             this.context?.events.emit(CONVERSATION_EVENTS.streamChunk, { id, delta });
           },

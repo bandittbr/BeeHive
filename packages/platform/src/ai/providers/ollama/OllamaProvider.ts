@@ -78,7 +78,7 @@ const DEFAULT_MODEL = 'llama3.2';
 export class OllamaProvider extends BaseAIProvider {
   readonly id = 'ollama';
   readonly name = 'Ollama';
-  readonly capabilities: readonly AICapability[] = ['chat'];
+  readonly capabilities: readonly AICapability[] = ['chat', 'vision'];
 
   private readonly client: OllamaHttpClient;
   private readonly defaultModel: string;
@@ -96,7 +96,8 @@ export class OllamaProvider extends BaseAIProvider {
   }
 
   /**
-   * Ponto de entrada do contrato AIProvider — só aceita a capacidade `chat`.
+   * Ponto de entrada do contrato AIProvider — aceita `chat` e `vision`.
+   * Vision usa o mesmo endpoint `/api/chat` com `images[]` nas mensagens.
    *
    * Sprint 21: quando `request.tools` traz alguma `ToolDefinition`, traduz
    * cada uma para o formato oficial de "function calling" do Ollama
@@ -106,15 +107,15 @@ export class OllamaProvider extends BaseAIProvider {
    * Loop (Sprint 19) no `AIManager`, sem nenhuma mudança lá.
    */
   async execute(request: AIRequest, context: AIContext): Promise<AIResponse> {
-    if (request.capability !== 'chat') {
+    if (request.capability !== 'chat' && request.capability !== 'vision') {
       throw new Error(
-        `OllamaProvider não suporta a capacidade "${request.capability}" (só "chat" nesta sprint).`,
+        `OllamaProvider não suporta a capacidade "${request.capability}" (só "chat" e "vision").`,
       );
     }
 
     const input = request.input as ChatInput;
     if (!input?.messages?.length) {
-      throw new Error('OllamaProvider: "messages" é obrigatório para a capacidade chat.');
+      throw new Error('OllamaProvider: "messages" é obrigatório para a capacidade chat/vision.');
     }
 
     const model = request.options?.model ?? this.defaultModel;
@@ -129,7 +130,7 @@ export class OllamaProvider extends BaseAIProvider {
     const output: ChatOutput = { message: { role: message.role, content: message.content } };
     const toolCalls = toAIToolCalls(message.tool_calls);
     return {
-      capability: 'chat',
+      capability: request.capability,
       output,
       provider: this.id,
       model,
@@ -201,8 +202,8 @@ export class OllamaProvider extends BaseAIProvider {
   }
 
   /**
-   * Ponto de entrada de streaming do contrato `AIProvider` — só `chat`, como
-   * `execute()`. Consome `OllamaHttpClient.chatStream()` (NDJSON real da API
+   * Ponto de entrada de streaming do contrato `AIProvider` — `chat` e `vision`.
+   * Consome `OllamaHttpClient.chatStream()` (NDJSON real da API
    * do Ollama) e chama `handlers.onDelta` a cada pedaço, na ordem recebida
    * (mesmo pedaço vazio — quem decide filtrar é quem chama, aqui é
    * repasse fiel). Ao fim, monta o MESMO formato de `AIResponse` que
@@ -212,15 +213,15 @@ export class OllamaProvider extends BaseAIProvider {
    * `AIManager`, o único lugar que decide a política de notificação).
    */
   async stream(request: AIRequest, handlers: AIStreamHandlers, context: AIContext): Promise<void> {
-    if (request.capability !== 'chat') {
+    if (request.capability !== 'chat' && request.capability !== 'vision') {
       throw new Error(
-        `OllamaProvider não suporta streaming para a capacidade "${request.capability}" (só "chat" nesta sprint).`,
+        `OllamaProvider não suporta streaming para a capacidade "${request.capability}" (só "chat" e "vision").`,
       );
     }
 
     const input = request.input as ChatInput;
     if (!input?.messages?.length) {
-      throw new Error('OllamaProvider: "messages" é obrigatório para a capacidade chat.');
+      throw new Error('OllamaProvider: "messages" é obrigatório para a capacidade chat/vision.');
     }
 
     const model = request.options?.model ?? this.defaultModel;
@@ -245,7 +246,7 @@ export class OllamaProvider extends BaseAIProvider {
       this.markHealthy();
       const output: ChatOutput = { message: { role: 'assistant', content: full.trim() } };
       const response: AIResponse = {
-        capability: 'chat',
+        capability: request.capability,
         output,
         provider: this.id,
         model,

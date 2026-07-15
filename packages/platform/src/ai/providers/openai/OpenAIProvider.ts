@@ -17,6 +17,7 @@ import { OpenAIClient } from './OpenAIClient';
 import type {
   OpenAIChatMessage,
   OpenAITool,
+  OpenAIContentPart,
 } from './types';
 import type {
   AICapability,
@@ -59,7 +60,7 @@ const DEFAULT_MODEL = 'gpt-4o-mini';
 export class OpenAIProvider extends BaseAIProvider {
   readonly id = 'openai';
   readonly name = 'OpenAI';
-  readonly capabilities: readonly AICapability[] = ['chat'];
+  readonly capabilities: readonly AICapability[] = ['chat', 'vision'];
 
   private readonly client: OpenAIClient;
   private readonly defaultModel: string;
@@ -84,9 +85,9 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   async execute(request: AIRequest, context: AIContext): Promise<AIResponse> {
-    if (request.capability !== 'chat') {
+    if (request.capability !== 'chat' && request.capability !== 'vision') {
       throw new Error(
-        `OpenAIProvider não suporta a capacidade "${request.capability}" (só "chat" nesta sprint).`,
+        `OpenAIProvider não suporta a capacidade "${request.capability}" (só "chat" e "vision").`,
       );
     }
 
@@ -118,12 +119,17 @@ export class OpenAIProvider extends BaseAIProvider {
       }
 
       const choice = data.choices?.[0];
-      const content = choice?.message?.content ?? '';
+      const rawContent = choice?.message?.content ?? '';
+      // OpenAI can return content as string (text-only) or array (multimodal response)
+      // Extract just the text parts
+      const content = Array.isArray(rawContent)
+        ? rawContent.filter((p) => p.type === 'text').map((p) => p.text).join('')
+        : rawContent;
       const toolCalls = choice?.message?.tool_calls;
 
       const output: ChatOutput = { message: { role: 'assistant', content } };
       const response: AIResponse = {
-        capability: 'chat',
+        capability: request.capability,
         output,
         provider: this.id,
         model: data.model ?? model,
@@ -151,9 +157,9 @@ export class OpenAIProvider extends BaseAIProvider {
     toolResults: readonly ToolCallResult[],
     context: AIContext,
   ): Promise<AIResponse> {
-    if (request.capability !== 'chat') {
+    if (request.capability !== 'chat' && request.capability !== 'vision') {
       throw new Error(
-        `OpenAIProvider não suporta continueConversation para a capacidade "${request.capability}" (só "chat" nesta sprint).`,
+        `OpenAIProvider não suporta continueConversation para a capacidade "${request.capability}" (só "chat" e "vision").`,
       );
     }
     if (toolResults.length === 0) {
@@ -202,11 +208,14 @@ export class OpenAIProvider extends BaseAIProvider {
         throw new Error(`OpenAI: ${data.error.message}`);
       }
 
-      const content = data.choices?.[0]?.message?.content ?? '';
+      const rawContent = data.choices?.[0]?.message?.content ?? '';
+      const content = Array.isArray(rawContent)
+        ? rawContent.filter((p) => p.type === 'text').map((p) => p.text).join('')
+        : rawContent;
       const output: ChatOutput = { message: { role: 'assistant', content } };
 
       return {
-        capability: 'chat',
+        capability: request.capability,
         output,
         provider: this.id,
         model: data.model ?? model,
@@ -226,15 +235,15 @@ export class OpenAIProvider extends BaseAIProvider {
   }
 
   async stream(request: AIRequest, handlers: AIStreamHandlers, context: AIContext): Promise<void> {
-    if (request.capability !== 'chat') {
+    if (request.capability !== 'chat' && request.capability !== 'vision') {
       throw new Error(
-        `OpenAIProvider não suporta streaming para a capacidade "${request.capability}" (só "chat" nesta sprint).`,
+        `OpenAIProvider não suporta streaming para a capacidade "${request.capability}" (só "chat" e "vision").`,
       );
     }
 
     const input = request.input as ChatInput;
     if (!input?.messages?.length) {
-      throw new Error('OpenAIProvider: "messages" é obrigatório para a capacidade chat.');
+      throw new Error('OpenAIProvider: "messages" é obrigatório para a capacidade chat/vision.');
     }
 
     const model = request.options?.model ?? this.defaultModel;
@@ -250,7 +259,8 @@ export class OpenAIProvider extends BaseAIProvider {
 
     try {
       for await (const chunk of this.client.chatStream(body, context.signal)) {
-        const delta = chunk.choices?.[0]?.delta?.content ?? '';
+        // OpenAI streaming returns content as string (not array) in delta
+        const delta = (chunk.choices?.[0]?.delta?.content ?? '') as string;
         if (delta) full += delta;
         handlers.onDelta(delta);
       }
@@ -258,7 +268,7 @@ export class OpenAIProvider extends BaseAIProvider {
       this.markHealthy();
       const output: ChatOutput = { message: { role: 'assistant', content: full.trim() } };
       const response: AIResponse = {
-        capability: 'chat',
+        capability: request.capability,
         output,
         provider: this.id,
         model,
@@ -309,9 +319,24 @@ export function createOpenAIProvider(options: OpenAIProviderOptions): OpenAIProv
 
 // ------------------------- Utilitários de tradução -------------------------
 
-/** Converte ChatMessage (contrato AI Layer) para OpenAIChatMessage. */
+/** Converte ChatMessage (contrato AI Layer) para OpenAIChatMessage (suporta imagens). */
 function toOpenAIMessage(msg: ChatInput['messages'][number]): OpenAIChatMessage {
-  return { role: msg.role, content: msg.content };
+  if (!msg.files || msg.files.length === 0) {
+    return { role: msg.role, content: msg.content };
+  }
+
+  const parts: OpenAIContentPart[] = [{ type: 'text', text: msg.content }];
+
+  for (const file of msg.files) {
+    if (file.type.startsWith('image/') && file.content.startsWith('data:')) {
+      parts.push({
+        type: 'image_url',
+        image_url: { url: file.content, detail: 'auto' },
+      });
+    }
+  }
+
+  return { role: msg.role, content: parts };
 }
 
 /** Converte ToolDefinition[] para OpenAITool[]. */

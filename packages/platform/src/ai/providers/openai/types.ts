@@ -7,10 +7,15 @@
  * do sistema deve importar daqui além do próprio provedor.
  */
 
-/** Mensagem no formato da API de Chat Completions. */
+/** Conteúdo multimodal (texto + imagem) no formato da API da OpenAI. */
+export type OpenAIContentPart = 
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string; detail?: 'low' | 'high' | 'auto' } };
+
+/** Mensagem no formato da API de Chat Completions (suporta multimodal). */
 export interface OpenAIChatMessage {
   role: 'system' | 'user' | 'assistant' | 'tool';
-  content: string;
+  content: string | OpenAIContentPart[];
   /** Tool Calls em mensagens de assistant (Sprint 19+). */
   tool_calls?: OpenAIToolCall[];
   /** Nome da Tool que respondeu (mensagens role: 'tool'). */
@@ -84,7 +89,7 @@ export interface OpenAIChatStreamChunk {
   model: string;
   choices: Array<{
     index: number;
-    delta: { role?: string; content?: string; tool_calls?: OpenAIToolCall[] };
+    delta: { role?: string; content?: string | OpenAIContentPart[]; tool_calls?: OpenAIToolCall[] };
     finish_reason: string | null;
   }>;
 }
