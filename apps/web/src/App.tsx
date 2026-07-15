@@ -112,6 +112,7 @@ export default function App() {
               activeBusinessTab={activeBusinessTab}
               onNavigate={handleNavigate}
               onBusinessTabChange={handleBusinessTabChange}
+              onOpenCowork={handleOpenCowork}
               theme={theme}
               onToggleTheme={toggleTheme}
             >

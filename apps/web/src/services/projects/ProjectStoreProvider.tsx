@@ -62,8 +62,24 @@ export function ProjectStoreProvider({ children }: { children: React.ReactNode }
     try {
       const entries = await projectFiles.listProjects();
       if (entries.length === 0) return;
+      // Remove entradas inválidas (sem createdAt = saves de versão antiga)
+      const valid = entries.filter((e) => e.createdAt && e.createdAt > 0);
+      if (valid.length < entries.length) {
+        const invalidas = entries.filter((e) => !e.createdAt || e.createdAt <= 0);
+        for (const inv of invalidas) {
+          try { await projectFiles.removeProject(inv.id); } catch { /* ignora */ }
+        }
+      }
+      if (valid.length === 0) return;
+      // Deduplica por nome (mesma pasta adicionada múltiplas vezes)
+      const seen = new Set<string>();
+      const unicos = valid.filter((e) => {
+        if (seen.has(e.name)) return false;
+        seen.add(e.name);
+        return true;
+      });
       setProjects((prev) => {
-        const localProjects: Project[] = entries
+        const localProjects: Project[] = unicos
           .filter((e) => !prev.some((p) => p.id === e.id))
           .map((e) => ({
             id: e.id,
