@@ -42,8 +42,9 @@ function buildTikTokAuthUrl(agentId: string): string {
   return `https://www.tiktok.com/v2/auth/authorize/?${params.toString()}`;
 }
 
-function buildInstagramAuthUrl(agentId: string): string {
-  const clientId = process.env.INSTAGRAM_CLIENT_ID ?? '';
+function buildInstagramAuthUrl(agentId: string): string | null {
+  const clientId = process.env.INSTAGRAM_CLIENT_ID;
+  if (!clientId) return null;
   const scopes = 'instagram_basic instagram_content_publish pages_manage_engagement';
   const params = new URLSearchParams({
     client_id: clientId,
@@ -326,7 +327,11 @@ export function mountOAuthRoutes(app: Express, db: DatabaseManager): void {
         return;
       }
       const url = buildInstagramAuthUrl(agentId);
-      res.json({ url });
+      if (!url) {
+        res.status(500).json({ error: 'INSTAGRAM_CLIENT_ID nao configurado no servidor' });
+        return;
+      }
+      res.redirect(url);
     } catch (err) {
       console.error('[oauth] Instagram authorize error:', err);
       res.status(500).json({ error: 'Failed to build Instagram auth URL' });
