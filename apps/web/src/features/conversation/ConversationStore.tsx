@@ -62,9 +62,10 @@ function titleFrom(text: string): string {
   return clean.length > 40 ? `${clean.slice(0, 40)}…` : clean || 'Nova conversa';
 }
 
-function loadState(): { conversations: Conversation[]; activeId: string | null } {
+function loadState(key?: string): { conversations: Conversation[]; activeId: string | null } {
+  const storageKey = key ?? STORAGE_KEY;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(storageKey);
     if (raw) {
       const parsed = JSON.parse(raw) as { conversations?: Conversation[]; activeId?: string | null };
       if (Array.isArray(parsed.conversations)) {
@@ -83,11 +84,13 @@ interface ConversationStoreProviderProps {
   children: ReactNode;
   /** Contexto do projeto local (arquivos) para injetar nas mensagens. */
   projectContext?: string;
+  /** Chave do localStorage para persistir conversas (default: 'beehive.conversations.v1') */
+  storageKey?: string;
 }
 
-export function ConversationStoreProvider({ children, projectContext }: ConversationStoreProviderProps) {
+export function ConversationStoreProvider({ children, projectContext, storageKey }: ConversationStoreProviderProps) {
   const service = useConversationService();
-  const initial = loadState();
+  const initial = loadState(storageKey);
   const [conversations, setConversations] = useState<Conversation[]>(initial.conversations);
   const [activeId, setActiveId] = useState<string | null>(initial.activeId);
   const [respondingId, setRespondingId] = useState<string | null>(null);
@@ -95,17 +98,18 @@ export function ConversationStoreProvider({ children, projectContext }: Conversa
   // Geração em andamento — usado para descartar a resposta ao parar.
   const pendingRef = useRef<{ convId: string | null; assistantId: string } | null>(null);
 
+  const persistKey = storageKey ?? STORAGE_KEY;
   // Persiste com debounce — evita stringify síncrono a cada tecla.
   useEffect(() => {
     const timer = setTimeout(() => {
       try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({ conversations, activeId }));
+        localStorage.setItem(persistKey, JSON.stringify({ conversations, activeId }));
       } catch {
         // Sem persistência (ex.: modo privado): segue só em memória.
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [conversations, activeId]);
+  }, [conversations, activeId, persistKey]);
 
   const activeMessages = useMemo(
     () => conversations.find((c) => c.id === activeId)?.messages ?? [],

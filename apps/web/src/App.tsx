@@ -70,11 +70,13 @@ export default function App() {
   const renderView = () => {
     if (activeView === 'cowork' && coworkProject) {
       return (
-        <CoworkView
-          projectId={coworkProject.id}
-          projectName={coworkProject.name}
-          onBack={handleCoworkBack}
-        />
+        <ConversationStoreProvider storageKey="beehive.project-chat.v1">
+          <CoworkView
+            projectId={coworkProject.id}
+            projectName={coworkProject.name}
+            onBack={handleCoworkBack}
+          />
+        </ConversationStoreProvider>
       );
     }
 
