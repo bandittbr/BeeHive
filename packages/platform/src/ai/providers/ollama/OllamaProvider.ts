@@ -1,7 +1,4 @@
 import type { ILogger } from '../../../kernel';
-// `ToolDefinition` vem direto de `tools/types` (mesmo padrão de import direto
-// já usado no resto do provedor — ver `ai/types.ts`), nunca via barrel.
-import type { ToolDefinition } from '../../../tools/types';
 import { BaseAIProvider } from '../../BaseAIProvider';
 import type {
   AICapability,
@@ -12,11 +9,46 @@ import type {
   AIStreamHandlers,
   ChatInput,
   ChatOutput,
+  ChatMessage,
   ToolCall,
   ToolCallResult,
 } from '../../types';
 import { OllamaHttpClient } from './OllamaHttpClient';
-import type { OllamaChatMessage, OllamaModelInfo, OllamaModelSummary, OllamaTool, OllamaToolCall } from './types';
+import type {
+  OllamaChatMessage,
+  OllamaModelInfo,
+  OllamaModelSummary,
+  OllamaToolCall,
+  OllamaTool,
+} from './types';
+import type { ToolDefinition } from '../../../tools/types';
+
+/**
+ * Converte FileAttachment do formato da AI Layer para o formato do Ollama.
+ * Ollama espera imagens como array de strings base64 (sem prefixo "data:...").
+ */
+function toOllamaMessages(messages: readonly ChatMessage[]): OllamaChatMessage[] {
+  return messages.map((msg) => {
+    const ollamaMsg: OllamaChatMessage = {
+      role: msg.role,
+      content: msg.content,
+    };
+
+    if (msg.files && msg.files.length > 0) {
+      const images: string[] = [];
+      for (const file of msg.files) {
+        if (file.type.startsWith('image/') && file.content.startsWith('data:')) {
+          // Extrai só o base64 puro (remove "data:image/png;base64,")
+          const base64 = file.content.split(',')[1];
+          if (base64) images.push(base64);
+        }
+      }
+      if (images.length > 0) ollamaMsg.images = images;
+    }
+
+    return ollamaMsg;
+  });
+}
 
 export interface OllamaProviderOptions {
   /** Base do servidor Ollama. Padrão: http://localhost:11434. */
@@ -87,7 +119,8 @@ export class OllamaProvider extends BaseAIProvider {
 
     const model = request.options?.model ?? this.defaultModel;
     const tools = request.tools?.length ? toOllamaTools(request.tools) : undefined;
-    const message = await this.chat(input.messages as readonly OllamaChatMessage[], {
+    const messages = toOllamaMessages(input.messages);
+    const message = await this.chat(messages, {
       model,
       signal: context.signal,
       tools,
@@ -197,7 +230,7 @@ export class OllamaProvider extends BaseAIProvider {
       for await (const chunk of this.client.chatStream(
         {
           model,
-          messages: [...(input.messages as readonly OllamaChatMessage[])],
+          messages: toOllamaMessages(input.messages),
           stream: true,
         },
         context.signal,

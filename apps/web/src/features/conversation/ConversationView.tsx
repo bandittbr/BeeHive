@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { WelcomeHero } from './components/WelcomeHero';
 import { ActionCards } from './components/ActionCards';
 import { QuickSuggestions } from './components/QuickSuggestions';
-import { MessageComposer } from './components/MessageComposer';
+import { MessageComposer, type SubmitPayload } from './components/MessageComposer';
 import { MessageList } from './components/MessageList';
 import { ActivityPanel } from './components/ActivityPanel';
 import { useConversations } from './ConversationStore';
@@ -35,14 +35,14 @@ export function ConversationView() {
   const isBusyElsewhere = respondingId !== null && respondingId !== activeId;
   const hasMessages = activeMessages.length > 0;
 
-  const trySubmit = () => {
-    const text = value.trim();
-    if (text.length === 0) return;
+  const trySubmit = (payload: SubmitPayload) => {
+    const text = payload.text.trim();
+    if (text.length === 0 && payload.files.length === 0) return;
     if (isBusyElsewhere) {
       setConflictOpen(true);
       return;
     }
-    sendMessage(text);
+    sendMessage(text, payload.files);
     setValue('');
   };
 

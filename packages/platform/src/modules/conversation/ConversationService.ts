@@ -7,6 +7,7 @@ import {
   type IConversationMemory,
 } from './ConversationMemory';
 import { CONVERSATION_EVENTS, type MessagePayload } from './events';
+import type { FileAttachment } from './types';
 
 /** Id do serviço no ServiceRegistry do Kernel. */
 export const CONVERSATION_SERVICE_ID = 'conversation.service';
@@ -35,6 +36,8 @@ export interface HandleSendMessageOptions {
   signal?: AbortSignal;
   /** Conversa a que esta mensagem pertence (Sprint 18). Ausente = `DEFAULT_CONVERSATION_ID`. */
   conversationId?: string;
+  /** Arquivos anexados (imagens, documentos) para suporte multimodal. */
+  files?: FileAttachment[];
 }
 
 export interface HandleSendMessageStreamOptions {
@@ -44,6 +47,8 @@ export interface HandleSendMessageStreamOptions {
   id?: string;
   /** Conversa a que esta mensagem pertence (Sprint 18). Ausente = `DEFAULT_CONVERSATION_ID`. */
   conversationId?: string;
+  /** Arquivos anexados (imagens, documentos) para suporte multimodal. */
+  files?: FileAttachment[];
 }
 
 /**
@@ -123,7 +128,7 @@ export class ConversationService extends BaseService {
     const reply =
       clean.length === 0
         ? 'Mensagem vazia recebida com sucesso.'
-        : await this.askAI(conversationId, clean, options.signal);
+        : await this.askAI(conversationId, clean, options.signal, options.files);
 
     this.emitMessage({ id: nextId(), role: 'assistant', text: reply, timestamp: Date.now() });
     this.context?.logger.info('Mensagem processada', { chars: clean.length });
@@ -146,6 +151,7 @@ export class ConversationService extends BaseService {
     conversationId: string,
     text: string,
     callerSignal?: AbortSignal,
+    files?: FileAttachment[],
   ): Promise<string> {
     const aiManager = this.context?.getService<AIManager>(AI_MANAGER_ID);
     if (!aiManager) {
@@ -174,7 +180,7 @@ export class ConversationService extends BaseService {
       const response = await aiManager.execute<ChatOutput>(
         {
           capability: 'chat',
-          input: { messages: [...toChatMessages(history), { role: 'user', content: text }] },
+          input: { messages: [...toChatMessages(history), { role: 'user', content: text, files }] },
           options: model ? { model } : undefined,
         },
         { source: CONVERSATION_SERVICE_ID, signal: controller.signal },
@@ -226,7 +232,7 @@ export class ConversationService extends BaseService {
       return { id, reply };
     }
 
-    const reply = await this.streamAI(id, conversationId, clean, options.signal);
+    const reply = await this.streamAI(id, conversationId, clean, options.signal, options.files);
     this.context?.logger.info('Mensagem processada (streaming)', { chars: clean.length });
     return { id, reply };
   }
@@ -262,6 +268,7 @@ export class ConversationService extends BaseService {
     conversationId: string,
     text: string,
     callerSignal?: AbortSignal,
+    files?: FileAttachment[],
   ): Promise<string> {
     const aiManager = this.context?.getService<AIManager>(AI_MANAGER_ID);
     if (!aiManager) {
@@ -294,7 +301,7 @@ export class ConversationService extends BaseService {
       await aiManager.stream(
         {
           capability: 'chat',
-          input: { messages: [...toChatMessages(history), { role: 'user', content: text }] },
+          input: { messages: [...toChatMessages(history), { role: 'user', content: text, files }] },
           options: model ? { model } : undefined,
         },
         {

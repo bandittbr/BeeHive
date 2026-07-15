@@ -9,12 +9,21 @@
 
 export type ChatRole = 'user' | 'assistant' | 'system';
 
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content: string; // base64 data URL for images, text content for others
+  preview?: string; // blob URL for image previews
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
   /** Epoch em milissegundos. */
   timestamp: number;
+  files?: FileAttachment[];
 }
 
 /** Callbacks para a resposta em streaming. */

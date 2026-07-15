@@ -1,4 +1,5 @@
 import type { ConversationMemoryMessage } from './ConversationMemory';
+import type { FileAttachment as FileAttachmentType } from './types';
 
 /**
  * Comandos da Conversa.
@@ -28,6 +29,8 @@ export const CONVERSATION_COMMANDS = {
   history: 'conversation.history',
 } as const;
 
+export type FileAttachment = FileAttachmentType;
+
 export interface SendMessagePayload {
   text: string;
   /** Conversa a que esta mensagem pertence (Sprint 18). Ausente = conversa padrão implícita. */
@@ -44,6 +47,8 @@ export interface SendMessageStreamPayload {
   id?: string;
   /** Conversa a que esta mensagem pertence (Sprint 18). Ausente = conversa padrão implícita. */
   conversationId?: string;
+  /** Arquivos anexados (imagens, documentos) para suporte multimodal. */
+  files?: FileAttachment[];
 }
 
 export interface SendMessageStreamResult {

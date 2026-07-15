@@ -46,8 +46,8 @@ export class ConversationModule extends BaseModule {
     context.registerCommand(CONVERSATION_COMMANDS.sendMessageStream, (payload, kernel) => {
       const service = kernel.getService<ConversationService>(CONVERSATION_SERVICE_ID);
       if (!service) throw new Error('ConversationService indisponível');
-      const { text, id, conversationId } = (payload ?? {}) as SendMessageStreamPayload;
-      return service.handleSendMessageStream(text ?? '', { id, conversationId });
+      const { text, id, conversationId, files } = (payload ?? {}) as SendMessageStreamPayload;
+      return service.handleSendMessageStream(text ?? '', { id, conversationId, files });
     });
 
     // Sprint 17: cancela um streaming em andamento por `id` — o caminho para

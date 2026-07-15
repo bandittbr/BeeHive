@@ -23,6 +23,9 @@ export const runtimeConversationService: ConversationService = {
       ? `${context}\n\n---\n\n${userMessage.content}`
       : userMessage.content;
 
+    // Include files in the payload for multimodal support
+    const files = userMessage.files ?? [];
+
     return new Promise<void>((resolve) => {
       let settled = false;
 
@@ -72,7 +75,7 @@ export const runtimeConversationService: ConversationService = {
       client
         .dispatch({
           type: CONVERSATION_COMMANDS.sendMessageStream,
-          payload: { text: fullText, id, conversationId },
+          payload: { text: fullText, id, conversationId, files },
         })
         .catch((error: unknown) => {
           if (settled) return;

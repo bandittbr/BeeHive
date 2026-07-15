@@ -32,6 +32,8 @@ export interface OllamaChatMessage {
   content: string;
   /** Presente só em mensagens `assistant` que pediram Tool Calls (Sprint 19). */
   tool_calls?: OllamaToolCall[];
+  /** Imagens em base64 para suporte multimodal (visão). */
+  images?: string[];
 }
 
 /**

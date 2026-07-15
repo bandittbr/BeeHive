@@ -149,6 +149,18 @@ export interface AIProviderModelSummary {
   readonly name: string;
 }
 
+/** Anexo de arquivo para mensagens multimodais (imagens, PDFs, código, etc.). */
+export interface FileAttachment {
+  /** Nome original do arquivo. */
+  name: string;
+  /** MIME type (ex.: image/png, application/pdf, text/plain). */
+  type: string;
+  /** Tamanho em bytes. */
+  size: number;
+  /** Conteúdo do arquivo como base64 data URI (para imagens) ou texto. */
+  content: string;
+}
+
 /**
  * Formato genérico da capacidade `chat` — o mínimo comum entre provedores
  * (Ollama, OpenAI, Claude...). Quem chama o AIManager para `capability: 'chat'`
@@ -160,6 +172,7 @@ export type ChatRole = 'system' | 'user' | 'assistant';
 export interface ChatMessage {
   readonly role: ChatRole;
   readonly content: string;
+  readonly files?: FileAttachment[];
 }
 
 export interface ChatInput {

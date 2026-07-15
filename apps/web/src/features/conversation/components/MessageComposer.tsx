@@ -9,10 +9,15 @@ interface AttachedFile {
   preview?: string;
 }
 
+export interface SubmitPayload {
+  text: string;
+  files: AttachedFile[];
+}
+
 interface MessageComposerProps {
   value: string;
   onChange: (value: string) => void;
-  onSubmit: () => void;
+  onSubmit: (payload: SubmitPayload) => void;
   isResponding: boolean;
   onStop: () => void;
   onCommand?: (command: string) => void;
@@ -102,7 +107,10 @@ export function MessageComposer({
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!isResponding) onSubmit();
+      if (!isResponding) {
+        onSubmit({ text: value, files: attachedFiles });
+        clearAttached();
+      }
     }
   };
 
@@ -174,6 +182,13 @@ export function MessageComposer({
     });
   };
 
+  const clearAttached = () => {
+    for (const f of attachedFiles) {
+      if (f.preview) URL.revokeObjectURL(f.preview);
+    }
+    setAttachedFiles([]);
+  };
+
   const handleAttachClick = () => {
     fileInputRef.current?.click();
   };
@@ -199,7 +214,10 @@ export function MessageComposer({
       className="composer"
       onSubmit={(e) => {
         e.preventDefault();
-        if (!isResponding) onSubmit();
+        if (!isResponding) {
+          onSubmit({ text: value, files: attachedFiles });
+          clearAttached();
+        }
       }}
     >
       <input

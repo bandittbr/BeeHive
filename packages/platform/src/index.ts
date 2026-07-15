@@ -47,6 +47,7 @@ export {
   type ClearConversationPayload,
   type ConversationHistoryPayload,
   type ConversationHistoryResult,
+  type FileAttachment,
 } from './modules/conversation/commands';
 export {
   CONVERSATION_EVENTS,

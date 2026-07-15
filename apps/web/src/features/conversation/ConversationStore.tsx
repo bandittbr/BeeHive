@@ -31,13 +31,20 @@ export interface Conversation {
   updatedAt: number;
 }
 
+export interface FileAttachment {
+  name: string;
+  type: string;
+  size: number;
+  content: string;
+}
+
 interface ConversationStoreValue {
   conversations: Conversation[];
   activeId: string | null;
   activeMessages: ChatMessage[];
   /** Id da conversa que está gerando resposta agora, ou null. */
   respondingId: string | null;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (content: string, files?: FileAttachment[]) => Promise<void>;
   stop: () => void;
   newConversation: () => void;
   selectConversation: (id: string) => void;
@@ -106,15 +113,16 @@ export function ConversationStoreProvider({ children, projectContext }: Conversa
   );
 
   const sendMessage = useCallback(
-    async (content: string) => {
+    async (content: string, files: FileAttachment[] = []) => {
       const text = content.trim();
-      if (text.length === 0) return;
+      if (text.length === 0 && files.length === 0) return;
 
       const userMessage: ChatMessage = {
         id: newId('msg'),
         role: 'user',
         content: text,
         timestamp: Date.now(),
+        files: files.length > 0 ? files : undefined,
       };
 
       // Placeholder do assistente — preenchido ao vivo pelos pedaços do stream.
@@ -146,7 +154,7 @@ export function ConversationStoreProvider({ children, projectContext }: Conversa
         targetId = newId('conv');
         const conversation: Conversation = {
           id: targetId,
-          title: titleFrom(text),
+          title: titleFrom(text || `Arquivo: ${files[0]?.name}`),
           messages: [userMessage, placeholder],
           createdAt: Date.now(),
           updatedAt: Date.now(),
