@@ -2,7 +2,7 @@
 
 Sistema Operacional de Inteligência Artificial — modular, extensível por plugins, com workflows como dados.
 
-## Fase atual: Capabilities Reais
+## Fase atual: Execution
 
 O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor entregue**, não por arquitetura.
 
@@ -17,6 +17,16 @@ O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor ent
 > Em cada sprint, no máximo **10%** do esforço pode ser gasto em infraestrutura.
 > Os outros **90%** devem entregar capabilities, providers, plugins ou aplicações que gerem valor ao usuário.
 
+### Regra de commit
+
+> Nenhum commit é aceito apenas porque melhora a arquitetura.
+> Todo commit deve responder a uma destas perguntas:
+> - Adiciona uma capability?
+> - Adiciona um provider?
+> - Adiciona um plugin?
+> - Melhora uma capability existente?
+> - Melhora a experiência do usuário?
+
 ### Métricas de progresso
 
 | Métrica | Atual | Meta |
@@ -30,12 +40,17 @@ O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor ent
 ### Fases do BeeHive
 
 ```
-Fase 1  Arquitetura    ✅ concluída
-Fase 2  Governança     ✅ concluída
-Fase 3  Plataforma     ✅ concluída
-Fase 4  Ecossistema    ⬅️ AQUI
-Fase 5  Aplicações     ⏳
+Fase 1  Arquitetura     ✅ concluída
+Fase 2  Governança      ✅ concluída
+Fase 3  Plataforma      ✅ concluída
+Fase 4  Execution       ⬅️ AQUI
+Fase 5  Ecosystem       ⏳
 ```
+
+### Mapeamento de fases
+
+- **Execution** — o BeeHive começa a executar IA de verdade (providers reais, capabilities completas)
+- **Ecosystem** — plugins da comunidade, aplicações externas, providers de terceiros, templates, workflows compartilhados
 
 ## Maturidade da Plataforma
 
@@ -58,9 +73,9 @@ Fase 5  Aplicações     ⏳
 | memory.search | 🟢 Production (mock) |
 | tool.execute | 🟢 Production (mock) |
 | browser.navigate | 🟢 Production (playwright) |
-| browser.scrape | 🟢 Production (playwright) |
-| browser.screenshot | 🟢 Production (playwright) |
-| weather.current | 🟢 Production (mock) |
+| browser.scrape | 🟢 Stable (playwright) |
+| browser.screenshot | 🟢 Stable (playwright) |
+| weather.current | 🟢 Stable (mock) |
 | image.generate | 🟡 Planned |
 | video.generate | 🟡 Planned |
 | audio.generate | ⚪ Not Started |
