@@ -31,8 +31,7 @@ BeeHive/
 │   ├── youtube-script/
 │   ├── daily-news/
 │   └── research-company/
-├── case-studies/        # Casos de uso reais
-│   └── estudo-oab/
+├── case-studies/        # Casos de uso externos (exemplos de aplicações)
 ├── tools/               # CLI tools
 ├── tests/               # Testes de arquitetura e workflows
 ├── benchmarks/          # Métricas de performance e DX

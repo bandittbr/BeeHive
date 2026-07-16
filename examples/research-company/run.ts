@@ -48,8 +48,8 @@ async function main() {
   kernel.workflows.register(workflow as any);
 
   const instance = await kernel.workflows.start('research-company', {
-    company: 'Nubank',
-    industry: 'fintech',
+    company: 'Acme Corp',
+    industry: 'technology',
   });
 
   console.log('  Status:   ' + instance.status);

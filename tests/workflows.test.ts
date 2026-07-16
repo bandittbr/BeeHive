@@ -82,7 +82,7 @@ async function main() {
     .step('description', 'chat.generate', { message: 'Descricao sobre {{input.topic}}' }, 'description')
     .addOutput('script', '{{script.response}}')
     .build() as any,
-    { topic: 'OAB em 3 meses', tone: 'didatico' },
+    { topic: 'inteligencia artificial', tone: 'educativo' },
   );
 
   // Test 4: daily-news
@@ -104,7 +104,7 @@ async function main() {
     .step('competitors', 'chat.generate', { message: 'Concorrentes de {{input.company}}' }, 'competitors')
     .addOutput('report', 'Relatorio {{input.company}}')
     .build() as any,
-    { company: 'Nubank', industry: 'fintech' },
+    { company: 'Acme Corp', industry: 'technology' },
   );
 
   // Test 6: condition workflow (if/else)

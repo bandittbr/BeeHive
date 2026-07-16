@@ -51,8 +51,8 @@ async function main() {
   kernel.workflows.register(workflow as any);
 
   const instance = await kernel.workflows.start('youtube-script', {
-    topic: 'Como estudar para a OAB em 3 meses',
-    tone: 'didatico e motivacional',
+    topic: 'Como funciona a inteligencia artificial',
+    tone: 'educativo e acessivel',
   });
 
   console.log('  Status:   ' + instance.status);

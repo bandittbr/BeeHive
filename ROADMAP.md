@@ -29,11 +29,7 @@ Eventos de ciclo de vida: started, step:started, step:completed, completed, paus
 
 ---
 
-## Sprint 4 — Validação e Ecossistema (atual)
-
-> O gargalo deixou de ser técnico. Agora é: **quem vai usar isso?**
-
-### Foco
+## Sprint 4 — Validação e Ecossistema ✅
 
 | Ação | Status |
 |------|--------|
@@ -45,9 +41,6 @@ Eventos de ciclo de vida: started, step:started, step:completed, completed, paus
 | MockAdapter para testes sem API externa | ✅ |
 | `examples/` vitrine (5 workflows executáveis) | ✅ |
 | `pnpm test:workflows` (14/14) | ✅ |
-| Validar com usuários reais | ⏳ |
-| Workflow campeão (OAB Short ou Shopee) | ⏳ |
-| Demo vídeos (30-60s) | ⏳ |
 
 ### Status atual
 
@@ -68,22 +61,19 @@ pnpm test:workflows     3.0s (7 workflows, 14 assertions)
 
 ---
 
-## Sprint 5 — Workflow Campeão: OAB Content Factory
+## Sprint 5 — Content Automation Workflow
 
-> **Escolhido:** Estudo OAB Content Factory
-> Motivo: Você já tem o produto (estudooab.com), o domínio (direito) e a audiência.
-> Qualquer outro workflow seria genérico. Este é específico e monetizável.
+> Objetivo: Provar que o BeeHive orquestra **múltiplas modalidades** (texto, imagem, vídeo)
+> em um único workflow sem tocar no Kernel.
 
 ### Workflow
 
 ```
-Tema ("Princípio da Insignificância")
-  ↓  chat.generate — Pesquisa jurídica
-  ↓  chat.generate — Resumo didático
-  ↓  chat.generate — Roteiro (60s)
-  ↓  chat.generate — Legenda + Hashtags
-  ↓  image.generate — Thumbnail
-  ↓  video.generate — Short completo
+Tema
+  ↓  chat.generate — Pesquisa
+  ↓  chat.generate — Roteiro
+  ↓  image.generate — Imagens do vídeo
+  ↓  video.generate — Montagem final
   ↓  Artifact(video)
 ```
 
@@ -91,31 +81,26 @@ Tema ("Princípio da Insignificância")
 
 | Marco | O que entrega | Status |
 |-------|---------------|--------|
-| M1 | Geração de roteiro + legenda + hashtags via chat.generate | ✅ (mock) |
-| M2 | image.generate (thumbnail) | ⏳ |
-| M3 | video.generate (short com narração) | ⏳ |
-| M4 | Workflow executável fim-a-fim | ⏳ |
-| M5 | Publicação automática no Instagram | ⏳ |
+| M1 | `image.generate` — capability genérica (prompt → imagem) | ⏳ |
+| M2 | `video.generate` — capability genérica (cenas → vídeo) | ⏳ |
+| M3 | Workflow executável fim-a-fim com mocks | ⏳ |
+| M4 | Adapter real para pelo menos uma capability | ⏳ |
+| M5 | `pnpm example:content-video` — um comando | ⏳ |
 
 ### Regra
 
-> Esta Sprint só termina quando existir um workflow que um usuário do Estudo OAB consiga executar.
+> Esta Sprint termina quando existir um workflow multimodal executável por qualquer usuário.
 
 ---
 
-## Sprint 6 — Novos Workflows de Valor
+## Sprint 6 — Adapters Reais
 
-> Expansão para outros casos de uso, seguindo o mesmo padrão do OAB.
-
-### Candidatos
-
-1. **Shopee Affiliate** — Produto → Pesquisa → Roteiro → Vídeo → Thumbnail → Descrição → Publicação
-2. **Research Agent** — Empresa → Website → Redes → Relatório
-3. **Daily Briefing** — Notícias → Resumo → Briefing
-
-### Critério
-
-Cada workflow precisa ter um `case-studies/<nome>/` com caso de uso documentado.
+| Capability | Adapter alvo | Prioridade |
+|------------|-------------|------------|
+| `chat.generate` | OpenRouter / Gemini API | Alta |
+| `image.generate` | Stability AI / Replicate | Alta |
+| `browser.scrape` | Playwright (já existe) | ✅ |
+| `video.generate` | FFmpeg + TTS engine | Média |
 
 ---
 
@@ -142,16 +127,15 @@ Tudo rastreável, reproduzível, editável depois.
 | Workflow Tests | 14+ | ✅ 14/14 |
 | Examples | 5+ executáveis | ✅ 5 |
 | Plugin creation time | < 30 min | ✅ < 5 min |
-| Benchmark | documentado | ✅ benchmarks/RESULTS.md |
-| DX Scorecard | documentado | ✅ benchmarks/DX.md |
-| Product Metrics | documentado | ✅ benchmarks/product-metrics.md |
+| Benchmark | documentado | ✅ benchmarks/ |
+| DX Scorecard | documentado | ✅ benchmarks/ |
+| Product Metrics | documentado | ✅ benchmarks/ |
 | Contributing guide | publicado | ✅ CONTRIBUTING.md |
 | Plugin guide | publicado | ✅ docs/plugin-development.md |
 | SDK tutorial | publicado | ✅ docs/sdk-tutorial.md |
-| Case studies | 1+ | ✅ estudo-oab |
 | Fase 2 (Arquitetura) | completa | ✅ |
-| Fase 3 (Produto) | iniciada | ⬅️ **AQUI** |
-| Workflow campeão | executável fim-a-fim | ⏳ Sprint 5 |
+| Fase 3 (Produto) | iniciada | ⬅️ |
+| Content Automation WF | executável fim-a-fim | ⏳ Sprint 5 |
 
 ---
 
