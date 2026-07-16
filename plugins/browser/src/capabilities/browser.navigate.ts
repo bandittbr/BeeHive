@@ -16,6 +16,14 @@ export class BrowserNavigate extends Capability {
     { name: "url", type: "string", description: "URL final apos redirects" },
   ];
 
+  async readiness(): Promise<import('@beehive/sdk').CapabilityReadiness> {
+    const health = await adapter.healthCheck();
+    if (!health.chromium) {
+      return { status: 'unavailable', reason: 'Chromium nao instalado', fix: 'pnpm browser:setup' };
+    }
+    return { status: 'ready' };
+  }
+
   async execute(params: Record<string, unknown>, ctx: ExecutionContext): Promise<CapabilityResult> {
     const url = params.url as string;
     ctx.logger.info("BrowserNavigate: " + url);

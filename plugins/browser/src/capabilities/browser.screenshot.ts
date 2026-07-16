@@ -16,6 +16,14 @@ export class BrowserScreenshot extends Capability {
     { name: "image", type: "object", description: "Imagem como artifact" },
   ];
 
+  async readiness(): Promise<import('@beehive/sdk').CapabilityReadiness> {
+    const health = await adapter.healthCheck();
+    if (!health.chromium) {
+      return { status: 'unavailable', reason: 'Chromium nao instalado', fix: 'pnpm browser:setup' };
+    }
+    return { status: 'ready' };
+  }
+
   async execute(params: Record<string, unknown>, ctx: ExecutionContext): Promise<CapabilityResult> {
     const url = params.url as string;
     const fullPage = (params.fullPage as boolean) ?? false;

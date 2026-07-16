@@ -16,6 +16,14 @@ export class BrowserScrape extends Capability {
     { name: "title", type: "string", description: "Titulo da pagina" },
   ];
 
+  async readiness(): Promise<import('@beehive/sdk').CapabilityReadiness> {
+    const health = await adapter.healthCheck();
+    if (!health.chromium) {
+      return { status: 'unavailable', reason: 'Chromium nao instalado', fix: 'pnpm browser:setup' };
+    }
+    return { status: 'ready' };
+  }
+
   async execute(params: Record<string, unknown>, ctx: ExecutionContext): Promise<CapabilityResult> {
     const url = params.url as string;
     ctx.logger.info("BrowserScrape: " + url);

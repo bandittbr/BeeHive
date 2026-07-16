@@ -22,6 +22,11 @@ interface Manifest {
   adapters: string[];
   dependencies: string[];
   permissions: string[];
+  requirements?: {
+    runtime?: string[];
+    dependencies?: string[];
+    setup?: string[];
+  };
 }
 
 function parseYaml(raw: string): Manifest {

@@ -2,12 +2,27 @@ import { chromium, type Browser, type Page } from "playwright";
 
 export class PlaywrightAdapter {
   private browser: Browser | null = null;
+  private _healthCache: { chromium: boolean | null } = { chromium: null };
 
   async ensureBrowser(): Promise<Browser> {
     if (!this.browser || !this.browser.isConnected()) {
       this.browser = await chromium.launch({ headless: true });
     }
     return this.browser;
+  }
+
+  async healthCheck(): Promise<{ chromium: boolean; executable?: string }> {
+    if (this._healthCache.chromium !== null) {
+      return { chromium: this._healthCache.chromium };
+    }
+    try {
+      const executablePath = await chromium.executablePath;
+      this._healthCache.chromium = true;
+      return { chromium: true, executable: executablePath + '' };
+    } catch {
+      this._healthCache.chromium = false;
+      return { chromium: false };
+    }
   }
 
   async newPage(): Promise<Page> {

@@ -7,10 +7,10 @@ import { BrowserScreenshot } from "./capabilities/browser.screenshot";
 export class BrowserPlugin extends Plugin {
   readonly id = "plugin:browser";
   readonly name = "Browser";
-  readonly version = "1.0.0";
+  readonly version = "1.1.0";
   readonly manifest: PluginManifest = {
     name: "browser",
-    version: "1.0.0",
+    version: "1.1.0",
     description: "Plugin de navegador",
     capabilities: ["browser.navigate", "browser.scrape", "browser.screenshot"],
     adapters: ["Playwright"],

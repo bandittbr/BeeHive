@@ -1,15 +1,7 @@
-// BeeHive Capability Health Dashboard
-// Uso: npx tsx tools/health.ts
-//
-// Mostra o estado de todas as capabilities registradas:
-//   - Plugin de origem
-//   - Status (healthy / degraded / error)
-//   - Latencia (se disponivel)
-//   - Provider
-
 import { Kernel } from '../kernel/Kernel';
-import type { ICapability, CapabilityEntry } from '@beehive/shared';
-import type { CapabilityResult, ExecutionContext } from '@beehive/sdk';
+import type { ICapability } from '@beehive/shared';
+import type { CapabilityEntry } from '@beehive/shared';
+import type { CapabilityResult, ExecutionContext, CapabilityReadiness } from '@beehive/sdk';
 
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
@@ -19,80 +11,84 @@ const DIM = '\x1b[2m';
 const RESET = '\x1b[0m';
 const BOLD = '\x1b[1m';
 
-function statusTag(s: string): string {
-  if (s === 'healthy') return GREEN + 'healthy' + RESET;
-  if (s === 'degraded') return YELLOW + 'degraded' + RESET;
-  return RED + s + RESET;
+const CHECK = '\u2713';
+const CROSS = '\u2717';
+const WARN = '\u26A0';
+
+function readinessTag(r: CapabilityReadiness): string {
+  if (r.status === 'ready') return GREEN + CHECK + RESET;
+  if (r.status === 'degraded') return YELLOW + WARN + RESET;
+  return RED + CROSS + RESET;
 }
 
-async function diagnose(cap: ICapability): Promise<{ status: string; latency: string; error?: string }> {
-  const start = Date.now();
-  try {
-    const input: Record<string, unknown> = {};
-    for (const inp of cap.inputs) {
-      input[inp.name] = inp.type === 'number' ? 1 : inp.type === 'boolean' ? true : 'test';
+function readinessLabel(r: CapabilityReadiness): string {
+  if (r.status === 'ready') return GREEN + r.status + RESET;
+  if (r.status === 'degraded') return YELLOW + r.status + RESET;
+  return RED + r.status + RESET;
+}
+
+async function checkReadiness(cap: ICapability): Promise<CapabilityReadiness> {
+  if (typeof (cap as any).readiness === 'function') {
+    try {
+      return await (cap as any).readiness();
+    } catch {
+      return { status: 'unavailable', reason: 'health check failed' };
     }
-    const ctx: ExecutionContext = {
-      correlationId: 'health-check',
-      logger: { info: () => {}, warn: () => {}, error: () => {} },
-      events: { publish: () => {} },
-    } as any;
-    const result: CapabilityResult = await cap.execute(input, ctx);
-    const ms = Date.now() - start;
-    return {
-      status: result.success ? 'healthy' : 'degraded',
-      latency: ms + 'ms',
-      error: result.error,
-    };
-  } catch (e: any) {
-    return {
-      status: 'error',
-      latency: (Date.now() - start) + 'ms',
-      error: e.message,
-    };
   }
+  return { status: 'ready' };
+}
+
+async function diagnose(cap: ICapability): Promise<{ readiness: CapabilityReadiness; latency: string }> {
+  const start = Date.now();
+  const readiness = await checkReadiness(cap);
+  const latency = (Date.now() - start) + 'ms';
+  return { readiness, latency };
 }
 
 async function main() {
   console.log();
-  console.log('  ' + BOLD + '═══════════════════════════════════════' + RESET);
-  console.log('  ' + BOLD + '  Capability Health Dashboard' + RESET);
-  console.log('  ' + BOLD + '═══════════════════════════════════════' + RESET);
+  console.log('  ' + BOLD + 'Capability Health Dashboard' + RESET);
   console.log();
 
   const kernel = new Kernel();
   await kernel.boot();
 
   const entries: CapabilityEntry[] = kernel.capabilities.list();
-  let healthy = 0;
-  let degraded = 0;
-  let errors = 0;
+  const counts = { ready: 0, degraded: 0, unavailable: 0 };
 
   for (const entry of entries) {
     const cap = entry.capability;
-    const diag = await diagnose(cap);
+    const { readiness, latency } = await diagnose(cap);
 
-    if (diag.status === 'healthy') healthy++;
-    else if (diag.status === 'degraded') degraded++;
-    else errors++;
+    if (readiness.status === 'ready') counts.ready++;
+    else if (readiness.status === 'degraded') counts.degraded++;
+    else counts.unavailable++;
 
-    const tag = statusTag(diag.status);
-    const latency = DIM + diag.latency + RESET;
+    const tag = readinessTag(readiness);
+    const label = readinessLabel(readiness);
+    const lat = DIM + latency + RESET;
     const plugin = DIM + entry.pluginId + RESET;
 
-    console.log('  ' + CYAN + cap.id + RESET);
-    console.log('    Provider: ' + plugin);
-    console.log('    Status:   ' + tag + '  ' + latency);
-    if (diag.error) console.log('    Error:    ' + RED + diag.error + RESET);
+    console.log('  ' + tag + ' ' + CYAN + cap.id + RESET);
+    console.log('    Plugin:  ' + plugin);
+    console.log('    Status:  ' + label + '  ' + lat);
+
+    if (readiness.status !== 'ready') {
+      console.log('    Reason:  ' + YELLOW + readiness.reason + RESET);
+      if (readiness.fix) {
+        console.log('    Fix:     ' + CYAN + readiness.fix + RESET);
+      }
+    }
     console.log();
   }
 
-  console.log('  ' + BOLD + '─────────────────────────────────────' + RESET);
-  console.log('  ' + GREEN + healthy + ' healthy' + RESET + '  ' +
-    (degraded > 0 ? YELLOW + degraded + ' degraded' + RESET + '  ' : '') +
-    (errors > 0 ? RED + errors + ' errors' + RESET : ''));
+  console.log('  ' + BOLD + '\u2500'.repeat(47) + RESET);
+  const parts: string[] = [];
+  if (counts.ready > 0) parts.push(GREEN + counts.ready + ' ready' + RESET);
+  if (counts.degraded > 0) parts.push(YELLOW + counts.degraded + ' degraded' + RESET);
+  if (counts.unavailable > 0) parts.push(RED + counts.unavailable + ' unavailable' + RESET);
+  console.log('  ' + parts.join('  '));
   console.log('  ' + DIM + entries.length + ' total capabilities' + RESET);
-  console.log('  ' + BOLD + '═══════════════════════════════════════' + RESET);
   console.log();
 
   await kernel.shutdown();

@@ -84,6 +84,32 @@ pnpm test:workflows     3.0s (7 workflows, 14 assertions)
 
 ---
 
+## Sprint 6A — Plugin Reliability ✅
+
+> Objetivo: Todo plugin deve saber reportar sua própria saúde. Pronto, degradado ou indisponível — com diagnóstico e cura.
+
+### Entregas
+
+| Entrega | Descrição | Status |
+|---------|-----------|--------|
+| R1 | `CapabilityReadiness` — ready / degraded / unavailable | ✅ |
+| R2 | `readiness()` no SDK (Capability class) | ✅ |
+| R3 | Browser Plugin v1.1: health check próprio | ✅ |
+| R4 | manifest.yaml com `requirements:` (runtime, dependencies, setup) | ✅ |
+| R5 | `pnpm browser:setup` — instala Chromium | ✅ |
+| R6 | `pnpm plugin doctor` — diagnóstico de plugin | ✅ |
+| R7 | Health Dashboard v2 — readiness + repair suggestions | ✅ |
+| R8 | Nenhuma alteração no Kernel | ✅ |
+
+### Aprendizado
+
+> O erro de Chromium ausente foi tratado **dentro do plugin**.
+> O Kernel nunca soube que existia um problema.
+> O restante do BeeHive (6/7 capabilities) continuou funcionando.
+> Esse é o comportamento esperado de um sistema operacional.
+
+---
+
 ## Sprint 6 — Real Capability Providers
 
 > Objetivo: Trocar mocks por implementações reais **sem mudar nada acima**.
@@ -150,7 +176,10 @@ Tudo rastreável, reproduzível, editável depois.
 | External app sem importar Kernel | funcional | ✅ hello-world-app |
 | External plugin descoberto | funcional | ✅ weather.current |
 | Ecosystem Proof | validado | ✅ Sprint 5 |
-| Capability Health Dashboard | implementado | ⏳ Sprint 6 |
+| Capability Readiness | ready/degraded/unavailable | ✅ Sprint 6A |
+| Plugin Doctor | diagnostico | ✅ Sprint 6A |
+| Health Dashboard v2 | readiness + repair | ✅ Sprint 6A |
+| Browser Plugin v1.1 | health check + setup | ✅ Sprint 6A |
 | Plugin creation time | < 30 min | ✅ < 5 min |
 | Public API documentada | public-api.md, sdk-reference.md, compatibility.md | ✅ |
 | Benchmark | documentado | ✅ benchmarks/ |

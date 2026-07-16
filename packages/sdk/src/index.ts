@@ -1,4 +1,5 @@
 export { Capability } from './capability';
+export type { CapabilityReadiness } from './capability';
 export { Plugin } from './plugin';
 export { Artifact } from './artifact';
 export { PluginContext } from './context';
