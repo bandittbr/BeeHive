@@ -29,61 +29,60 @@
 ## 1. Arquitetura
 
 ```
-+----------------------------------------------------------------------+
-�                              UI                                       �
-�  React / Next.js. S� renderiza.                                     �
-+----------------------------------------------------------------------+
-                            � HTTP / WS
-+----------------------------------------------------------------------+
-�                       APPLICATION LAYER                               �
-�  Casos de uso (CreateVideoUseCase, ChatUseCase...)                   �
-+----------------------------------------------------------------------+
-                            � CommandBus
-+----------------------------------------------------------------------+
-�                            KERNEL (m�nimo)                           �
-�                                                                      �
-�  ATIVOS (Fase 1):                                                    �
-�  +----------+ +----------+ +--------------+ +------------------+   �
-�  � Container� �EventBus  � �PluginRegistry � �CapabilityRegistry�   �
-�  � (DI)     � �(Eventos) � �(Descoberta)   � �(Quem sabe X?)   �   �
-�  +----------+ +----------+ +--------------+ +------------------+   �
-�  +----------+ +----------+                                          �
-�  � Logger   � �  Config  �                                          �
-�  +----------+ +----------+                                          �
-�                                                                      �
-�  NOT YET (Fase 2+):                                                  �
-�  Scheduler  � WorkflowRuntime � AgentRuntime � ResourceManager      �
-�  KnowledgeGraph � Secrets � Metrics � Permissions � Memory          �
-�                                                                      �
-�  S� implementamos quando o primeiro plugin precisar.                 �
-+----------------------------------------------------------------------+
-                            � resolve()
-+----------------------------------------------------------------------+
-�                           PLUGINS                                     �
-�  Conjuntos de capabilities. Nunca conversam entre si.                �
-�                                                                      �
-�  FOUNDATION (Fase 1)                                                 �
-�  +-- chat.generate     ? OpenRouter ? Provider ? Artifact(Markdown) �
-�  +-- memory.search     ? Memory ? Artifact(JSON)                    �
-�  +-- tool.execute      ? ToolRegistry ? Artifact(JSON)              �
-�                                                                      �
-�  BROWSER (Fase 2)                                                    �
-�  +-- browser.navigate                                                 �
-�  +-- browser.scrape                                                   �
-�  +-- browser.screenshot                                               �
-�                                                                      �
-�  CONTENT (Fase 3)                                                    �
-�  +-- Roteiro ? Imagem ? V�deo ? Publica��o                          �
-�                                                                      �
-�  Depois: video, image, coding, research, marketing, finance          �
-+----------------------------------------------------------------------+
-                            � implementa
-+----------------------------------------------------------------------+
-�                          ADAPTERS                                     �
-�  GitHub repos adaptados. Trocar = nada muda acima.                  �
-�  OpenRouter  � OpenAI  � Ollama  � Playwright  � ComfyUI            �
-+----------------------------------------------------------------------+
-                            � resolve()
+                    BeeHive OS
+
+                  ┌─────────────┐
+                  │     UI      │
+                  │  React/Next │
+                  └──────┬──────┘
+                         │ HTTP / WS
+                  ┌──────┴──────┐
+                  │ Application │
+                  │    Layer    │
+                  └──────┬──────┘
+                         │
+                  ┌──────┴──────┐
+                  │    Kernel    │  ← congelado
+                  │              │
+                  │ Container    │
+                  │ EventBus     │
+                  │ PluginReg    │
+                  │ CapReg       │
+                  │ Logger       │
+                  │ Config       │
+                  └──────┬──────┘
+                         │
+          ┌──────────────┼──────────────┐
+          │              │              │
+      ┌───┴───┐    ┌─────┴─────┐  ┌────┴────┐
+      │ Plugins│    │ Runtime   │  │Providers│
+      │       │    │ Services  │  │         │
+      │Browser│    │ProvReg    │  │Mock     │
+      │Found. │    │ProvRouter │  │OpenAI   │
+      │Weather│    │           │  │Ollama   │
+      └───────┘    └───────────┘  └─────────┘
+          │              │              │
+          └──────────────┼──────────────┘
+                         │
+                    ┌────┴────┐
+                    │Artifacts│
+                    └─────────┘
+```
+
+### Fases
+
+| Fase | Nome | Status |
+|------|------|--------|
+| 1 | Arquitetura | ✅ concluída |
+| 2 | Validação | ✅ concluída |
+| 3 | Ecossistema | ✅ concluída |
+| 4 | Capabilities Reais | ⬅️ atual |
+| 5 | Aplicações Reais | ⏳ planejada |
+
+### Regra da fase atual
+
+> Nenhuma abstração nova entra sem que dois plugins reais tenham precisado dela.
+> O Kernel continua congelado. A arquitetura só muda se um Hard Invariant exigir.
 +----------------------------------------------------------------------+
 �                          PROVIDERS                                    �
 �  AI: OpenAI � Anthropic � Gemini � Groq � Ollama                    �

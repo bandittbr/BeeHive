@@ -2,13 +2,35 @@
 
 Sistema Operacional de Inteligência Artificial — modular, extensível por plugins, com workflows como dados.
 
-## Fase atual: Produto
+## Fase atual: Capabilities Reais
 
-O BeeHive passou por três fases:
+O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor entregue**, não por arquitetura.
 
-1. **Ideia** — "Reunir vários projetos de IA em um só lugar"
-2. **Arquitetura** — Kernel congelado + SDK + plugins + workflows como dados ✅
-3. **Produto** — Workflows que resolvem problemas reais ⬅️ **AQUI**
+### Regras da fase
+
+> O Kernel continua congelado.
+> O SDK continua estável.
+> A arquitetura só muda se um Hard Invariant realmente exigir.
+
+### Métricas de progresso
+
+| Métrica | Atual | Meta |
+|---------|-------|------|
+| Plugins funcionais | 3 | 10 |
+| Providers reais | 0 | 5 |
+| Capabilities reais | 7 | 25 |
+| Workflows prontos | 7 | 20 |
+| Aplicações externas | 2 | 5 |
+
+### Fases do BeeHive
+
+```
+Fase 1  Arquitetura    ✅ concluída
+Fase 2  Validação      ✅ concluída
+Fase 3  Ecossistema    ✅ iniciada
+Fase 4  Cap. Reais     ⬅️ AQUI
+Fase 5  Aplicações     ⏳
+```
 
 ## Maturidade da Plataforma
 
