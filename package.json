@@ -34,7 +34,9 @@
 "example:summarize":  "npx tsx examples/summarize-website/run.ts",
 "example:youtube-script":  "npx tsx examples/youtube-script/run.ts",
 "example:daily-news":  "npx tsx examples/daily-news/run.ts",
-"example:research":  "npx tsx examples/research-company/run.ts"
+"example:research":  "npx tsx examples/research-company/run.ts",
+"benchmark":  "npx tsx tools/benchmark.ts",
+"benchmark:dx":  "npx tsx tools/measure-dx.ts"
                 },
     "devDependencies":  {
                             "concurrently":  "^8.2.2",
