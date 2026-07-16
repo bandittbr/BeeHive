@@ -1,19 +1,26 @@
 name: shorts
 version: 1.0.0
-description: "Pipeline de criação de Shorts para YouTube"
+description: "Pipeline completo de criação de Shorts"
 author: BeeHive
 
 capabilities:
-  - download_video
-  - transcribe_audio
-  - detect_highlights
-  - crop_clips
-  - add_subtitles
-  - generate_metadata
-  - publish
+  - id: shorts.download
+    description: "Download de vídeo do YouTube"
 
-interfaces:
-  - IShortsPlugin
+  - id: shorts.transcribe
+    description: "Transcreve áudio para texto"
+
+  - id: shorts.detect_highlights
+    description: "Detecta melhores momentos no vídeo"
+
+  - id: shorts.crop
+    description: "Corta clips nos melhores momentos"
+
+  - id: shorts.add_subtitles
+    description: "Adiciona legendas automáticas"
+
+  - id: shorts.publish
+    description: "Publica shorts em plataformas"
 
 adapters:
   - yt-dlp
@@ -22,11 +29,9 @@ adapters:
 dependencies:
   - AIManager
   - Storage
-  - Queue
   - VideoPlugin
 
 permissions:
   - storage:read
   - storage:write
-  - queue:create
   - ai:chat

@@ -1,7 +1,7 @@
-# ?? BeeHive OS — Arquitetura em 6 Camadas
+# ?? BeeHive OS — AI Operating System
 
-> **UI ? Application ? Core ? Plugins ? Adapters ? Providers**
-> Tudo é contrato. Nada é concreto.
+> **Kernel + Capability Registry + Workflow Runtime + Agent Runtime**
+> A menor unidade funcional é uma Capability, não um plugin.
 
 ---
 
@@ -10,297 +10,307 @@
 ```
 +---------------------------------------------------------------------+
 ¦                              UI                                      ¦
-¦  React / Next.js / TailwindCSS / shadcn/ui / Zustand / TanStack Q.  ¦
-¦                                                                      ¦
-¦  Só renderiza. Nunca conversa com plugins.                           ¦
-¦  Dashboard ¦ Conversa ¦ Projetos ¦ Negócios ¦ Conteúdo               ¦
-¦  Automações ¦ Agentes ¦ Configurações                                ¦
+¦  React / Next.js / TailwindCSS / shadcn/ui                          ¦
+¦  Só renderiza. Nunca conversa com plugins.                          ¦
+¦  Dashboard ¦ Conversa ¦ Projetos ¦ Negócios ¦ Conteúdo              ¦
+¦  Automações ¦ Agentes ¦ Configurações                               ¦
 +---------------------------------------------------------------------+
                            ¦ HTTP / WS
 +---------------------------------------------------------------------+
 ¦                       APPLICATION LAYER                              ¦
-¦  Casos de uso que orquestram o Core                                  ¦
-¦                                                                      ¦
-¦  CreateVideoUseCase   ¦ CreateProjectUseCase ¦ ChatUseCase           ¦
-¦  GenerateImageUseCase ¦ CreateWorkflowUseCase¦ PublishContentUseCase ¦
-¦                                                                      ¦
-¦  Só conversa com o Core. Nunca com plugins.                          ¦
+¦  Casos de uso que orquestram o Kernel                               ¦
+¦  CreateVideoUseCase ¦ ChatUseCase ¦ CreateWorkflowUseCase           ¦
+¦  Só conversa com o Kernel. Nunca com plugins.                      ¦
 +---------------------------------------------------------------------+
                            ¦ CommandBus / QueryBus
 +---------------------------------------------------------------------+
-¦                            CORE                                      ¦
-¦  O cérebro. Existe uma ÚNICA vez.                                    ¦
+¦                            KERNEL                                    ¦
+¦  Única parte que conhece o estado global do sistema.                ¦
 ¦                                                                      ¦
-¦  Kernel  ¦ EventBus ¦ CommandBus ¦ QueryBus                          ¦
-¦  AI Manager ¦ Provider Manager ¦ Plugin Manager                      ¦
-¦  Workflow Engine ¦ Memory Engine ¦ Scheduler                         ¦
-¦  Queue (BullMQ) ¦ Auth ¦ Permissions ¦ Storage ¦ Tools               ¦
+¦  Kernel                                                              ¦
+¦  +-- EventBus          ? Tudo acontece por eventos                  ¦
+¦  +-- Container (DI)    ? resolve(Plugin) sem new                    ¦
+¦  +-- ConfigManager     ? Config centralizada                        ¦
+¦  +-- Logger            ? Log estruturado                            ¦
+¦  +-- Metrics           ? Métricas do sistema                        ¦
+¦  +-- Secrets           ? Credenciais criptografadas                 ¦
+¦  +-- PermissionManager ? Controle de acesso                         ¦
+¦  +-- MemoryRegistry    ? Gerenciamento de memória                   ¦
+¦  +-- PluginRegistry    ? Descoberta + ciclo de vida                 ¦
+¦  +-- CapabilityRegistry ? ? Quem sabe fazer X?                     ¦
+¦  +-- Scheduler         ? Cron / intervalo                           ¦
+¦  +-- WorkflowRuntime   ? Executa workflows                          ¦
+¦  +-- AgentRuntime      ? Agentes que pensam e decidem               ¦
 ¦                                                                      ¦
-¦  Conhece apenas INTERFACES. Nunca implementações.                    ¦
+¦  NUNCA exposto para plugins. Apenas PluginContext.                  ¦
 +---------------------------------------------------------------------+
-                           ¦ PluginManager.resolve()
+                           ¦ PluginRegistry.resolve()
 +---------------------------------------------------------------------+
 ¦                           PLUGINS                                    ¦
-¦  Cada plugin expõe uma interface. Core descobre via manifesto.       ¦
+¦  Conjuntos de capabilities. Nunca conversam entre si.               ¦
 ¦                                                                      ¦
-¦  VideoPlugin ¦ ImagePlugin ¦ CodingPlugin ¦ BrowserPlugin            ¦
-¦  ChatPlugin  ¦ ShortsPlugin¦ BusinessPlugin                          ¦
+¦  VideoPlugin ¦ ImagePlugin ¦ ChatPlugin ¦ BrowserPlugin              ¦
+¦  ShortsPlugin ¦ CodingPlugin ¦ BusinessPlugin ¦ ResearchPlugin       ¦
 ¦                                                                      ¦
-¦  NUNCA implementam lógica concreta. Delegam para adapters.           ¦
+¦  Recebem PluginContext com ONLY o que precisam.                     ¦
+¦  context.ai ¦ context.events ¦ context.storage ¦ context.logger      ¦
+¦  context.memory ¦ context.workflow ¦ context.config                  ¦
+¦  context.capabilities ¦ context.permissions                          ¦
 +---------------------------------------------------------------------+
                            ¦ AdapterManager.resolve()
 +---------------------------------------------------------------------+
 ¦                          ADAPTERS                                    ¦
-¦  Projetos do GitHub adaptados como serviços internos.                ¦
-¦                                                                      ¦
+¦  Projetos GitHub adaptados. Trocar = nada muda acima.               ¦
 ¦  MoneyPrinterTurbo ¦ VidBee ¦ ComfyUI ¦ Browser Use ¦ OpenHands     ¦
-¦  Remotion ¦ MoviePy ¦ yt-dlp ¦ faster-whisper                        ¦
-¦                                                                      ¦
-¦  Trocar um adapter NÃO MUDA nada acima.                              ¦
 +---------------------------------------------------------------------+
                            ¦ ProviderManager.resolve()
 +---------------------------------------------------------------------+
 ¦                          PROVIDERS                                   ¦
-¦  Camada mais baixa. Implementações concretas de serviços.            ¦
-¦                                                                      ¦
-¦  AI: OpenAI ¦ Anthropic ¦ Gemini ¦ Groq ¦ OpenRouter ¦ Ollama       ¦
+¦  AI: OpenAI ¦ Anthropic ¦ Gemini ¦ Groq ¦ Ollama                    ¦
 ¦  Browser: Playwright ¦ Puppeteer ¦ Browser Use ¦ Stagehand          ¦
-¦  Storage: S3 ¦ Local ¦ Redis                                         ¦
-¦  Embedding: OpenAI ¦ Ollama                                          ¦
+¦  Storage: S3 ¦ Local ¦ Redis                                        ¦
 +---------------------------------------------------------------------+
 ```
 
 ---
 
-## 2. Contratos (O coração do sistema)
+## 2. Capability Registry (O Diferencial)
 
-Nenhum código implementa classes concretas. Tudo implementa interfaces em `shared/contracts/`.
-
-| Contrato | Quem implementa | Quem consome |
-|----------|----------------|--------------|
-| `IPlugin` | Cada plugin | PluginManager |
-| `IVideoEngine` | Adapters (MPTurbo, VidBee) | VideoPlugin |
-| `IImageEngine` | Adapters (ComfyUI, DALL-E) | ImagePlugin |
-| `IBrowser` | Adapters (Playwright, BrowserUse) | BrowserPlugin |
-| `IWorkflow` | WorkflowEngine + Plugins | Application Layer |
-| `IAgent` | AgentFramework | Application Layer |
-| `ITool` | Built-in tools + Plugins | AI Manager |
-| `IProvider` | OpenAI, Anthropic, Ollama... | ProviderManager |
-| `IMemory` | Memory stores (pgvector, Redis) | MemoryManager |
-| `IStorage` | S3, Local, Redis | Core |
-
----
-
-## 3. Plugin Manifest
-
-Cada plugin registra um manifesto YAML. O Core descobre plugins dinamicamente na inicialização.
+A menor unidade funcional do BeeHive é uma **Capability**, não um plugin.
 
 ```yaml
-# plugins/video/src/manifest.yaml
-name: video
-version: 1.0.0
-capabilities:
-  - generate_shorts
-  - render_video
-  - export_media
-interfaces:
-  - IVideoEngine
-adapters:
-  - MoneyPrinterTurbo
-  - VidBee
-  - Remotion
-  - MoviePy
-dependencies:
-  - AIManager
-  - Storage
-permissions:
-  - storage:read
-  - storage:write
+# Exemplos de capabilities
+- id: video.generate_shorts
+  inputs:
+    - url (string, required)
+    - duration (number, default: 60)
+  outputs:
+    - clips (array)
+    - metadata (object)
+
+- id: image.generate
+  inputs:
+    - prompt (string, required)
+    - width (number, default: 1024)
+  outputs:
+    - images (array)
+
+- id: browser.scrape
+  inputs:
+    - url (string, required)
+  outputs:
+    - content (string)
+    - markdown (string)
+
+- id: youtube.upload
+  inputs:
+    - video (file)
+    - title (string)
+    - description (string)
+  outputs:
+    - url (string)
+```
+
+### Como funciona
+
+```
+Workflow precisa gerar vídeo
+  ? CapabilityRegistry.find("gerar vídeo")
+    ? [video.generate_shorts, video.render, video.thumbnail]
+  ? Workflow escolhe video.generate_shorts
+  ? CapabilityRegistry.resolve("video.generate_shorts")
+    ? VideoPlugin ? MoneyPrinterTurbo
+  ? Executa
+
+O Workflow NUNCA conhece o plugin.
+O Workflow NUNCA conhece o adapter.
+O Workflow só conhece a CAPABILITY.
 ```
 
 ---
 
-## 4. BeeHive é Workflows, não Conversa
+## 3. PluginContext (Plugins não enxergam o Kernel)
 
-O conceito central do BeeHive são **Workflows**. O usuário cria um fluxo que atravessa múltiplos plugins:
+```typescript
+interface PluginContext {
+  capabilities: ICapabilityRegistry;  // registrar/consultar
+  events: IEventBus;                   // publicar/assinar
+  storage: IStorage;                   // arquivos
+  logger: ILogger;                     // logar
+  memory: IMemory;                     // memorizar
+  ai: IAIService;                      // conversar
+  config: IConfigService;              // configurar
+  permissions: IPermissionService;     // autorizar
+  workflow: IWorkflowService;          // iniciar workflows
+}
 
+// Plugin NUNCA faz:
+plugin.kernel.aiManager.chat(...)         // ?
+plugin.core.doSomething()                 // ?
+
+// Plugin SEMPRE faz:
+context.ai.execute(req)                   // ?
+context.events.publish(event)             // ?
+context.logger.info("feito")              // ?
 ```
-Usuário
-  ?
-Criar Workflow "Gerar Shorts"
-  ?
-[Plugin Pesquisa]    ? Pesquisar assunto
-  ?
-[Plugin Roteiro]     ? Gerar roteiro (via Chat Plugin)
-  ?
-[Plugin Imagem]      ? Gerar imagens (via Image Plugin)
-  ?
-[Plugin Vídeo]       ? Gerar vídeo (via Video Plugin)
-  ?
-[Plugin Thumbnail]   ? Gerar thumbnail (via Image Plugin)
-  ?
-[Plugin Publicação]  ? Publicar (via Browser Plugin)
-  ?
-[Plugin Analytics]   ? Monitorar métricas
-  ?
-Workflow Completo ? Dashboard
-```
-
-Cada passo pode usar um plugin diferente. O usuário enxerga UM processo.
 
 ---
 
-## 5. Estrutura de Diretórios
+## 4. Event Bus (Tudo por Eventos)
+
+```
+USER_CREATED_PROJECT
+  ? WorkflowStarted
+    ? VideoRequested
+      ? VideoGenerated
+        ? VideoPublished
+          ? AnalyticsUpdated
+
+Nenhum plugin chama outro plugin.
+Todo mundo apenas PUBLICA EVENTOS.
+```
+
+---
+
+## 5. Workflow Runtime vs Agent Runtime
+
+### Workflow (executa tarefas)
+```yaml
+workflow: gerar_shorts_diario
+trigger:
+  schedule: "0 8 * * *"
+steps:
+  - id: pesquisar
+    capability: research.search
+    input: { topic: "IA trends" }
+  - id: roteiro
+    capability: chat.converse
+    input: { message: "Crie roteiro com base em: {pesquisar.output}" }
+  - id: video
+    capability: video.generate_shorts
+    input: { script: "{roteiro.output}" }
+  - id: publicar
+    capability: youtube.upload
+    input: { video: "{video.output}" }
+```
+
+### Agent (pensa, decide, planeja, executa workflows)
+```
+Agente recebe objetivo: "Crie um canal de shorts sobre IA"
+  ? AgentRuntime.spawn("criador-conteudo", objetivo)
+    ? Agent pensa: "Preciso de: pesquisa ? roteiro ? video ? thumbnail ? publish"
+    ? Agent planeja: [research, chat, video, image, browser]
+    ? Agent executa workflows
+    ? Agent aprende com resultados
+    ? Agent repete autonomamente
+```
+
+---
+
+## 6. Estrutura de Diretórios
 
 ```
 beehive/
 ¦
-+-- ui/                       # --- 1. UI ---
-¦   +-- areas/
-¦   ¦   +-- dashboard/
-¦   ¦   +-- conversa/
-¦   ¦   +-- projetos/
-¦   ¦   +-- negocios/
-¦   ¦   +-- conteudo/
-¦   ¦   ¦   +-- videos/
-¦   ¦   ¦   +-- shorts/
-¦   ¦   ¦   +-- imagens/
-¦   ¦   ¦   +-- posts/
-¦   ¦   ¦   +-- artigos/
-¦   ¦   ¦   +-- blogs/
-¦   ¦   ¦   +-- roteiros/
-¦   ¦   ¦   +-- thumbnails/
-¦   ¦   +-- automacoes/
-¦   ¦   +-- agentes/
-¦   ¦   +-- configuracoes/
-¦   +-- components/
-¦   ¦   +-- ui/               # shadcn/ui
-¦   ¦   +-- layout/
-¦   +-- hooks/
-¦   +-- stores/               # Zustand
-¦   +-- services/             # TanStack Query
++-- ui/                        # Renderiza. Só isso.
++-- application/               # Casos de uso
++-- kernel/                    # Estado global do sistema
+¦   +-- Kernel.ts
+¦   +-- Container.ts           # DI Container
+¦   +-- EventBus.ts
+¦   +-- Scheduler.ts
+¦   +-- ConfigManager.ts
+¦   +-- Logger.ts
+¦   +-- Metrics.ts
+¦   +-- Secrets.ts
+¦   +-- PermissionManager.ts
+¦   +-- MemoryRegistry.ts
+¦   +-- PluginRegistry.ts
+¦   +-- CapabilityRegistry.ts  # ?
+¦   +-- WorkflowRuntime.ts
+¦   +-- AgentRuntime.ts
+¦   +-- api/                   # REST/WS/MCP
 ¦
-+-- application/              # --- 2. APPLICATION ---
-¦   +-- use-cases/
-¦   ¦   +-- video/
-¦   ¦   +-- content/
-¦   ¦   +-- project/
-¦   ¦   +-- chat/
-¦   ¦   +-- workflow/
-¦   +-- services/
-¦
-+-- core/                     # --- 3. CORE ---
-¦   +-- kernel/
-¦   ¦   +-- Kernel.ts
-¦   ¦   +-- EventBus.ts
-¦   ¦   +-- CommandBus.ts
-¦   ¦   +-- QueryBus.ts
-¦   +-- ai/
-¦   ¦   +-- AIManager.ts
-¦   ¦   +-- LLMRouter.ts
-¦   +-- workflow/
-¦   ¦   +-- WorkflowEngine.ts
-¦   +-- memory/
-¦   ¦   +-- MemoryManager.ts
-¦   ¦   +-- stores/
-¦   ¦   +-- embeddings/
-¦   +-- plugins/
-¦   ¦   +-- PluginManager.ts     ? descobre manifests
-¦   ¦   +-- PluginLoader.ts
-¦   +-- providers/
-¦   ¦   +-- ProviderManager.ts
-¦   +-- queue/
-¦   ¦   +-- QueueManager.ts       # BullMQ
-¦   +-- scheduler/
-¦   ¦   +-- Scheduler.ts
-¦   +-- auth/
-¦   ¦   +-- AuthService.ts
-¦   +-- permissions/
-¦   ¦   +-- PermissionService.ts
-¦   +-- storage/
-¦   ¦   +-- StorageManager.ts
-¦   +-- tools/
-¦   ¦   +-- ToolRegistry.ts
-¦   ¦   +-- built-in/
-¦   +-- api/
-¦       +-- routes/
-¦       +-- websocket/
-¦       +-- mcp/
-¦       ¦   +-- server.ts
-¦       +-- middleware/
-¦
-+-- plugins/                  # --- 4. PLUGINS ---
-¦   +-- video/
-¦   +-- image/
-¦   +-- coding/
-¦   +-- browser/
-¦   +-- shorts/
-¦   +-- chat/
-¦   +-- business/
-¦   +-- template/
++-- plugins/                   # Conjuntos de capabilities
+¦   +-- video/     ? video.generate_shorts, video.render
+¦   +-- image/     ? image.generate, image.upscale
+¦   +-- chat/      ? chat.converse, chat.converse_stream
+¦   +-- browser/   ? browser.browse, browser.scrape
+¦   +-- shorts/    ? shorts.download, shorts.transcribe
+¦   +-- coding/    ? coding.review, coding.generate
+¦   +-- research/  ? research.search, research.summarize
+¦   +-- business/  ? business.plan, business.analyze
+¦   +-- marketing/ ? marketing.campaign, marketing.seo
+¦   +-- finance/   ? finance.analyze, finance.report
 ¦       +-- src/
-¦           +-- plugin.ts        # implements IPlugin
-¦           +-- manifest.yaml
-¦           +-- interfaces.ts
-¦           +-- adapters/
-¦           ¦   +-- template.adapter.ts
-¦           +-- types.ts
+¦           +-- plugin.ts       # activate(context: PluginContext)
+¦           +-- manifest.yaml   # capabilities, adapters, deps
+¦           +-- capabilities/   # implementações das capabilities
+¦           +-- adapters/       # GitHub repos adaptados
 ¦
-+-- providers/                 # --- 5. PROVIDERS ---
-¦   +-- ai/
-¦   +-- browser/
-¦   +-- storage/
-¦   +-- embedding/
++-- providers/                 # Camada mais baixa
+¦   +-- ai/         ? OpenAI, Anthropic, Gemini, Ollama
+¦   +-- browser/    ? Playwright, Puppeteer, BrowserUse
+¦   +-- storage/    ? S3, Local, Redis
+¦   +-- embedding/  ? OpenAI, Ollama
 ¦
-+-- shared/                    # --- CONTRATOS ---
-¦   +-- contracts/             # IPlugin, IWorkflow, IVideoEngine...
-¦   +-- types/
-¦   +-- constants/
++-- shared/                    # Contratos (apenas interfaces)
+¦   +-- contracts/
+¦       +-- ICapability.ts
+¦       +-- ICapabilityRegistry.ts
+¦       +-- IPlugin.ts
+¦       +-- IEventBus.ts
+¦       +-- IKernel.ts
+¦       +-- IWorkflowRuntime.ts
+¦       +-- IAgentRuntime.ts
+¦       +-- IAIService.ts
+¦       +-- ILogger.ts
+¦       +-- IStorage.ts
+¦       +-- IMemory.ts
+¦       +-- IScheduler.ts
+¦       +-- IPermissionService.ts
+¦       +-- IConfigService.ts
+¦       +-- IMetricsCollector.ts
+¦       +-- ISecretsManager.ts
 ¦
 +-- docker/
-+-- scripts/
 +-- package.json
-+-- pnpm-workspace.yaml
-+-- turbo.json
 ```
 
 ---
 
-## 6. Fluxo Completo (Criar Shorts)
+## 7. Contratos (shared/contracts/)
 
-```
-UI (Conteúdo > Shorts > "Criar")
-  ? POST /api/conteudo/shorts
-Application Layer (CreateShortsUseCase)
-  ? CommandBus.dispatch('workflow:start', { workflowId: 'create-shorts', input })
-Core (WorkflowEngine)
-  ? PluginManager.getCapability('video:generate')
-Plugin (VideoPlugin)
-  ? AdapterManager.resolve('money-printer-turbo')
-Adapter (MoneyPrinterTurbo.adapter.ts)
-  ? ProviderManager.get('ai') ? LLMRouter.resolve()
-Provider (OpenAI / Ollama / Gemini)
-  ? resultado
-Adapter ? resultado
-  ? resultado
-Plugin ? resultado
-  ? EventBus.emit('workflow:step:completed')
-Core ? resultado
-  ? EventBus.emit('conteudo:shorts:created')
-Application ? resultado
-  ? 200 OK
-UI ? exibe resultado
-```
+| Interface | Dono | Proposito |
+|-----------|------|-----------|
+| ICapability | Plugin | Menor unidade funcional. inputs ? outputs |
+| ICapabilityRegistry | Kernel | "Quem sabe fazer X?" |
+| IPlugin | Plugin | activate(context) / deactivate() |
+| IEventBus | Kernel | Tudo por eventos |
+| IKernel | System | Bootstrap, health, status |
+| IWorkflowRuntime | Kernel | Executa workflows de capabilities |
+| IAgentRuntime | Kernel | Agentes que pensam e decidem |
+| IAIService | Kernel | Chat multi-provedor |
+| ILogger | Kernel | Log estruturado |
+| IStorage | Kernel | Armazenamento |
+| IMemory | Kernel | Memória persistente |
+| IScheduler | Kernel | Cron / intervalo |
+| IPermissionService | Kernel | Controle de acesso |
+| IConfigService | Kernel | Config centralizada |
+| IMetricsCollector | Kernel | Métricas do sistema |
+| ISecretsManager | Kernel | Credenciais |
 
 ---
 
-## 7. Regras de Ouro
+## 8. Regras de Ouro
 
-1. **UI não sabe de plugins.** Só chama Application Layer.
-2. **Application não sabe de implementações.** Só conhece Core.
-3. **Core não sabe de adapters.** Só conhece interfaces de plugins.
-4. **Plugins não têm lógica concreta.** Delegam para adapters.
-5. **Adapters são intercambiáveis.** Trocar não muda nada acima.
-6. **Tudo implementa interfaces.** IPlugin, IVideoEngine, IProvider...
-7. **BeeHive é Workflows.** O centro do sistema são fluxos reutilizáveis.
-8. **Plugin Manager descobre dinamicamente.** Via manifesto YAML.
+1. **Kernel é a única parte que conhece o estado global.**
+2. **Plugins nunca conversam entre si.** Só via eventos.
+3. **Plugins não enxergam o Kernel.** Só o PluginContext.
+4. **PluginContext expõe APENAS o que o plugin precisa.**
+5. **Workflow conhece capabilities, não plugins.**
+6. **Tudo implementa interfaces. Nada de classes concretas.**
+7. **Capability é a menor unidade funcional.**
+8. **Trocar adapter = nada muda acima.**
+9. **Kernel descobre plugins dinamicamente via manifesto.**
+10. **BeeHive é Workflows + Agentes, não Chat.**

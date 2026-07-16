@@ -1,30 +1,36 @@
 name: image
 version: 1.0.0
-description: "Geração e edição de imagens com IA"
+description: "Capacidades de imagem: geração, edição, upscale"
 author: BeeHive
 
 capabilities:
-  - text_to_image
-  - image_to_image
-  - upscale
-  - edit_image
+  - id: image.generate
+    description: "Gera imagem a partir de prompt"
+    inputs:
+      - { name: prompt, type: string, required: true }
+      - { name: width, type: number, default: 1024 }
+      - { name: height, type: number, default: 1024 }
+      - { name: style, type: string }
+    outputs:
+      - { name: images, type: array }
 
-interfaces:
-  - IImageEngine
+  - id: image.edit
+    description: "Edita imagem existente"
+
+  - id: image.upscale
+    description: "Aumenta resolução da imagem"
+
+  - id: image.remove_background
+    description: "Remove fundo da imagem"
+
+  - id: image.caption
+    description: "Gera legenda para imagem"
 
 adapters:
   - ComfyUI
   - DALL-E
   - StableDiffusion
 
-dependencies:
-  - AIManager
-  - Storage
-
 permissions:
   - storage:read
   - storage:write
-
-config:
-  default_adapter: ComfyUI
-  max_resolution: 2048

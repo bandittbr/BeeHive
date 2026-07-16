@@ -4,14 +4,19 @@ description: "Conversação multi-provedor com IA"
 author: BeeHive
 
 capabilities:
-  - converse
-  - stream_converse
-  - tool_calling
+  - id: chat.converse
+    description: "Envia mensagem e recebe resposta"
+    inputs:
+      - { name: message, type: string, required: true }
+      - { name: provider, type: string }
+      - { name: model, type: string }
+      - { name: stream, type: boolean, default: false }
+    outputs:
+      - { name: response, type: string }
+      - { name: usage, type: object }
 
-interfaces:
-  - IChatPlugin
-
-adapters: []
+  - id: chat.converse_stream
+    description: "Envia mensagem e recebe resposta em streaming"
 
 dependencies:
   - AIManager
@@ -23,8 +28,3 @@ permissions:
   - ai:stream
   - memory:read
   - memory:write
-
-config:
-  default_provider: openai
-  default_model: gpt-4o-mini
-  max_tokens: 4096

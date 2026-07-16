@@ -1,17 +1,27 @@
 name: video
 version: 1.0.0
-description: "Geração e edição de vídeos com IA"
+description: "Capacidades de vídeo: geração, edição, shorts, thumbnails"
 author: BeeHive
 
 capabilities:
-  - generate_shorts
-  - render_video
-  - export_media
-  - add_subtitles
-  - generate_thumbnail
+  - id: video.generate_shorts
+    description: "Gera shorts a partir de URL do YouTube"
+    inputs:
+      - { name: url, type: string, required: true, description: "URL do YouTube" }
+      - { name: duration, type: number, description: "Duração alvo (segundos)", default: 60 }
+      - { name: subtitles, type: boolean, description: "Incluir legendas", default: true }
+    outputs:
+      - { name: clips, type: array, description: "Lista de clips gerados" }
+      - { name: metadata, type: object, description: "Metadados do vídeo" }
 
-interfaces:
-  - IVideoEngine
+  - id: video.render
+    description: "Renderiza vídeo a partir de roteiro e cenas"
+
+  - id: video.export
+    description: "Exporta vídeo em formato específico"
+
+  - id: video.thumbnail
+    description: "Gera thumbnail para vídeo"
 
 adapters:
   - MoneyPrinterTurbo
@@ -22,14 +32,7 @@ adapters:
 dependencies:
   - AIManager
   - Storage
-  - Queue
 
 permissions:
   - storage:read
   - storage:write
-  - queue:create
-
-config:
-  default_adapter: MoneyPrinterTurbo
-  max_duration: 300
-  supported_formats: [mp4, mov, avi]

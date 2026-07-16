@@ -1,0 +1,32 @@
+name: browser
+version: 1.0.0
+description: "Automação de navegador"
+author: BeeHive
+
+capabilities:
+  - id: browser.browse
+    description: "Navega para URL e retorna conteúdo"
+    inputs:
+      - { name: url, type: string, required: true }
+    outputs:
+      - { name: content, type: string }
+      - { name: screenshot, type: string }
+
+  - id: browser.scrape
+    description: "Extrai conteúdo estruturado de página"
+
+  - id: browser.login
+    description: "Executa fluxo de login em site"
+
+  - id: browser.download
+    description: "Download de arquivos"
+
+adapters:
+  - Playwright
+  - Puppeteer
+  - BrowserUse
+  - Stagehand
+
+permissions:
+  - network:access
+  - storage:write
