@@ -1,0 +1,29 @@
+{
+  "providers": {
+    "ai": {
+      "default": "mock",
+      "chat.generate": {
+        "provider": "mock",
+        "model": "gpt-4"
+      },
+      "memory.search": {
+        "provider": "mock"
+      },
+      "tool.execute": {
+        "provider": "mock"
+      }
+    },
+    "browser": {
+      "default": "playwright",
+      "browser.navigate": {
+        "provider": "playwright"
+      },
+      "browser.scrape": {
+        "provider": "playwright"
+      },
+      "browser.screenshot": {
+        "provider": "playwright"
+      }
+    }
+  }
+}

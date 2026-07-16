@@ -2,6 +2,7 @@ export * from './events';
 export * from './kernel';
 export * from './commands';
 export * from './plugins';
+export * from './providers';
 export * from './ai';
 export * from './tools';
 export * from './agents';

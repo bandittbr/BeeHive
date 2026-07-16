@@ -9,6 +9,7 @@ export { ArtifactBuilder } from './artifact-builder';
 
 export { WorkflowBuilder } from './workflow-builder';
 export { MockAdapter, MockCapability } from './mock-adapter';
+export { MockProvider } from './mock-provider';
 
 export type {
   ICapability, IPlugin, IArtifact,

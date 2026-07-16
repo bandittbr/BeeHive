@@ -1,5 +1,6 @@
 import type { ILogger } from './logger';
 import type { IEventBus } from './events';
+import type { IProviderRegistry } from './providers';
 
 export interface ICapability {
   readonly id: string;
@@ -32,6 +33,7 @@ export interface ExecutionContext {
   workspaceId?: string;
   logger: ILogger;
   events: IEventBus;
+  providers?: IProviderRegistry;
   abortSignal?: AbortSignal;
 }
 

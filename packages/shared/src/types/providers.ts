@@ -1,76 +1,37 @@
-import type { AICapability } from './ai';
+import type { ILogger } from './logger';
+import type { IEventBus } from './events';
 
-export interface ProviderCredentials {
-  id: string;
-  name: string;
-  providerType: string;
-  apiKey: string;
-  baseUrl?: string;
-  models: string[];
-  enabled: boolean;
-  priority: number;
-  config?: Record<string, unknown>;
+export type ProviderPolicy = {
+  priority?: 'cost' | 'speed' | 'quality';
+  fallback?: string[];
+};
+
+export type ProviderReadiness =
+  | { status: 'ready' }
+  | { status: 'degraded'; reason: string; fix?: string }
+  | { status: 'unavailable'; reason: string; fix?: string };
+
+export type ProviderHealth =
+  | { status: 'healthy'; latency: number }
+  | { status: 'degraded'; latency: number; reason: string }
+  | { status: 'error'; latency: number; reason: string };
+
+export interface IProvider {
+  readonly id: string;
+  readonly type: string; // 'ai' | 'browser' | 'storage' | 'mock'
+  readonly name: string;
+  readonly capabilities: string[]; // lista de capability ids que este provider atende
+
+  execute(capabilityId: string, params: Record<string, unknown>, ctx: { logger: ILogger; events: IEventBus }): Promise<{ success: boolean; outputs: Record<string, unknown>; error?: string; metrics: { duration: number } }>;
+
+  readiness(): ProviderReadiness | Promise<ProviderReadiness>;
+  health(): ProviderHealth | Promise<ProviderHealth>;
 }
 
-export interface ProviderDefinition {
-  id: string;
-  name: string;
-  website: string;
-  apiKeyUrl: string;
-  docsUrl: string;
-  baseUrl: string;
-  models: ModelDefinition[];
-  defaultModel: string;
-  capabilities: AICapability[];
-  priority: number;
-  isFree?: boolean;
-}
-
-export interface ModelDefinition {
-  id: string;
-  name: string;
-  capabilities: AICapability[];
-  contextLength?: number;
-  pricing?: {
-    input: number;
-    output: number;
-    currency: string;
-  };
-}
-
-export interface ConnectionTestResult {
-  success: boolean;
-  latency?: number;
-  model?: string;
-  error?: string;
-}
-
-export interface ProviderCriteria {
-  provider?: string;
-  model?: string;
-  capabilities?: AICapability[];
-}
-
-export interface IProviderManager {
-  registerProvider(provider: {
-    id: string;
-    name: string;
-    apiKey: string;
-    baseUrl?: string;
-    models: string[];
-    capabilities: AICapability[];
-    priority?: number;
-  }): Promise<void>;
-
-  unregisterProvider(providerId: string): Promise<void>;
-
-  getProvider(providerId: string): ProviderCredentials | undefined;
-  listProviders(): ProviderCredentials[];
-  listModels(filter?: { provider?: string; capability?: AICapability }): ModelDefinition[];
-
-  resolve(criteria: ProviderCriteria): Promise<any>;
-  testConnection(providerId: string): Promise<ConnectionTestResult>;
-
-  setActive(providerId: string, active: boolean): Promise<void>;
-  setPriority(providerId: string, priority: number): Promise<void>;
+export interface IProviderRegistry {
+  register(provider: IProvider): void;
+  unregister(providerId: string): void;
+  resolve(capabilityId: string, policy?: ProviderPolicy): IProvider | undefined;
+  list(): IProvider[];
+  listByType(type: string): IProvider[];
 }
