@@ -10,6 +10,18 @@ O BeeHive passou por três fases:
 2. **Arquitetura** — Kernel congelado + SDK + plugins + workflows como dados ✅
 3. **Produto** — Workflows que resolvem problemas reais ⬅️ **AQUI**
 
+## Maturidade da Plataforma
+
+| Área | Status |
+|------|--------|
+| Kernel | ✅ Stable |
+| SDK | ✅ Stable |
+| Plugin System | ✅ Stable |
+| Workflow Runtime | ✅ Stable |
+| Provider Abstraction | ✅ Stable |
+| Real Providers | 🚧 In Progress |
+| Agent Runtime | ⏳ Planned |
+
 ## Regra
 
 > Toda Sprint deve terminar com um **workflow novo que um usuário consiga executar.**
@@ -33,7 +45,12 @@ BeeHive/
 │   └── research-company/
 ├── case-studies/        # Casos de uso externos (exemplos de aplicações)
 ├── tools/               # CLI tools
-├── tests/               # Testes de arquitetura e workflows
+├── runtime/             # Runtime Services (ProviderRegistry, ProviderRouter)
+├── tests/               # Tests organized by responsibility
+│   ├── architecture/    # Invariants (kernel-boundaries, provider-swap)
+│   ├── plugins/         # Plugin-specific tests
+│   ├── workflows/       # Workflow integration tests
+│   └── providers/       # Provider-specific tests
 ├── benchmarks/          # Métricas de performance e DX
 └── docs/                # Documentação
 ```
@@ -42,10 +59,13 @@ BeeHive/
 
 ```bash
 pnpm install
-pnpm test:architecture     # 10/10 testes de contrato
-pnpm test:workflows        # 14/14 testes de workflow com mocks
-pnpm example:hello         # Executa o workflow mais simples
-pnpm workflow:studio       # CLI interativo
+pnpm test:architecture       # 10/10 testes de contrato
+pnpm test:kernel-boundaries  # 4/4 invariants verificados
+pnpm test:provider-swap      # 10/10 prova de abstração
+pnpm test:workflows          # 14/14 testes de workflow com mocks
+pnpm example:hello           # Executa o workflow mais simples
+pnpm workflow:studio         # CLI interativo
+pnpm doctor                  # System Doctor completo
 ```
 
 ## Documentação
@@ -55,6 +75,7 @@ pnpm workflow:studio       # CLI interativo
 - [Capability Store](docs/capability-store.md) — Capabilities do ecossistema
 - [Benchmarks](benchmarks/index.md) — Performance e DX
 - [Arquitetura](ARCHITECTURE.md) — Documento mestre
+- [Invariantes](ARCHITECTURE_INVARIANTS.md) — Regras que nunca podem ser quebradas
 - [Roadmap](ROADMAP.md) — Próximos sprints
 
 ## Benchmarks atuais

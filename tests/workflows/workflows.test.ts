@@ -4,7 +4,7 @@
 // Executa todos os exemplos de workflow com mocks
 // e verifica se cada um completa com sucesso
 
-import { Kernel } from '../kernel/Kernel';
+import { Kernel } from '../../kernel/Kernel';
 import { WorkflowBuilder, MockAdapter } from '@beehive/sdk';
 
 let passed = 0;

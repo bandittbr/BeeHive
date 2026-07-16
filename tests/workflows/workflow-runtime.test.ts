@@ -1,7 +1,7 @@
 // Workflow Runtime E2E test
 // Usa apenas chat.generate (stub) para nao precisar de Playwright
 
-import { Kernel } from "../kernel/Kernel";
+import { Kernel } from "../../kernel/Kernel";
 import { WorkflowBuilder } from "@beehive/sdk";
 
 async function main() {

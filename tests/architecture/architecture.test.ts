@@ -349,7 +349,7 @@ async function main() {
   // Test 9: Dynamic - Kernel Boot and Plugin Activation
   await test('Test 9: Dynamic - Kernel Boot and Plugin Activation', async () => {
     const details: string[] = [];
-    const { Kernel } = await import('../kernel/Kernel');
+    const { Kernel } = await import('../../kernel/Kernel');
     const kernel = new Kernel();
     const report = await kernel.boot();
 
@@ -375,7 +375,7 @@ async function main() {
   // Test 10: Dynamic - Capability Resolution
   await test('Test 10: Dynamic - Capability Resolution', async () => {
     const details: string[] = [];
-    const { Kernel } = await import('../kernel/Kernel');
+    const { Kernel } = await import('../../kernel/Kernel');
     const kernel = new Kernel();
     await kernel.boot();
 
