@@ -180,6 +180,12 @@ BeeHive/
 ├── case-studies/        # Casos de uso externos (exemplos de aplicações)
 ├── tools/               # CLI tools
 ├── runtime/             # Runtime Services (ProviderRegistry, ProviderRouter)
+├── ui/                  # Frontend (scaffolded)
+│   ├── areas/           # Feature areas (dashboard, conversa, projetos...)
+│   ├── components/      # UI components (Control Center, layouts, primitives)
+│   ├── stores/          # State management (control-center.ts)
+│   ├── services/        # API services (control-center-service.ts)
+│   └── hooks/           # Custom React hooks
 ├── tests/               # Tests organized by responsibility
 │   ├── architecture/    # Invariants (kernel-boundaries, provider-swap)
 │   ├── plugins/         # Plugin-specific tests
