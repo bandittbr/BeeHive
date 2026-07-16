@@ -46,6 +46,7 @@
 "health":  "npx tsx tools/health.ts",
 "browser:setup":  "npx tsx scripts/browser-setup.ts",
 "plugin:doctor":  "npx tsx tools/plugin-doctor.ts",
+"providers:list":  "npx tsx tools/providers-list.ts",
 "doctor":  "npx tsx tools/doctor.ts"
                 },
     "devDependencies":  {
