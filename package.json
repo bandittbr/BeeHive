@@ -28,7 +28,13 @@
                     "create:plugin":  "npx tsx scripts/create-plugin.ts",
                     "validate:plugin":  "npx tsx scripts/validate-plugin.ts",
                     "test:browser":  "npx tsx plugins/browser/tests/browser.test.ts",
-"workflow:studio":  "npx tsx tools/workflow-studio.ts"
+"workflow:studio":  "npx tsx tools/workflow-studio.ts",
+"test:workflows":  "npx tsx tests/workflows.test.ts",
+"example:hello":  "npx tsx examples/hello-workflow/run.ts",
+"example:summarize":  "npx tsx examples/summarize-website/run.ts",
+"example:youtube-script":  "npx tsx examples/youtube-script/run.ts",
+"example:daily-news":  "npx tsx examples/daily-news/run.ts",
+"example:research":  "npx tsx examples/research-company/run.ts"
                 },
     "devDependencies":  {
                             "concurrently":  "^8.2.2",

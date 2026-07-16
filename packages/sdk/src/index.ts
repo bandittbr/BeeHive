@@ -7,6 +7,7 @@ export { EventBuilder } from './event-builder';
 export { ArtifactBuilder } from './artifact-builder';
 
 export { WorkflowBuilder } from './workflow-builder';
+export { MockAdapter, MockCapability } from './mock-adapter';
 
 export type {
   ICapability, IPlugin, IArtifact,
