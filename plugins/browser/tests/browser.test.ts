@@ -146,6 +146,32 @@ async function main() {
     return !content.includes("../kernel") && !content.includes("kernel/");
   });
 
+  // Test 8: Readiness returns ready when chromium present
+  await assertAsync("Readiness returns ready", async () => {
+    const navigateCap = new (await import("../src/capabilities/browser.navigate")).BrowserNavigate();
+    const result = await navigateCap.readiness();
+    return result.status === 'ready';
+  });
+
+  // Test 9: Health returns healthy when chromium present
+  await assertAsync("Health returns healthy", async () => {
+    const navigateCap = new (await import("../src/capabilities/browser.navigate")).BrowserNavigate();
+    const result = await navigateCap.health();
+    return result.status === 'healthy';
+  });
+
+  // Test 10: Readiness/Health methods exist on all capabilities
+  const allCaps = [
+    new (await import("../src/capabilities/browser.navigate")).BrowserNavigate(),
+    new (await import("../src/capabilities/browser.scrape")).BrowserScrape(),
+    new (await import("../src/capabilities/browser.screenshot")).BrowserScreenshot(),
+  ];
+
+  for (const cap of allCaps) {
+    assert(cap.id + " has readiness()", () => typeof (cap as any).readiness === 'function');
+    assert(cap.id + " has health()", () => typeof (cap as any).health === 'function');
+  }
+
   // Test 7: SDK imports only
   assert("Only SDK imports in navigate", () => {
     

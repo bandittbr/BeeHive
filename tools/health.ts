@@ -1,7 +1,7 @@
 import { Kernel } from '../kernel/Kernel';
-import type { ICapability } from '@beehive/shared';
 import type { CapabilityEntry } from '@beehive/shared';
-import type { CapabilityResult, ExecutionContext, CapabilityReadiness } from '@beehive/sdk';
+import type { ICapability } from '@beehive/shared';
+import type { CapabilityReadiness, CapabilityHealth } from '@beehive/sdk';
 
 const GREEN = '\x1b[32m';
 const YELLOW = '\x1b[33m';
@@ -15,34 +15,30 @@ const CHECK = '\u2713';
 const CROSS = '\u2717';
 const WARN = '\u26A0';
 
-function readinessTag(r: CapabilityReadiness): string {
-  if (r.status === 'ready') return GREEN + CHECK + RESET;
-  if (r.status === 'degraded') return YELLOW + WARN + RESET;
-  return RED + CROSS + RESET;
+function tagR(r: CapabilityReadiness): string {
+  if (r.status === 'ready') return GREEN + CHECK + ' ready' + RESET;
+  if (r.status === 'degraded') return YELLOW + WARN + ' degraded' + RESET;
+  return RED + CROSS + ' unavailable' + RESET;
 }
 
-function readinessLabel(r: CapabilityReadiness): string {
-  if (r.status === 'ready') return GREEN + r.status + RESET;
-  if (r.status === 'degraded') return YELLOW + r.status + RESET;
-  return RED + r.status + RESET;
+function tagH(h: CapabilityHealth): string {
+  if (h.status === 'healthy') return GREEN + 'healthy' + RESET;
+  if (h.status === 'degraded') return YELLOW + 'degraded' + RESET;
+  return RED + 'error' + RESET;
 }
 
-async function checkReadiness(cap: ICapability): Promise<CapabilityReadiness> {
+async function getReadiness(cap: ICapability): Promise<CapabilityReadiness> {
   if (typeof (cap as any).readiness === 'function') {
-    try {
-      return await (cap as any).readiness();
-    } catch {
-      return { status: 'unavailable', reason: 'health check failed' };
-    }
+    try { return await (cap as any).readiness(); } catch { return { status: 'unavailable', reason: 'readiness check failed' }; }
   }
   return { status: 'ready' };
 }
 
-async function diagnose(cap: ICapability): Promise<{ readiness: CapabilityReadiness; latency: string }> {
-  const start = Date.now();
-  const readiness = await checkReadiness(cap);
-  const latency = (Date.now() - start) + 'ms';
-  return { readiness, latency };
+async function getHealth(cap: ICapability): Promise<CapabilityHealth> {
+  if (typeof (cap as any).health === 'function') {
+    try { return await (cap as any).health(); } catch { return { status: 'error', latency: 0, reason: 'health check failed' }; }
+  }
+  return { status: 'healthy', latency: 0 };
 }
 
 async function main() {
@@ -54,40 +50,49 @@ async function main() {
   await kernel.boot();
 
   const entries: CapabilityEntry[] = kernel.capabilities.list();
-  const counts = { ready: 0, degraded: 0, unavailable: 0 };
+  const rCount = { ready: 0, degraded: 0, unavailable: 0 };
+  const hCount = { healthy: 0, degraded: 0, error: 0 };
 
   for (const entry of entries) {
     const cap = entry.capability;
-    const { readiness, latency } = await diagnose(cap);
+    const readiness = await getReadiness(cap);
+    const health = await getHealth(cap);
 
-    if (readiness.status === 'ready') counts.ready++;
-    else if (readiness.status === 'degraded') counts.degraded++;
-    else counts.unavailable++;
+    if (readiness.status === 'ready') rCount.ready++;
+    else if (readiness.status === 'degraded') rCount.degraded++;
+    else rCount.unavailable++;
 
-    const tag = readinessTag(readiness);
-    const label = readinessLabel(readiness);
-    const lat = DIM + latency + RESET;
-    const plugin = DIM + entry.pluginId + RESET;
+    if (health.status === 'healthy') hCount.healthy++;
+    else if (health.status === 'degraded') hCount.degraded++;
+    else hCount.error++;
 
-    console.log('  ' + tag + ' ' + CYAN + cap.id + RESET);
-    console.log('    Plugin:  ' + plugin);
-    console.log('    Status:  ' + label + '  ' + lat);
+    const pluginStr = DIM + entry.pluginId + RESET;
 
+    console.log('  ' + CYAN + cap.id + RESET + '  ' + pluginStr + '  ' + DIM + health.latency + 'ms' + RESET);
+    console.log('    Readiness: ' + tagR(readiness));
+    console.log('    Health:    ' + tagH(health));
     if (readiness.status !== 'ready') {
-      console.log('    Reason:  ' + YELLOW + readiness.reason + RESET);
-      if (readiness.fix) {
-        console.log('    Fix:     ' + CYAN + readiness.fix + RESET);
-      }
+      console.log('    Reason:    ' + YELLOW + readiness.reason + RESET);
+      if (readiness.fix) console.log('    Fix:       ' + CYAN + readiness.fix + RESET);
+    }
+    if (health.status !== 'healthy' && health.reason) {
+      console.log('    Error:     ' + RED + health.reason + RESET);
+      if (health.fix) console.log('    Fix:       ' + CYAN + health.fix + RESET);
     }
     console.log();
   }
 
   console.log('  ' + BOLD + '\u2500'.repeat(47) + RESET);
-  const parts: string[] = [];
-  if (counts.ready > 0) parts.push(GREEN + counts.ready + ' ready' + RESET);
-  if (counts.degraded > 0) parts.push(YELLOW + counts.degraded + ' degraded' + RESET);
-  if (counts.unavailable > 0) parts.push(RED + counts.unavailable + ' unavailable' + RESET);
-  console.log('  ' + parts.join('  '));
+  const rParts: string[] = [];
+  if (rCount.ready > 0) rParts.push(GREEN + rCount.ready + ' ready' + RESET);
+  if (rCount.degraded > 0) rParts.push(YELLOW + rCount.degraded + ' degraded' + RESET);
+  if (rCount.unavailable > 0) rParts.push(RED + rCount.unavailable + ' unavailable' + RESET);
+  console.log('  Readiness: ' + rParts.join('  '));
+  const hParts: string[] = [];
+  if (hCount.healthy > 0) hParts.push(GREEN + hCount.healthy + ' healthy' + RESET);
+  if (hCount.degraded > 0) hParts.push(YELLOW + hCount.degraded + ' degraded' + RESET);
+  if (hCount.error > 0) hParts.push(RED + hCount.error + ' error' + RESET);
+  console.log('  Health:    ' + hParts.join('  '));
   console.log('  ' + DIM + entries.length + ' total capabilities' + RESET);
   console.log();
 

@@ -41,7 +41,8 @@
 "benchmark:dx":  "npx tsx tools/measure-dx.ts",
 "health":  "npx tsx tools/health.ts",
 "browser:setup":  "npx tsx scripts/browser-setup.ts",
-"plugin:doctor":  "npx tsx tools/plugin-doctor.ts"
+"plugin:doctor":  "npx tsx tools/plugin-doctor.ts",
+"doctor":  "npx tsx tools/doctor.ts"
                 },
     "devDependencies":  {
                             "concurrently":  "^8.2.2",

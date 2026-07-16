@@ -1,5 +1,5 @@
 import { Capability, ArtifactBuilder, EventBuilder } from "@beehive/sdk";
-import type { CapabilityInput, CapabilityOutput, CapabilityResult, ExecutionContext } from "@beehive/sdk";
+import type { CapabilityInput, CapabilityOutput, CapabilityResult, ExecutionContext, CapabilityHealth } from "@beehive/sdk";
 import { PlaywrightAdapter } from "../playwright.adapter";
 
 const adapter = new PlaywrightAdapter();
@@ -15,6 +15,17 @@ export class BrowserNavigate extends Capability {
     { name: "title", type: "string", description: "Titulo da pagina" },
     { name: "url", type: "string", description: "URL final apos redirects" },
   ];
+
+  async health(): Promise<CapabilityHealth> {
+    const start = Date.now();
+    try {
+      const page = await adapter.newPage();
+      await page.close();
+      return { status: 'healthy', latency: Date.now() - start };
+    } catch (e: any) {
+      return { status: 'error', latency: Date.now() - start, reason: e.message, fix: 'pnpm browser:setup' };
+    }
+  }
 
   async readiness(): Promise<import('@beehive/sdk').CapabilityReadiness> {
     const health = await adapter.healthCheck();

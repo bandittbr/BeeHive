@@ -16,6 +16,13 @@
 7. [Diret�rios](#7-diret�rios)
 8. [Contratos](#8-contratos)
 9. [Regras de Ouro](#9-regras-de-ouro)
+10. [Regra do Kernel Congelado](#10-regra-do-kernel-congelado)
+11. [Gatilhos de Arquitetura](#11-gatilhos-de-arquitetura)
+12. [Policy Engine (conceito)](#12-policy-engine-conceito)
+13. [Ecossistema: SDK como API Pública](#13-ecossistema--sdk-como-api-pública)
+14. [Fim da Arquitetura. Início do Ecossistema.](#14-fim-da-arquitetura-início-do-ecossistema)
+15. [Domain Isolation Rule](#15-domain-isolation-rule)
+16. [Plugin Lifecycle](#16-plugin-lifecycle)
 
 ---
 
@@ -584,3 +591,107 @@ Se uma capability nova parece específica de um domínio, pergunte:
 
 1. Essa capability serve para **qualquer** aplicação? → Vai para `plugins/`
 2. Essa capability só serve para **um** domínio? → Vai para a aplicação externa ou `examples/integrations/`
+
+---
+
+## 16. Plugin Lifecycle
+
+Cada plugin BeeHive passa por um ciclo de vida gerenciado em 7 estágios:
+
+```
+ 1. Discovery
+    |
+ 2. Registration
+    |
+ 3. Validation
+    |
+ 4. Readiness Check  ← separado de Health
+    |
+ 5. Activation
+    |
+ 6. Execution
+    |
+ 7. Health Monitoring  ← separado de Readiness
+    |
+ 8. Shutdown
+```
+
+### 16.1 Discovery
+
+O PluginRegistry varre `plugins/*/src/manifest.yaml` e registra automaticamente.
+Plugins externos podem ser adicionados via configuração.
+
+### 16.2 Registration
+
+O plugin informa suas capabilities ao `ICapabilityRegistry`.
+A partir deste momento, o Kernel sabe que a capability existe — mas **não a executa** até o readiness check.
+
+### 16.3 Validation
+
+O manifesto é validado: nome, versão, capabilities declaradas têm implementação,
+adapters existem, permissões são registradas. → `pnpm test:architecture` (Test 1, 2)
+
+### 16.4 Readiness Check
+
+O plugin responde: *"Você está preparado para funcionar?"*
+
+```
+CapabilityReadiness:
+  ready       → pode executar agora
+  degraded    → funciona com limitações (ex: cache frio)
+  unavailable → não pode executar (ex: Chromium ausente)
+```
+
+Readiness é **assíncrono** e verifica dependências do ambiente (binários, runtime, memória).
+O Kernel NÃO resolve dependências — apenas pergunta e recebe `ready | degraded | unavailable`.
+
+### 16.5 Activation
+
+`activate(ctx)` é chamado. O plugin inicializa suas capabilities, conecta adapters,
+registra eventos. Após activation, o plugin está ativo e abilities podem ser executadas.
+
+### 16.6 Execution
+
+Capabilities são executadas sob demanda via `capability.execute(params, ctx)`.
+O ExecutionContext provê logger, eventos, IA, memória, storage, config, permissões.
+
+### 16.7 Health Monitoring
+
+Separado de Readiness. Health pergunta: *"Está funcionando agora?"*
+
+```
+Readiness: "Chromium está instalado?"
+Health:    "browser.scrape respondeu em 350ms?"
+```
+
+O Health Dashboard executa diagnóstico ao vivo em cada capability.
+
+### 16.8 Shutdown
+
+`deactivate()` é chamado. Conexões são fechadas, recursos liberados.
+
+### Responsabilidades
+
+```
+Kernel:       orquestra o ciclo de vida, pergunta readiness
+              NUNCA instala dependências
+Plugin:       declara requisitos no manifest.yaml
+              implementa readiness() e health check próprio
+              resolve seu próprio ambiente
+Lifecycle Manager: (futuro) automatiza setup/install baseado no manifesto
+```
+
+### Exemplo: Browser Plugin
+
+```
+1. Discovery     → plugins/browser/src/manifest.yaml encontrado
+2. Registration  → browser.navigate, browser.scrape, browser.screenshot
+3. Validation    → 3 .ts files existem, manifest OK
+4. Readiness     → healthCheck() detecta Chromium
+                     presente  → ready
+                     ausente   → unavailable + fix: "pnpm browser:setup"
+5. Activation    → PlaywrightAdapter inicializado
+6. Execution     → capabilities executam via Playwright
+7. Health        → Health Dashboard monitora latência
+8. Shutdown      → browser.close()
+```
