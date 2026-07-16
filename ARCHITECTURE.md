@@ -314,3 +314,173 @@ beehive/
 8. **Trocar adapter = nada muda acima.**
 9. **Kernel descobre plugins dinamicamente via manifesto.**
 10. **BeeHive é Workflows + Agentes, não Chat.**
+
+---
+
+## 9. Resource Manager (Gerencia Tudo)
+
+Cada plugin não gerencia seus próprios recursos. O Kernel gerencia.
+
+```
+Kernel
+ +-- ResourceManager
+       +-- BrowserPool      ? Playwright, Puppeteer, BrowserUse
+       +-- ModelPool        ? LLMs carregados em memória
+       +-- GPUPool          ? Alocação de GPU entre plugins
+       +-- EmbeddingPool    ? Serviços de embedding compartilhados
+       +-- FileCache        ? Cache de arquivos (LRU)
+       +-- TempFiles        ? Arquivos temporários com cleanup
+       +-- DownloadManager  ? Downloads com fila e progresso
+       +-- ProcessManager   ? Processos filhos (FFmpeg, Python...)
+```
+
+---
+
+## 10. Artifact: Tudo que o BeeHive Produz
+
+Toda saída de uma capability é um **Artifact**. Isso padroniza o encadeamento.
+
+```
+Prompt (Artifact)
+  ? Video Capability
+Video (Artifact)
+  ? Thumbnail Capability
+Thumbnail (Artifact)
+  ? Publish Capability
+Published URL (Artifact)
+```
+
+Tipos: image, video, audio, document, markdown, json, transcript, thumbnail, dataset, prompt, workflow...
+
+---
+
+## 11. Capability vs Tool (Separação Definitiva)
+
+| Camada | Exemplo | Descrição |
+|--------|---------|-----------|
+| **Capability** | `generate_video` | **O que** fazer |
+| **Plugin** | VideoPlugin | Agrupa capabilities |
+| **Adapter** | MoneyPrinterTurbo | **Como** fazer |
+| **Tool** | Playwright | Ferramenta concreta usada pelo adapter |
+| **Provider** | OpenAI | Serviço externo |
+
+Capability: "Quero gerar um vídeo" (o que)
+Tool: "Usar Playwright para navegar" (como)
+
+Isso permite trocar completamente a implementação sem mudar o contrato.
+
+---
+
+## 12. Execution Context (Rastreabilidade)
+
+Cada execução carrega um contexto único:
+
+```
+ExecutionContext
+  +-- requestId         ? ID único da requisição
+  +-- correlationId     ? Encadeamento entre eventos
+  +-- causationId       ? Quem causou esta execução
+  +-- workflowId        ? Workflow atual
+  +-- agentId           ? Agente atual
+  +-- userId            ? Usuário dono
+  +-- workspaceId       ? Workspace
+  +-- projectId         ? Projeto
+  +-- permissions       ? Permissões válidas
+  +-- memoryScope       ? Escopo de memória
+  +-- log               ? Logger da execução
+  +-- metrics           ? Métricas da execução
+```
+
+---
+
+## 13. Observability (Tracing)
+
+```
+Workflow #91
+  ? Span: "generate_video"
+    ? Span: "renderizar_cenas"
+      ? Span: "ffmpeg_exec"     ? erro aqui
+    ? Span: "gerar_thumbnail"
+      ? Span: "comfyui_api"
+    ? Span: "upload_youtube"
+```
+
+Cada capability, adapter e provider gera spans. Quando algo falha, você vê exatamente onde.
+
+---
+
+## 14. Knowledge Graph (Relações)
+
+```
+Projeto "Estudo OAB"
+  +-- Video "Direito Civil - Aula 1"
+  ¦     +-- Thumbnail "thumb_civil_1.jpg"
+  ¦     +-- Post "Resumo Direito Civil"
+  +-- Agent "Revisor OAB"
+  ¦     +-- Workflow "Revisão Semanal"
+  ¦           +-- Usou modelo Gemini
+  +-- Arquivo "cronograma_oab.pdf"
+
+Consulta: "Quais workflows usaram Gemini no projeto OAB?"
+Resposta: Workflow "Revisão Semanal" via Agent "Revisor OAB"
+```
+
+---
+
+## 15. Roadmap (3 Plugins Primeiro)
+
+Validar a arquitetura com 3 plugins de ponta a ponta ANTES de construir o resto.
+
+### Fase 1: Chat Plugin (Semanas 1-2)
+```
+Kernel ? PluginRegistry ? PluginManager
+  ? ChatPlugin
+    ? ProviderManager ? Ollama (local) / OpenAI / Gemini
+  ? UI: Conversa
+  ? Valida: EventBus, PluginContext, AI Service, Container
+```
+
+### Fase 2: Browser Plugin (Semanas 3-4)
+```
+Kernel ? ResourceManager ? BrowserPool
+  ? BrowserPlugin
+    ? Playwright
+  ? UI: Automações
+  ? Valida: ResourceManager, CapabilityRegistry
+```
+
+### Fase 3: Content Plugin (Semanas 5-6)
+```
+WorkflowRuntime
+  ? Chat Capability (roteiro)
+  ? Image Capability (thumbnail)
+  ? Browser Capability (pesquisa)
+  ? Video Capability (shorts)
+  ? UI: Conteúdo
+  ? Valida: WorkflowRuntime, Artifact, ExecutionContext
+```
+
+### Depois (Semanas 7+)
+```
+AgentRuntime, Scheduler, KnowledgeGraph,
+Marketplace, mais plugins...
+```
+
+---
+
+## 16. Regras de Ouro (Versão Final)
+
+1. **Kernel** é a única parte que conhece o estado global.
+2. **Plugins** nunca conversam entre si. Só via EventBus.
+3. **Plugins** não enxergam o Kernel. Só PluginContext.
+4. **PluginContext** expõe APENAS o que o plugin precisa.
+5. **Workflow** conhece capabilities, não plugins.
+6. **Capability** é a menor unidade funcional.
+7. **Tool** é separado de Capability. Tool é o *como*.
+8. **Tudo** que o sistema produz é um Artifact.
+9. **ResourceManager** gerencia recursos. Plugin não gerencia nada.
+10. **Trocar adapter** = nada muda acima.
+11. **Kernel** descobre plugins dinamicamente via manifesto.
+12. **3 plugins primeiro.** Validar antes de expandir.
+13. **Tudo implementa interfaces.** Nada concreto.
+14. **Observabilidade** desde o dia 1 (tracing, logs, metrics).

@@ -1,4 +1,4 @@
-export { ICapability, CapabilityInput, CapabilityOutput, ExecutionContext, CapabilityResult } from './ICapability';
+export { ICapability, CapabilityInput, CapabilityOutput, ExecutionContext as CapabilityExecutionContext, CapabilityResult } from './ICapability';
 export { IPlugin, PluginManifest, PluginContext } from './IPlugin';
 export { ICapabilityRegistry, CapabilityEntry } from './ICapabilityRegistry';
 export { IEventBus, Event, EventHandler, Subscription } from './IEventBus';
@@ -15,3 +15,9 @@ export { IConfigService } from './IConfigService';
 export { IMetricsCollector } from './IMetricsCollector';
 export { ISecretsManager } from './ISecretsManager';
 export { IWorkflowService } from './IWorkflowService';
+export { IArtifact, ArtifactType, ArtifactRef, IArtifactStore } from './IArtifact';
+export { IResourceManager, ResourceStatus, ResourceUsage, IBrowserPool, IBrowserInstance, IModelPool, IGPUPool, IEmbeddingPool, IEmbeddingService, IFileCache, ITempFiles, IDownloadManager, DownloadStatus, IProcessManager, IProcess, IProcessInfo } from './IResourceManager';
+export { IExecutionContext, IExecutionLogger, IExecutionMetrics, IContextFactory, ContextOptions } from './IExecutionContext';
+export { ITracing, ISpan, SpanStatus, SpanOptions, ITraceExporter, SpanData } from './ITracing';
+export { IKnowledgeGraph, GraphNode, GraphEdge, GraphQuery, GraphResult } from './IKnowledgeGraph';
+export { ITool, ToolParameter, ToolCategory, ToolResult } from './ITool';
