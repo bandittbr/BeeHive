@@ -84,14 +84,43 @@ pnpm test:workflows     3.0s (7 workflows, 14 assertions)
 
 ---
 
-## Sprint 6 — Adapters Reais
+## Sprint 6 — Real Capability Providers
 
-| Capability | Adapter alvo | Prioridade |
-|------------|-------------|------------|
-| `chat.generate` | OpenRouter / Gemini API | Alta |
-| `image.generate` | Stability AI / Replicate | Alta |
-| `browser.scrape` | Playwright (já existe) | ✅ |
-| `video.generate` | FFmpeg + TTS engine | Média |
+> Objetivo: Trocar mocks por implementações reais **sem mudar nada acima**.
+>
+> Prova de ouro: workflow, app, SDK e Kernel permanecem idênticos.
+
+### Estrutura de Providers
+
+```
+providers/
+ ├── ai/
+ │    ├── openai           → chat.generate
+ │    ├── ollama           → chat.generate
+ │    └── anthropic        → chat.generate
+ │
+ ├── browser/
+ │    └── playwright       → browser.scrape (já existe)
+ │
+ └── storage/
+      ├── filesystem
+      └── s3
+```
+
+### Entregas
+
+| Entrega | Descrição | Status |
+|---------|-----------|--------|
+| P1 | Provider Registry — estrutura para múltiplos motores por capability | ⏳ |
+| P2 | `chat.generate` com provider real (OpenRouter/Gemini API) | ⏳ |
+| P3 | `pnpm test:workflows` continua 14/14 com providers reais | ⏳ |
+| P4 | Nenhuma alteração em Kernel, SDK, ou workflows existentes | ⏳ |
+| P5 | Capability Health Dashboard | ⏳ |
+
+### Regra
+
+> Esta Sprint termina quando um workflow executado com mocks produz o mesmo resultado com providers reais,
+> sem que nenhuma linha de código acima do provider tenha sido alterada.
 
 ---
 
@@ -117,10 +146,11 @@ Tudo rastreável, reproduzível, editável depois.
 | Workflow Runtime | funcional | ✅ implementado |
 | Workflow Tests | 14+ | ✅ 14/14 |
 | Examples (generic) | 5+ executáveis | ✅ 5 |
-| Examples (generic) | 5+ executáveis | ✅ 5 |
 | Examples (integrations) | 2+ (app + plugin externos) | ✅ hello-world-app + weather-plugin |
 | External app sem importar Kernel | funcional | ✅ hello-world-app |
 | External plugin descoberto | funcional | ✅ weather.current |
+| Ecosystem Proof | validado | ✅ Sprint 5 |
+| Capability Health Dashboard | implementado | ⏳ Sprint 6 |
 | Plugin creation time | < 30 min | ✅ < 5 min |
 | Public API documentada | public-api.md, sdk-reference.md, compatibility.md | ✅ |
 | Benchmark | documentado | ✅ benchmarks/ |

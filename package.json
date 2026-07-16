@@ -38,7 +38,8 @@
 "example:hello-app":  "npx tsx examples/integrations/hello-world-app/index.ts",
 "example:weather":  "npx tsx examples/integrations/external-weather-plugin/run.ts",
 "benchmark":  "npx tsx tools/benchmark.ts",
-"benchmark:dx":  "npx tsx tools/measure-dx.ts"
+"benchmark:dx":  "npx tsx tools/measure-dx.ts",
+"health":  "npx tsx tools/health.ts"
                 },
     "devDependencies":  {
                             "concurrently":  "^8.2.2",
