@@ -1,9 +1,8 @@
-// Control Center Layout — conectado ao Kernel via BeeHive Bridge
+// Control Center — Design limpo, sidebar retrátil, artifacts colapsável
 import { useState, useEffect, useCallback } from 'react';
 import { BeeHiveBridge } from '../../services/beehive-bridge';
 import { ControlCenterService } from '../../services/control-center-service';
 
-// Singleton bridge + service
 const bridge = new BeeHiveBridge();
 let service: ControlCenterService | null = null;
 
@@ -16,7 +15,7 @@ export function initControlCenter(kernel: any, providerRegistry: any) {
 
 export function useControlCenter() {
   if (!service) {
-    throw new Error('Control Center não inicializado. Chame initControlCenter(kernel, providerRegistry) primeiro.');
+    throw new Error('Control Center not initialized. Call initControlCenter(kernel, providerRegistry) first.');
   }
   return service;
 }
@@ -36,10 +35,11 @@ const SECTIONS = [
 ];
 
 export function ControlCenter() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [artifactsOpen, setArtifactsOpen] = useState(true);
   const [activeSection, setActiveSection] = useState('general');
   const svc = useControlCenter();
 
-  // Carregar dados de cada seção
   const [general, setGeneral] = useState(svc.getGeneral());
   const [profile, setProfile] = useState(svc.getProfile());
   const [memory, setMemory] = useState(svc.getMemory());
@@ -50,7 +50,6 @@ export function ControlCenter() {
   const [permissions, setPermissions] = useState(svc.getPermissions());
   const [system, setSystem] = useState(svc.getSystem());
 
-  // Recarregar quando o serviço notificar mudanças
   const refresh = useCallback(() => {
     setGeneral(svc.getGeneral());
     setProfile(svc.getProfile());
@@ -67,40 +66,82 @@ export function ControlCenter() {
     return svc.subscribe(refresh);
   }, [svc, refresh]);
 
+  const currentLabel = SECTIONS.find(s => s.id === activeSection)?.label || '';
+
   return (
-    <div className="control-center">
+    <div className={`control-center${!sidebarOpen ? ' sidebar-collapsed' : ''}`}>
+      {/* Sidebar */}
       <aside className="control-center-sidebar">
-        <h2 className="control-center-title">Control Center</h2>
-        <nav>
+        <div className="sidebar-header">
+          <span className="control-center-title">Control Center</span>
+          <button className="sidebar-toggle" onClick={() => setSidebarOpen(false)} title="Collapse sidebar">
+            ◀
+          </button>
+        </div>
+        <nav className="sidebar-nav">
           {SECTIONS.map(section => (
             <button
               key={section.id}
-              className={`control-center-nav-item${activeSection === section.id ? ' active' : ''}`}
+              className={`nav-item${activeSection === section.id ? ' active' : ''}`}
               onClick={() => setActiveSection(section.id)}
             >
-              <span className="control-center-icon">{section.icon}</span>
+              <span className="icon">{section.icon}</span>
               <span>{section.label}</span>
             </button>
           ))}
         </nav>
       </aside>
-      <main className="control-center-panel">
-        {renderSection(activeSection, { general, profile, memory, models, chat, agents, skills, permissions, system })}
-      </main>
+
+      {/* Expand sidebar button when collapsed */}
+      {!sidebarOpen && (
+        <button
+          className="sidebar-expand"
+          onClick={() => setSidebarOpen(true)}
+          title="Show sidebar"
+        >
+          ▶
+        </button>
+      )}
+
+      {/* Main content */}
+      <div className="control-center-panel">
+        <div className="panel-toolbar">
+          <span className="panel-title">{currentLabel}</span>
+          <div className="panel-actions">
+            <button className="panel-btn" onClick={() => setArtifactsOpen(!artifactsOpen)}>
+              {artifactsOpen ? 'Hide Artifacts' : 'Show Artifacts'}
+            </button>
+          </div>
+        </div>
+        <div className="panel-body">
+          {renderSection(activeSection, { general, profile, memory, models, chat, agents, skills, permissions, system })}
+        </div>
+      </div>
+
+      {/* Artifacts panel */}
+      <div className={`artifacts-panel${!artifactsOpen ? ' collapsed' : ''}`}>
+        <div className="artifacts-header">
+          <span className="artifacts-title">Artifacts</span>
+          <button className="artifacts-close" onClick={() => setArtifactsOpen(false)} title="Close artifacts">✕</button>
+        </div>
+        <div className="artifacts-body">
+          <p className="placeholder-text">Run a workflow to see artifacts here.</p>
+        </div>
+      </div>
     </div>
   );
 }
 
 function renderSection(section: string, data: any) {
   switch (section) {
-    case 'general': return <GeneralSection data={data.general} onSave={(updates) => useControlCenter().updateGeneral(updates)} />;
-    case 'profile': return <ProfileSection data={data.profile} onSave={(updates) => useControlCenter().updateProfile(updates)} />;
-    case 'memory': return <MemorySection data={data.memory} onSave={(updates) => useControlCenter().updateMemory(updates)} />;
-    case 'models': return <ModelsSection data={data.models} onSave={(updates) => useControlCenter().updateModels(updates)} />;
-    case 'chat': return <ChatSection data={data.chat} onSave={(updates) => useControlCenter().updateChat(updates)} />;
+    case 'general': return <GeneralSection data={data.general} onSave={(u) => useControlCenter().updateGeneral(u)} />;
+    case 'profile': return <ProfileSection data={data.profile} onSave={(u) => useControlCenter().updateProfile(u)} />;
+    case 'memory': return <MemorySection data={data.memory} onSave={(u) => useControlCenter().updateMemory(u)} />;
+    case 'models': return <ModelsSection data={data.models} onSave={(u) => useControlCenter().updateModels(u)} />;
+    case 'chat': return <ChatSection data={data.chat} onSave={(u) => useControlCenter().updateChat(u)} />;
     case 'agents': return <AgentsSection data={data.agents} />;
     case 'skills': return <SkillsSection data={data.skills} />;
-    case 'permissions': return <PermissionsSection data={data.permissions} onSave={(updates) => useControlCenter().updatePermissions(updates)} />;
+    case 'permissions': return <PermissionsSection data={data.permissions} onSave={(u) => useControlCenter().updatePermissions(u)} />;
     case 'keyboard': return <KeyboardSection />;
     case 'archived': return <ArchivedSection />;
     case 'system': return <SystemSection data={data.system} />;
@@ -108,7 +149,7 @@ function renderSection(section: string, data: any) {
   }
 }
 
-// --- Section Components ---
+// --- Sections ---
 
 function GeneralSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   return (
@@ -251,7 +292,10 @@ function ChatSection({ data, onSave }: { data: any; onSave: (u: any) => void }) 
     <div className="section">
       <h3>Chat</h3>
       <div className="form-group">
-        <label>Temperature: {data.temperature}</label>
+        <label>
+          Temperature
+          <span className="range-value">{data.temperature}</span>
+        </label>
         <input type="range" min={0} max={2} step={0.1} value={data.temperature} onChange={e => onSave({ temperature: parseFloat(e.target.value) })} />
       </div>
       <div className="form-group">
