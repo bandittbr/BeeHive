@@ -2,6 +2,11 @@
 
 Sistema Operacional de Inteligência Artificial — modular, extensível por plugins, com workflows como dados.
 
+> **Arquitetura:** `architecture-v1.0` (stable)
+> **Próxima release:** `developer-preview-v0.1` (produto, não arquitetura)
+>
+> Missão da fase atual: **Toda nova feature deve aumentar o poder do BeeHive sem aumentar a complexidade do Kernel.**
+
 ## Fase atual: Execution
 
 O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor entregue**, não por arquitetura.
@@ -26,6 +31,16 @@ O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor ent
 > - Adiciona um plugin?
 > - Melhora uma capability existente?
 > - Melhora a experiência do usuário?
+
+### Critério de sucesso
+
+> O sucesso não é mais "arquitetura limpa". É "usuário consegue resolver um problema real".
+>
+> Exemplos:
+> - Consegui conectar OpenRouter em 5 minutos
+> - Consegui criar um plugin novo em 30 minutos
+> - Consegui montar um workflow útil sem tocar no Kernel
+> - Consegui trocar de Ollama para Gemini alterando apenas a configuração
 
 ### Métricas de progresso
 
