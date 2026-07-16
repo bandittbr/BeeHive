@@ -12,6 +12,11 @@ O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor ent
 > O SDK continua estável.
 > A arquitetura só muda se um Hard Invariant realmente exigir.
 
+### Architecture Budget
+
+> Em cada sprint, no máximo **10%** do esforço pode ser gasto em infraestrutura.
+> Os outros **90%** devem entregar capabilities, providers, plugins ou aplicações que gerem valor ao usuário.
+
 ### Métricas de progresso
 
 | Métrica | Atual | Meta |
@@ -26,9 +31,9 @@ O BeeHive encerrou a fase de fundação. Agora medimos progresso por **valor ent
 
 ```
 Fase 1  Arquitetura    ✅ concluída
-Fase 2  Validação      ✅ concluída
-Fase 3  Ecossistema    ✅ iniciada
-Fase 4  Cap. Reais     ⬅️ AQUI
+Fase 2  Governança     ✅ concluída
+Fase 3  Plataforma     ✅ concluída
+Fase 4  Ecossistema    ⬅️ AQUI
 Fase 5  Aplicações     ⏳
 ```
 
@@ -44,6 +49,21 @@ Fase 5  Aplicações     ⏳
 | Architecture | ✅ Frozen |
 | Real Providers | 🚧 In Progress |
 | Agent Runtime | ⏳ Planned |
+
+## Maturidade das Capabilities
+
+| Capability | Estado |
+|------------|--------|
+| chat.generate | 🟢 Production (mock) |
+| memory.search | 🟢 Production (mock) |
+| tool.execute | 🟢 Production (mock) |
+| browser.navigate | 🟢 Production (playwright) |
+| browser.scrape | 🟢 Production (playwright) |
+| browser.screenshot | 🟢 Production (playwright) |
+| weather.current | 🟢 Production (mock) |
+| image.generate | 🟡 Planned |
+| video.generate | 🟡 Planned |
+| audio.generate | ⚪ Not Started |
 
 ## Regra
 
