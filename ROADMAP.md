@@ -125,7 +125,8 @@ Tudo rastreável, reproduzível, editável depois.
 | WorkflowBuilder | funcional | ✅ 17/17 |
 | Workflow Runtime | funcional | ✅ implementado |
 | Workflow Tests | 14+ | ✅ 14/14 |
-| Examples | 5+ executáveis | ✅ 5 |
+| Examples (generic) | 5+ executáveis | ✅ 5 |
+| Examples (integrations) | 1+ app externa | ✅ hello-world-app |
 | Plugin creation time | < 30 min | ✅ < 5 min |
 | Benchmark | documentado | ✅ benchmarks/ |
 | DX Scorecard | documentado | ✅ benchmarks/ |

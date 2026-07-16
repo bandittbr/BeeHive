@@ -1,19 +1,19 @@
-# ?? BeeHive OS ó AI Operating System
+# ?? BeeHive OS ÔøΩ AI Operating System
 
-> **Arquitetura em 6 camadas. Kernel mÌnimo. SDK p˙blico.**
-> A menor unidade funcional È uma **Capability**.
+> **Arquitetura em 6 camadas. Kernel mÔøΩnimo. SDK pÔøΩblico.**
+> A menor unidade funcional ÔøΩ uma **Capability**.
 
 ---
 
-## Õndice
+## ÔøΩndice
 
 1. [Arquitetura](#1-arquitetura)
-2. [Kernel (MÌnimo Vi·vel)](#2-kernel-mÌnimo-vi·vel)
+2. [Kernel (MÔøΩnimo ViÔøΩvel)](#2-kernel-mÔøΩnimo-viÔøΩvel)
 3. [SDK (@beehive/sdk)](#3-sdk-beehivesdk)
 4. [Foundation Plugin](#4-foundation-plugin)
-5. [Ordem de ImplementaÁ„o](#5-ordem-de-implementaÁ„o)
+5. [Ordem de ImplementaÔøΩÔøΩo](#5-ordem-de-implementaÔøΩÔøΩo)
 6. [Teste Definitivo da Arquitetura](#6-teste-definitivo-da-arquitetura)
-7. [DiretÛrios](#7-diretÛrios)
+7. [DiretÔøΩrios](#7-diretÔøΩrios)
 8. [Contratos](#8-contratos)
 9. [Regras de Ouro](#9-regras-de-ouro)
 
@@ -23,82 +23,82 @@
 
 ```
 +----------------------------------------------------------------------+
-¶                              UI                                       ¶
-¶  React / Next.js. SÛ renderiza.                                     ¶
+ÔøΩ                              UI                                       ÔøΩ
+ÔøΩ  React / Next.js. SÔøΩ renderiza.                                     ÔøΩ
 +----------------------------------------------------------------------+
-                            ¶ HTTP / WS
+                            ÔøΩ HTTP / WS
 +----------------------------------------------------------------------+
-¶                       APPLICATION LAYER                               ¶
-¶  Casos de uso (CreateVideoUseCase, ChatUseCase...)                   ¶
+ÔøΩ                       APPLICATION LAYER                               ÔøΩ
+ÔøΩ  Casos de uso (CreateVideoUseCase, ChatUseCase...)                   ÔøΩ
 +----------------------------------------------------------------------+
-                            ¶ CommandBus
+                            ÔøΩ CommandBus
 +----------------------------------------------------------------------+
-¶                            KERNEL (mÌnimo)                           ¶
-¶                                                                      ¶
-¶  ATIVOS (Fase 1):                                                    ¶
-¶  +----------+ +----------+ +--------------+ +------------------+   ¶
-¶  ¶ Container¶ ¶EventBus  ¶ ¶PluginRegistry ¶ ¶CapabilityRegistry¶   ¶
-¶  ¶ (DI)     ¶ ¶(Eventos) ¶ ¶(Descoberta)   ¶ ¶(Quem sabe X?)   ¶   ¶
-¶  +----------+ +----------+ +--------------+ +------------------+   ¶
-¶  +----------+ +----------+                                          ¶
-¶  ¶ Logger   ¶ ¶  Config  ¶                                          ¶
-¶  +----------+ +----------+                                          ¶
-¶                                                                      ¶
-¶  NOT YET (Fase 2+):                                                  ¶
-¶  Scheduler  ¶ WorkflowRuntime ¶ AgentRuntime ¶ ResourceManager      ¶
-¶  KnowledgeGraph ¶ Secrets ¶ Metrics ¶ Permissions ¶ Memory          ¶
-¶                                                                      ¶
-¶  SÛ implementamos quando o primeiro plugin precisar.                 ¶
+ÔøΩ                            KERNEL (mÔøΩnimo)                           ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  ATIVOS (Fase 1):                                                    ÔøΩ
+ÔøΩ  +----------+ +----------+ +--------------+ +------------------+   ÔøΩ
+ÔøΩ  ÔøΩ ContainerÔøΩ ÔøΩEventBus  ÔøΩ ÔøΩPluginRegistry ÔøΩ ÔøΩCapabilityRegistryÔøΩ   ÔøΩ
+ÔøΩ  ÔøΩ (DI)     ÔøΩ ÔøΩ(Eventos) ÔøΩ ÔøΩ(Descoberta)   ÔøΩ ÔøΩ(Quem sabe X?)   ÔøΩ   ÔøΩ
+ÔøΩ  +----------+ +----------+ +--------------+ +------------------+   ÔøΩ
+ÔøΩ  +----------+ +----------+                                          ÔøΩ
+ÔøΩ  ÔøΩ Logger   ÔøΩ ÔøΩ  Config  ÔøΩ                                          ÔøΩ
+ÔøΩ  +----------+ +----------+                                          ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  NOT YET (Fase 2+):                                                  ÔøΩ
+ÔøΩ  Scheduler  ÔøΩ WorkflowRuntime ÔøΩ AgentRuntime ÔøΩ ResourceManager      ÔøΩ
+ÔøΩ  KnowledgeGraph ÔøΩ Secrets ÔøΩ Metrics ÔøΩ Permissions ÔøΩ Memory          ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  SÔøΩ implementamos quando o primeiro plugin precisar.                 ÔøΩ
 +----------------------------------------------------------------------+
-                            ¶ resolve()
+                            ÔøΩ resolve()
 +----------------------------------------------------------------------+
-¶                           PLUGINS                                     ¶
-¶  Conjuntos de capabilities. Nunca conversam entre si.                ¶
-¶                                                                      ¶
-¶  FOUNDATION (Fase 1)                                                 ¶
-¶  +-- chat.generate     ? OpenRouter ? Provider ? Artifact(Markdown) ¶
-¶  +-- memory.search     ? Memory ? Artifact(JSON)                    ¶
-¶  +-- tool.execute      ? ToolRegistry ? Artifact(JSON)              ¶
-¶                                                                      ¶
-¶  BROWSER (Fase 2)                                                    ¶
-¶  +-- browser.navigate                                                 ¶
-¶  +-- browser.scrape                                                   ¶
-¶  +-- browser.screenshot                                               ¶
-¶                                                                      ¶
-¶  CONTENT (Fase 3)                                                    ¶
-¶  +-- Roteiro ? Imagem ? VÌdeo ? PublicaÁ„o                          ¶
-¶                                                                      ¶
-¶  Depois: video, image, coding, research, marketing, finance          ¶
+ÔøΩ                           PLUGINS                                     ÔøΩ
+ÔøΩ  Conjuntos de capabilities. Nunca conversam entre si.                ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  FOUNDATION (Fase 1)                                                 ÔøΩ
+ÔøΩ  +-- chat.generate     ? OpenRouter ? Provider ? Artifact(Markdown) ÔøΩ
+ÔøΩ  +-- memory.search     ? Memory ? Artifact(JSON)                    ÔøΩ
+ÔøΩ  +-- tool.execute      ? ToolRegistry ? Artifact(JSON)              ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  BROWSER (Fase 2)                                                    ÔøΩ
+ÔøΩ  +-- browser.navigate                                                 ÔøΩ
+ÔøΩ  +-- browser.scrape                                                   ÔøΩ
+ÔøΩ  +-- browser.screenshot                                               ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  CONTENT (Fase 3)                                                    ÔøΩ
+ÔøΩ  +-- Roteiro ? Imagem ? VÔøΩdeo ? PublicaÔøΩÔøΩo                          ÔøΩ
+ÔøΩ                                                                      ÔøΩ
+ÔøΩ  Depois: video, image, coding, research, marketing, finance          ÔøΩ
 +----------------------------------------------------------------------+
-                            ¶ implementa
+                            ÔøΩ implementa
 +----------------------------------------------------------------------+
-¶                          ADAPTERS                                     ¶
-¶  GitHub repos adaptados. Trocar = nada muda acima.                  ¶
-¶  OpenRouter  ¶ OpenAI  ¶ Ollama  ¶ Playwright  ¶ ComfyUI            ¶
+ÔøΩ                          ADAPTERS                                     ÔøΩ
+ÔøΩ  GitHub repos adaptados. Trocar = nada muda acima.                  ÔøΩ
+ÔøΩ  OpenRouter  ÔøΩ OpenAI  ÔøΩ Ollama  ÔøΩ Playwright  ÔøΩ ComfyUI            ÔøΩ
 +----------------------------------------------------------------------+
-                            ¶ resolve()
+                            ÔøΩ resolve()
 +----------------------------------------------------------------------+
-¶                          PROVIDERS                                    ¶
-¶  AI: OpenAI ¶ Anthropic ¶ Gemini ¶ Groq ¶ Ollama                    ¶
-¶  Browser: Playwright ¶ Puppeteer ¶ Browser Use                      ¶
+ÔøΩ                          PROVIDERS                                    ÔøΩ
+ÔøΩ  AI: OpenAI ÔøΩ Anthropic ÔøΩ Gemini ÔøΩ Groq ÔøΩ Ollama                    ÔøΩ
+ÔøΩ  Browser: Playwright ÔøΩ Puppeteer ÔøΩ Browser Use                      ÔøΩ
 +----------------------------------------------------------------------+
 ---
 
-## 2. Kernel (MÌnimo Vi·vel)
+## 2. Kernel (MÔøΩnimo ViÔøΩvel)
 
-O Kernel implementa APENAS o necess·rio para a Fase 1 funcionar.
+O Kernel implementa APENAS o necessÔøΩrio para a Fase 1 funcionar.
 
 ```typescript
 class Kernel {
   // Ativos desde o dia 1
-  readonly container: Container;      // DI resolve dependÍncias
+  readonly container: Container;      // DI resolve dependÔøΩncias
   readonly events: EventBus;           // Tudo por eventos
   readonly plugins: PluginRegistry;    // Descobre e ativa plugins
   readonly capabilities: CapabilityRegistry;  // Quem sabe fazer X?
   readonly logger: Logger;             // Log estruturado
   readonly config: ConfigManager;      // Config centralizada
 
-  // NOT YET ó throw NotImplementedException
+  // NOT YET ÔøΩ throw NotImplementedException
   get scheduler()       { throw NotImplemented }
   get workflows()       { throw NotImplemented }
   get agents()          { throw NotImplemented }
@@ -112,7 +112,7 @@ class Kernel {
 }
 ```
 
-**Regra:** Um subsistema sÛ ganha implementaÁ„o quando o primeiro plugin realmente precisa dele.
+**Regra:** Um subsistema sÔøΩ ganha implementaÔøΩÔøΩo quando o primeiro plugin realmente precisa dele.
 
 ---
 
@@ -134,7 +134,7 @@ export class MeuPlugin extends Plugin {
 }
 ```
 
-O SDK È a **fronteira p˙blica** do BeeHive. Tudo que um plugin precisa est· ali.
+O SDK ÔøΩ a **fronteira pÔøΩblica** do BeeHive. Tudo que um plugin precisa estÔøΩ ali.
 
 ---
 
@@ -146,42 +146,42 @@ Primeiro plugin. Valida a espinha dorsal da arquitetura.
 
 ```yaml
 chat.generate:     Mensagem ? IA ? Resposta (Artifact Markdown)
-memory.search:     Query ? MemÛria ? Resultados (Artifact JSON)
+memory.search:     Query ? MemÔøΩria ? Resultados (Artifact JSON)
 tool.execute:      Ferramenta + Args ? Resultado (Artifact JSON)
 ```
 
-### Fluxo de ValidaÁ„o
+### Fluxo de ValidaÔøΩÔøΩo
 
 ```
 UI ? Application ? Kernel ? PluginRegistry
   ? FoundationPlugin.activate()
     ? Register 3 capabilities no CapabilityRegistry
   ? CapabilityRegistry.resolve('chat.generate')
-  ? ChatGenerate.execute({ message: "Ol·" })
+  ? ChatGenerate.execute({ message: "OlÔøΩ" })
     ? Artifact({ type: 'markdown', data: resposta })
     ? EventBus.publish({ type: 'chat:generated' })
   ? Resposta ? UI
 
 ISSO VALIDA:
   ? Container (DI)
-  ? PluginRegistry (descoberta + ativaÁ„o)
-  ? CapabilityRegistry (registro + resoluÁ„o)
-  ? PluginContext (injeÁ„o de dependÍncias)
-  ? EventBus (publicaÁ„o de eventos)
+  ? PluginRegistry (descoberta + ativaÔøΩÔøΩo)
+  ? CapabilityRegistry (registro + resoluÔøΩÔøΩo)
+  ? PluginContext (injeÔøΩÔøΩo de dependÔøΩncias)
+  ? EventBus (publicaÔøΩÔøΩo de eventos)
   ? Logger
   ? Config
-  ? Artifact (produÁ„o de saÌda padronizada)
+  ? Artifact (produÔøΩÔøΩo de saÔøΩda padronizada)
   ? ExecutionContext (rastreabilidade)
 ```
 
 ---
 
-## 5. Ordem de ImplementaÁ„o
+## 5. Ordem de ImplementaÔøΩÔøΩo
 
 ### Fase 1: Foundation (validar arquitetura)
 
 ```
-Kernel mÌnimo
+Kernel mÔøΩnimo
 +-- Container
 +-- EventBus
 +-- PluginRegistry
@@ -200,10 +200,10 @@ Foundation Plugin
 +-- memory.search  ? stub
 +-- tool.execute   ? stub
 
-ValidaÁ„o: fluxo completo UI ? Artifact ? UI
+ValidaÔøΩÔøΩo: fluxo completo UI ? Artifact ? UI
 ```
 
-### Fase 2: Browser + MemÛria
+### Fase 2: Browser + MemÔøΩria
 
 ```
 Kernel: ResourceManager (BrowserPool)
@@ -222,7 +222,7 @@ Foundation: memory.search real
 Kernel: WorkflowRuntime
 Kernel: Scheduler
 
-Workflow: "Pesquisar ? Roteiro ? Imagem ? VÌdeo ? Publicar"
+Workflow: "Pesquisar ? Roteiro ? Imagem ? VÔøΩdeo ? Publicar"
 ```
 
 ### Fase 4: Agentes
@@ -236,55 +236,55 @@ Agent: planeja, escolhe capabilities, executa workflows, aprende
 
 ## 6. Teste Definitivo da Arquitetura
 
-> **Se amanh„ vocÍ encontrar um repositÛrio incrÌvel no GitHub, um desenvolvedor novo consegue criar um plugin para ele em 1-2 dias, sem tocar no Kernel?**
+> **Se amanhÔøΩ vocÔøΩ encontrar um repositÔøΩrio incrÔøΩvel no GitHub, um desenvolvedor novo consegue criar um plugin para ele em 1-2 dias, sem tocar no Kernel?**
 
-Se a resposta for **sim**, a arquitetura est· certa.
-Se a resposta for **n„o, preciso alterar o Kernel**, o Kernel ainda assume responsabilidades demais.
+Se a resposta for **sim**, a arquitetura estÔøΩ certa.
+Se a resposta for **nÔøΩo, preciso alterar o Kernel**, o Kernel ainda assume responsabilidades demais.
 
-O Kernel permanece est·vel. O ecossistema cresce por plugins, capabilities e adapters.
+O Kernel permanece estÔøΩvel. O ecossistema cresce por plugins, capabilities e adapters.
 
 ---
 
-## 7. DiretÛrios
+## 7. DiretÔøΩrios
 
 ```
 beehive/
-¶
-+-- ui/                           # Renderiza. SÛ isso.
+ÔøΩ
++-- ui/                           # Renderiza. SÔøΩ isso.
 +-- application/                  # Casos de uso
-¶
-+-- kernel/                       # Estado global. MÌnimo vi·vel.
-¶   +-- Kernel.ts                 # Bootstrap
-¶   +-- Container/                # DI
-¶   +-- EventBus/                 # Eventos
-¶   +-- PluginRegistry/           # Descoberta + ciclo de vida
-¶   +-- CapabilityRegistry/       # Quem sabe fazer X?
-¶   +-- Logger/                   # Log estruturado
-¶   +-- ConfigManager/            # Config
-¶   +-- NotImplemented/           # Placeholders para Fase 2+
-¶   +-- api/                      # REST / WS / MCP
-¶
+ÔøΩ
++-- kernel/                       # Estado global. MÔøΩnimo viÔøΩvel.
+ÔøΩ   +-- Kernel.ts                 # Bootstrap
+ÔøΩ   +-- Container/                # DI
+ÔøΩ   +-- EventBus/                 # Eventos
+ÔøΩ   +-- PluginRegistry/           # Descoberta + ciclo de vida
+ÔøΩ   +-- CapabilityRegistry/       # Quem sabe fazer X?
+ÔøΩ   +-- Logger/                   # Log estruturado
+ÔøΩ   +-- ConfigManager/            # Config
+ÔøΩ   +-- NotImplemented/           # Placeholders para Fase 2+
+ÔøΩ   +-- api/                      # REST / WS / MCP
+ÔøΩ
 +-- plugins/                      # Capacidades
-¶   +-- foundation/               # chat.generate, memory.search, tool.execute
-¶   +-- browser/                  # navigate, scrape, screenshot
-¶   +-- content/                  # workflow de conte˙do (Fase 3)
-¶   +-- video/                    # Fase 4
-¶   +-- image/                    # Fase 4
-¶   +-- coding/                   # Fase 4
-¶   +-- research/                 # Fase 4
-¶   +-- business/                 # Fase 5
-¶   +-- marketing/                # Fase 5
-¶
+ÔøΩ   +-- foundation/               # chat.generate, memory.search, tool.execute
+ÔøΩ   +-- browser/                  # navigate, scrape, screenshot
+ÔøΩ   +-- content/                  # workflow de conteÔøΩdo (Fase 3)
+ÔøΩ   +-- video/                    # Fase 4
+ÔøΩ   +-- image/                    # Fase 4
+ÔøΩ   +-- coding/                   # Fase 4
+ÔøΩ   +-- research/                 # Fase 4
+ÔøΩ   +-- business/                 # Fase 5
+ÔøΩ   +-- marketing/                # Fase 5
+ÔøΩ
 +-- providers/                    # Camada mais baixa
-¶   +-- ai/                       # OpenAI, Anthropic, Gemini, Ollama
-¶   +-- browser/                  # Playwright, Puppeteer
-¶   +-- storage/                  # S3, Local
-¶   +-- embedding/                # OpenAI, Ollama
-¶
+ÔøΩ   +-- ai/                       # OpenAI, Anthropic, Gemini, Ollama
+ÔøΩ   +-- browser/                  # Playwright, Puppeteer
+ÔøΩ   +-- storage/                  # S3, Local
+ÔøΩ   +-- embedding/                # OpenAI, Ollama
+ÔøΩ
 +-- packages/
-¶   +-- sdk/                      # @beehive/sdk ó API p˙blica
-¶   +-- shared/                   # @beehive/shared ó contratos internos
-¶
+ÔøΩ   +-- sdk/                      # @beehive/sdk ÔøΩ API pÔøΩblica
+ÔøΩ   +-- shared/                   # @beehive/shared ÔøΩ contratos internos
+ÔøΩ
 +-- docker/
 +-- package.json
 ```
@@ -293,7 +293,7 @@ beehive/
 
 ## 8. Contratos
 
-| Contrato | LocalizaÁ„o | Dono | Purpose |
+| Contrato | LocalizaÔøΩÔøΩo | Dono | Purpose |
 |----------|------------|------|---------|
 | ICapability | shared/contracts | Plugin | Menor unidade funcional |
 | IPlugin | shared/contracts | Plugin | Ciclo de vida do plugin |
@@ -305,25 +305,25 @@ beehive/
 | IAIService | shared/contracts | Kernel | Chat multi-provedor |
 | IArtifact | shared/contracts | Sistema | Tudo produzido |
 | IResourceManager | shared/contracts | Kernel (Fase 2) | Pools de recursos |
-| IExecutionContext | shared/contracts | Sistema | Contexto de execuÁ„o |
+| IExecutionContext | shared/contracts | Sistema | Contexto de execuÔøΩÔøΩo |
 | ITracing | shared/contracts | Sistema | Spans + tracing |
-| IKnowledgeGraph | shared/contracts | Kernel (Fase 4) | Grafo de relaÁıes |
+| IKnowledgeGraph | shared/contracts | Kernel (Fase 4) | Grafo de relaÔøΩÔøΩes |
 | ITool | shared/contracts | Kernel | Ferramentas (uso interno) |
 
 ---
 
 ## 9. Regras de Ouro
 
-1. **Kernel È mÌnimo.** SÛ implementa quando um plugin precisar.
+1. **Kernel ÔøΩ mÔøΩnimo.** SÔøΩ implementa quando um plugin precisar.
 2. **Plugins importam apenas @beehive/sdk.** Nunca o Kernel.
-3. **Plugins nunca conversam entre si.** SÛ via EventBus.
-4. **PluginContext expıe APENAS o que o plugin precisa.**
-5. **Workflow conhece capabilities, n„o plugins.**
-6. **Capability È a menor unidade funcional.**
-7. **Tudo que o sistema produz È um Artifact.**
-8. **Tool È separado de Capability.** (Tool = como, Capability = o que)
+3. **Plugins nunca conversam entre si.** SÔøΩ via EventBus.
+4. **PluginContext expÔøΩe APENAS o que o plugin precisa.**
+5. **Workflow conhece capabilities, nÔøΩo plugins.**
+6. **Capability ÔøΩ a menor unidade funcional.**
+7. **Tudo que o sistema produz ÔøΩ um Artifact.**
+8. **Tool ÔøΩ separado de Capability.** (Tool = como, Capability = o que)
 9. **Trocar adapter** = nada muda acima.
-10. **ResourceManager gerencia recursos.** Plugin n„o gerencia nada.
+10. **ResourceManager gerencia recursos.** Plugin nÔøΩo gerencia nada.
 11. **Kernel descobre plugins dinamicamente via manifesto.**
 12. **Foundation primeiro.** Validar arquitetura antes de expandir.
 13. **Teste definitivo:** Plugin novo em 1-2 dias sem tocar no Kernel.
@@ -332,33 +332,33 @@ beehive/
 
 ## 10. Regra do Kernel Congelado
 
-> **"Nenhuma alteraÁ„o estrutural no Kernel sem uma necessidade comprovada por um plugin."**
+> **"Nenhuma alteraÔøΩÔøΩo estrutural no Kernel sem uma necessidade comprovada por um plugin."**
 
-O Kernel foi validado em 22ms de boot com o Foundation Plugin. A partir deste marco, o Kernel È considerado **CONGELADO** para alteraÁıes estruturais.
+O Kernel foi validado em 22ms de boot com o Foundation Plugin. A partir deste marco, o Kernel ÔøΩ considerado **CONGELADO** para alteraÔøΩÔøΩes estruturais.
 
-### Permissıes
+### PermissÔøΩes
 
-| Tipo | Permitido | Exige o quÍ? |
+| Tipo | Permitido | Exige o quÔøΩ? |
 |------|-----------|-------------|
 | Bug fix | Sim | Teste que reproduz o bug |
 | Performance | Sim | Benchmark antes/depois |
-| Nova dependÍncia no PluginContext | Sim | Plugin real que comprovadamente precisa |
+| Nova dependÔøΩncia no PluginContext | Sim | Plugin real que comprovadamente precisa |
 | Nova interface em contracts/ | Sim | Plugin real que comprovadamente precisa |
-| Nova propriedade no IKernel | **N√O** | Discuss„o + aprovaÁ„o |
-| Nova responsabilidade no Kernel | **N√O** | Discuss„o + aprovaÁ„o |
-| Remover subsistema NotImplemented | **N√O** | Plugin real que precisa |
+| Nova propriedade no IKernel | **NÔøΩO** | DiscussÔøΩo + aprovaÔøΩÔøΩo |
+| Nova responsabilidade no Kernel | **NÔøΩO** | DiscussÔøΩo + aprovaÔøΩÔøΩo |
+| Remover subsistema NotImplemented | **NÔøΩO** | Plugin real que precisa |
 
 ### O Verdadeiro Teste
 
-> **"Se amanh„ vocÍ encontrar um repositÛrio incrÌvel no GitHub, um desenvolvedor novo consegue criar um plugin para ele em 1-2 dias, sem tocar no Kernel?"**
+> **"Se amanhÔøΩ vocÔøΩ encontrar um repositÔøΩrio incrÔøΩvel no GitHub, um desenvolvedor novo consegue criar um plugin para ele em 1-2 dias, sem tocar no Kernel?"**
 
-Se a resposta for **n„o, preciso alterar o Kernel**, o Kernel ainda assume responsabilidades demais.
+Se a resposta for **nÔøΩo, preciso alterar o Kernel**, o Kernel ainda assume responsabilidades demais.
 
-### PrÛximo Marco
+### PrÔøΩximo Marco
 
-Adicionar **Browser Plugin** (browser.navigate, browser.scrape, browser.screenshot) ou **Content Plugin** (roteiro ? imagem ? vÌdeo) **sem tocar no Kernel**.
+Adicionar **Browser Plugin** (browser.navigate, browser.scrape, browser.screenshot) ou **Content Plugin** (roteiro ? imagem ? vÔøΩdeo) **sem tocar no Kernel**.
 
-Se isso for possÌvel, a arquitetura est· madura.
+Se isso for possÔøΩvel, a arquitetura estÔøΩ madura.
 
 ---
 
@@ -368,7 +368,7 @@ Se isso for possÌvel, a arquitetura est· madura.
 
 ```bash
 # Antes de todo merge:
-pnpm test:architecture    # Testes est·ticos + din‚micos
+pnpm test:architecture    # Testes estÔøΩticos + dinÔøΩmicos
 pnpm typecheck            # Tipagem
 pnpm lint                 # Estilo
 ```
@@ -384,14 +384,14 @@ pnpm test:architecture
 ```bash
 pnpm inspect:capabilities   # Lista capabilities com schemas
 pnpm inspect:events         # Assina EventBus em tempo real
-pnpm inspect:deps           # Grafo de dependÍncias
+pnpm inspect:deps           # Grafo de dependÔøΩncias
 ```
 
 ---
 
 ## 12. Policy Engine (conceito)
 
-O Policy Engine decide **qual adapter usar** para cada capability, baseado em regras configur·veis.
+O Policy Engine decide **qual adapter usar** para cada capability, baseado em regras configurÔøΩveis.
 
 ### Exemplo
 
@@ -404,7 +404,7 @@ Policy:
   default                ?  VidBee Adapter
 ```
 
-### Fallback autom·tico
+### Fallback automÔøΩtico
 
 ```
 Capability: chat.generate
@@ -415,11 +415,11 @@ Policy:
   emergency: Ollama (local)
 ```
 
-Se o OpenRouter estiver fora do ar, cai para OpenAI. Se OpenAI tambÈm falhar, usa Ollama local.
+Se o OpenRouter estiver fora do ar, cai para OpenAI. Se OpenAI tambÔøΩm falhar, usa Ollama local.
 
 ### Prioridades
 
-- **Hard requirement**: usu·rio escolhe o adapter explicitamente
+- **Hard requirement**: usuÔøΩrio escolhe o adapter explicitamente
 - **Policy-based**: regras decidem baseado em inputs
 - **Fallback chain**: lista ordenada de adapters
 
@@ -442,33 +442,33 @@ capabilities:
 
 ---
 
-## 13. Ecossistema ó SDK como API P˙blica
+## 13. Ecossistema ÔøΩ SDK como API PÔøΩblica
 
-A partir do Marco Zero, o BeeHive n„o È mais "construÌdo" ó ele È um **ecossistema** que cresce por plugins.
+A partir do Marco Zero, o BeeHive nÔøΩo ÔøΩ mais "construÔøΩdo" ÔøΩ ele ÔøΩ um **ecossistema** que cresce por plugins.
 
-### O Kernel È um Produto
+### O Kernel ÔøΩ um Produto
 
 ```bash
 # Plugin developers nunca precisam disso:
 import { Kernel } from "@beehive/kernel";  // PROIBIDO
 
-# Eles sÛ precisam disso:
+# Eles sÔøΩ precisam disso:
 import { Plugin, Capability, Artifact, CapabilityBuilder } from "@beehive/sdk";
 ```
 
-O Kernel est· congelado. Trate `@beehive/kernel` como uma **biblioteca p˙blica** que nunca muda de forma que um plugin precise acompanhar.
+O Kernel estÔøΩ congelado. Trate `@beehive/kernel` como uma **biblioteca pÔøΩblica** que nunca muda de forma que um plugin precise acompanhar.
 
-### A SDK È a Fronteira
+### A SDK ÔøΩ a Fronteira
 
 Tudo que um plugin developer precisa:
 
-| SÌmbolo | FunÁ„o |
+| SÔøΩmbolo | FunÔøΩÔøΩo |
 |---------|--------|
 | `Plugin` | Classe base do plugin |
 | `Capability` | Classe base da capability |
 | `Artifact` | Tudo que o sistema produz |
 | `PluginContext` | O que o Kernel injeta no plugin |
-| `ExecutionContext` | O que toda execuÁ„o recebe |
+| `ExecutionContext` | O que toda execuÔøΩÔøΩo recebe |
 | `CapabilityBuilder` | Cria capability sem classe (fluent) |
 | `EventBuilder` | Cria eventos tipados |
 | `ArtifactBuilder` | Cria artifacts com metadata |
@@ -490,7 +490,7 @@ pnpm inspect:capabilities
 # Assistir eventos em tempo real
 pnpm inspect:events
 
-# Visualizar grafo de dependÍncias
+# Visualizar grafo de dependÔøΩncias
 pnpm inspect:deps
 
 # Garantir que nada quebrou
@@ -500,44 +500,44 @@ pnpm typecheck
 
 ### Regra de Ouro do Ecossistema
 
-> **"Um plugin deve conseguir ser desenvolvido sem abrir o cÛdigo do Kernel."**
+> **"Um plugin deve conseguir ser desenvolvido sem abrir o cÔøΩdigo do Kernel."**
 
-Se um desenvolvedor precisar abrir o Kernel para criar um plugin, provavelmente est· faltando alguma abstraÁ„o na SDK, n„o uma alteraÁ„o no Kernel.
+Se um desenvolvedor precisar abrir o Kernel para criar um plugin, provavelmente estÔøΩ faltando alguma abstraÔøΩÔøΩo na SDK, nÔøΩo uma alteraÔøΩÔøΩo no Kernel.
 
 ### O Verdadeiro Teste do Ecossistema
 
 Criar um plugin que:
 1. Usa Playwright para acessar um site
 2. Extrai dados estruturados
-3. Pede para uma IA resumir o conte˙do
+3. Pede para uma IA resumir o conteÔøΩdo
 4. Salva o resultado como Artifact
 
-...sem alterar uma ˙nica linha do Kernel.
+...sem alterar uma ÔøΩnica linha do Kernel.
 
-Quando isso acontecer, o BeeHive ser· um verdadeiro Sistema Operacional de IA.
+Quando isso acontecer, o BeeHive serÔøΩ um verdadeiro Sistema Operacional de IA.
 
 ---
 
-## 14. Fim da Arquitetura. InÌcio do Ecossistema.
+## 14. Fim da Arquitetura. InÔøΩcio do Ecossistema.
 
 ### Regra Final
 
-> **Nenhuma abstraÁ„o nova entra no Kernel atÈ que trÍs plugins diferentes precisem dela.**
+> **Nenhuma abstraÔøΩÔøΩo nova entra no Kernel atÔøΩ que trÔøΩs plugins diferentes precisem dela.**
 
-A partir deste commit, a arquitetura est· congelada. Todo esforÁo vai para:
+A partir deste commit, a arquitetura estÔøΩ congelada. Todo esforÔøΩo vai para:
 
-1. **Plugins** que entregam valor para o usu·rio
-2. **SDK** que reduz o tempo de criaÁ„o de plugins
-3. **Workflows** que compıem capabilities em fluxos reais
+1. **Plugins** que entregam valor para o usuÔøΩrio
+2. **SDK** que reduz o tempo de criaÔøΩÔøΩo de plugins
+3. **Workflows** que compÔøΩem capabilities em fluxos reais
 
-### O que N√O ser· mais feito
+### O que NÔøΩO serÔøΩ mais feito
 
 - Novas interfaces no `shared/contracts/`
 - Novos subsistemas no Kernel
-- Novas abstraÁıes na SDK
-- RefatoraÁıes estruturais
+- Novas abstraÔøΩÔøΩes na SDK
+- RefatoraÔøΩÔøΩes estruturais
 
-### O que SER¡ feito
+### O que SERÔøΩ feito
 
 - Browser Plugin (Sprint 1)
 - Workflow Runtime (Sprint 2)
@@ -545,9 +545,42 @@ A partir deste commit, a arquitetura est· congelada. Todo esforÁo vai para:
 - Publisher Plugin (Sprint 4)
 - Agent Runtime (Sprint 5)
 
-### MÈtrica ⁄nica
+### MÔøΩtrica ÔøΩnica
 
-> **"Isso permite ao BeeHive fazer algo novo para o usu·rio?"**
+> **"Isso permite ao BeeHive fazer algo novo para o usuÔøΩrio?"**
 
 Se a resposta for "sim", avance.
 Se a resposta for "apenas deixa a arquitetura mais elegante", coloque na lista de melhorias futuras.
+
+---
+
+## 15. Domain Isolation Rule
+
+O Kernel BeeHive **nunca** deve conter conhecimento de dom√≠nio.
+
+### Proibido dentro do Core
+
+- Regras de neg√≥cio
+- Workflows espec√≠ficos de ind√∫stria
+- L√≥gica espec√≠fica de cliente
+- Entidades espec√≠ficas de aplica√ß√£o
+- Termos de dom√≠nio (ex: "pedido", "produto", "aula", "afiliado")
+
+### Onde o dom√≠nio vive
+
+```
+apps/           ‚Üí Aplica√ß√µes reais (ex: apps/web, apps/api)
+examples/       ‚Üí Demonstra√ß√µes do BeeHive (gen√©ricas)
+examples/integrations/ ‚Üí Aplica√ß√µes externas constru√≠das sobre o BeeHive
+case-studies/   ‚Üí Documenta√ß√£o de casos de uso (nunca c√≥digo)
+plugins/        ‚Üí Capabilities gen√©ricas (sem dom√≠nio)
+```
+
+### Regra
+
+> **Domain logic belongs to applications built on top of BeeHive.**
+
+Se uma capability nova parece espec√≠fica de um dom√≠nio, pergunte:
+
+1. Essa capability serve para **qualquer** aplica√ß√£o? ‚Üí Vai para `plugins/`
+2. Essa capability s√≥ serve para **um** dom√≠nio? ‚Üí Vai para a aplica√ß√£o externa ou `examples/integrations/`
