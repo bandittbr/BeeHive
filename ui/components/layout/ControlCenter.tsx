@@ -1,8 +1,25 @@
-// Control Center Layout
-// Sidebar com navegação entre seções + painel principal
-
-import { useState } from 'react';
+// Control Center Layout — conectado ao Kernel via BeeHive Bridge
+import { useState, useEffect, useCallback } from 'react';
+import { BeeHiveBridge } from '../../services/beehive-bridge';
 import { ControlCenterService } from '../../services/control-center-service';
+
+// Singleton bridge + service
+const bridge = new BeeHiveBridge();
+let service: ControlCenterService | null = null;
+
+export function initControlCenter(kernel: any, providerRegistry: any) {
+  bridge.setKernel(kernel);
+  bridge.setProviderRegistry(providerRegistry);
+  service = new ControlCenterService(bridge);
+  return service;
+}
+
+export function useControlCenter() {
+  if (!service) {
+    throw new Error('Control Center não inicializado. Chame initControlCenter(kernel, providerRegistry) primeiro.');
+  }
+  return service;
+}
 
 const SECTIONS = [
   { id: 'general' as const, label: 'General', icon: '⚙' },
@@ -20,8 +37,35 @@ const SECTIONS = [
 
 export function ControlCenter() {
   const [activeSection, setActiveSection] = useState('general');
-  const service = new ControlCenterService();
-  const state = service.getState();
+  const svc = useControlCenter();
+
+  // Carregar dados de cada seção
+  const [general, setGeneral] = useState(svc.getGeneral());
+  const [profile, setProfile] = useState(svc.getProfile());
+  const [memory, setMemory] = useState(svc.getMemory());
+  const [models, setModels] = useState(svc.getModels());
+  const [chat, setChat] = useState(svc.getChat());
+  const [agents, setAgents] = useState(svc.getAgents());
+  const [skills, setSkills] = useState(svc.getSkills());
+  const [permissions, setPermissions] = useState(svc.getPermissions());
+  const [system, setSystem] = useState(svc.getSystem());
+
+  // Recarregar quando o serviço notificar mudanças
+  const refresh = useCallback(() => {
+    setGeneral(svc.getGeneral());
+    setProfile(svc.getProfile());
+    setMemory(svc.getMemory());
+    setModels(svc.getModels());
+    setChat(svc.getChat());
+    setAgents(svc.getAgents());
+    setSkills(svc.getSkills());
+    setPermissions(svc.getPermissions());
+    setSystem(svc.getSystem());
+  }, [svc]);
+
+  useEffect(() => {
+    return svc.subscribe(refresh);
+  }, [svc, refresh]);
 
   return (
     <div className="control-center">
@@ -41,38 +85,38 @@ export function ControlCenter() {
         </nav>
       </aside>
       <main className="control-center-panel">
-        {renderSection(activeSection, state)}
+        {renderSection(activeSection, { general, profile, memory, models, chat, agents, skills, permissions, system })}
       </main>
     </div>
   );
 }
 
-function renderSection(section: string, state: any) {
+function renderSection(section: string, data: any) {
   switch (section) {
-    case 'general': return <GeneralSection data={state.general} />;
-    case 'profile': return <ProfileSection data={state.profile} />;
-    case 'memory': return <MemorySection data={state.memory} />;
-    case 'models': return <ModelsSection data={state.models} />;
-    case 'chat': return <ChatSection data={state.chat} />;
-    case 'agents': return <AgentsSection data={state.agents} />;
-    case 'skills': return <SkillsSection data={state.skills} />;
-    case 'permissions': return <PermissionsSection data={state.permissions} />;
-    case 'keyboard': return <KeyboardSection data={state.keyboard} />;
-    case 'archived': return <ArchivedSection data={state.archived} />;
-    case 'system': return <SystemSection data={state.system} />;
+    case 'general': return <GeneralSection data={data.general} onSave={(updates) => useControlCenter().updateGeneral(updates)} />;
+    case 'profile': return <ProfileSection data={data.profile} onSave={(updates) => useControlCenter().updateProfile(updates)} />;
+    case 'memory': return <MemorySection data={data.memory} onSave={(updates) => useControlCenter().updateMemory(updates)} />;
+    case 'models': return <ModelsSection data={data.models} onSave={(updates) => useControlCenter().updateModels(updates)} />;
+    case 'chat': return <ChatSection data={data.chat} onSave={(updates) => useControlCenter().updateChat(updates)} />;
+    case 'agents': return <AgentsSection data={data.agents} />;
+    case 'skills': return <SkillsSection data={data.skills} />;
+    case 'permissions': return <PermissionsSection data={data.permissions} onSave={(updates) => useControlCenter().updatePermissions(updates)} />;
+    case 'keyboard': return <KeyboardSection />;
+    case 'archived': return <ArchivedSection />;
+    case 'system': return <SystemSection data={data.system} />;
     default: return <div>Unknown section</div>;
   }
 }
 
 // --- Section Components ---
 
-function GeneralSection({ data }: { data: any }) {
+function GeneralSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   return (
     <div className="section">
       <h3>General</h3>
       <div className="form-group">
         <label>Theme</label>
-        <select defaultValue={data.theme}>
+        <select defaultValue={data.theme} onChange={e => onSave({ theme: e.target.value as any })}>
           <option value="light">Light</option>
           <option value="dark">Dark</option>
           <option value="system">System</option>
@@ -80,118 +124,100 @@ function GeneralSection({ data }: { data: any }) {
       </div>
       <div className="form-group">
         <label>Language</label>
-        <select defaultValue={data.language}>
+        <select defaultValue={data.language} onChange={e => onSave({ language: e.target.value })}>
           <option value="pt-BR">Português (BR)</option>
           <option value="en-US">English (US)</option>
         </select>
       </div>
       <div className="form-group">
         <label>Startup</label>
-        <select defaultValue={data.startup}>
+        <select defaultValue={data.startup} onChange={e => onSave({ startup: e.target.value as any })}>
           <option value="last-session">Last session</option>
           <option value="dashboard">Dashboard</option>
           <option value="default-agent">Default agent</option>
         </select>
       </div>
       <div className="form-group">
-        <label>Notifications</label>
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.notifications} />
-          <span>Enable</span>
+          <input type="checkbox" checked={data.notifications} onChange={e => onSave({ notifications: e.target.checked })} />
+          <span>Notifications</span>
         </label>
       </div>
       <div className="form-group">
-        <label>Auto Updates</label>
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.autoUpdates} />
-          <span>Enable</span>
+          <input type="checkbox" checked={data.autoUpdates} onChange={e => onSave({ autoUpdates: e.target.checked })} />
+          <span>Auto Updates</span>
         </label>
       </div>
     </div>
   );
 }
 
-function ProfileSection({ data }: { data: any }) {
+function ProfileSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   return (
     <div className="section">
       <h3>Profile</h3>
       <div className="form-group">
         <label>Name</label>
-        <input type="text" defaultValue={data.name} placeholder="Your name" />
+        <input type="text" value={data.name} onChange={e => onSave({ name: e.target.value })} placeholder="Your name" />
       </div>
       <div className="form-group">
         <label>Timezone</label>
-        <input type="text" defaultValue={data.timezone} readOnly />
+        <input type="text" value={data.timezone} readOnly />
       </div>
       <div className="form-group">
         <label>AI Nickname</label>
-        <input type="text" defaultValue={data.aiNickname} placeholder="How should the AI call you?" />
+        <input type="text" value={data.aiNickname} onChange={e => onSave({ aiNickname: e.target.value })} placeholder="How should the AI call you?" />
       </div>
       <div className="form-group">
         <label>Primary Goal</label>
-        <textarea defaultValue={data.primaryGoal} placeholder="What are you building?" rows={3} />
+        <textarea value={data.primaryGoal} onChange={e => onSave({ primaryGoal: e.target.value })} placeholder="What are you building?" rows={3} />
       </div>
     </div>
   );
 }
 
-function MemorySection({ data }: { data: any }) {
+function MemorySection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   const cats = data.categories || {};
   return (
     <div className="section">
       <h3>Memory</h3>
       <div className="form-group">
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.enabled} />
+          <input type="checkbox" checked={data.enabled} onChange={e => onSave({ enabled: e.target.checked })} />
           <span>Enable memory</span>
         </label>
       </div>
       <div className="form-group">
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.autoSave} />
+          <input type="checkbox" checked={data.autoSave} onChange={e => onSave({ autoSave: e.target.checked })} />
           <span>Auto-save memories</span>
         </label>
       </div>
       <h4>Categories</h4>
-      <div className="form-group">
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={cats.preferences} />
-          <span>Preferences</span>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={cats.projects} />
-          <span>Projects</span>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={cats.people} />
-          <span>People</span>
-        </label>
-      </div>
-      <div className="form-group">
-        <label className="toggle">
-          <input type="checkbox" defaultChecked={cats.knowledge} />
-          <span>Knowledge</span>
-        </label>
-      </div>
+      {Object.entries(cats).map(([key, value]) => (
+        <div key={key} className="form-group">
+          <label className="toggle">
+            <input type="checkbox" checked={!!value} onChange={e => onSave({ categories: { ...cats, [key]: e.target.checked } })} />
+            <span>{key.charAt(0).toUpperCase() + key.slice(1)}</span>
+          </label>
+        </div>
+      ))}
       <div className="form-group">
         <label>Max memories</label>
-        <input type="number" defaultValue={data.maxSize} min={100} max={10000} />
+        <input type="number" value={data.maxSize} min={100} max={10000} onChange={e => onSave({ maxSize: parseInt(e.target.value) || 1000 })} />
       </div>
     </div>
   );
 }
 
-function ModelsSection({ data }: { data: any }) {
+function ModelsSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   const renderModel = (label: string, config: any) => (
     <div className="model-card">
       <h4>{label}</h4>
       <div className="form-group">
         <label>Provider</label>
-        <select defaultValue={config.provider}>
+        <select defaultValue={config.provider} onChange={e => onSave({ [label.toLowerCase()]: { ...config, provider: e.target.value } })}>
           <option value="mock">Mock</option>
           <option value="openrouter">OpenRouter</option>
           <option value="ollama">Ollama</option>
@@ -200,10 +226,6 @@ function ModelsSection({ data }: { data: any }) {
       <div className="form-group">
         <label>Model</label>
         <input type="text" defaultValue={config.model} />
-      </div>
-      <div className="form-group">
-        <label>Context Window</label>
-        <input type="number" defaultValue={config.contextWindow} readOnly />
       </div>
       <div className="form-group">
         <label>Status</label>
@@ -224,18 +246,17 @@ function ModelsSection({ data }: { data: any }) {
   );
 }
 
-function ChatSection({ data }: { data: any }) {
+function ChatSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   return (
     <div className="section">
       <h3>Chat</h3>
       <div className="form-group">
-        <label>Temperature</label>
-        <input type="range" min={0} max={2} step={0.1} defaultValue={data.temperature} />
-        <span>{data.temperature}</span>
+        <label>Temperature: {data.temperature}</label>
+        <input type="range" min={0} max={2} step={0.1} value={data.temperature} onChange={e => onSave({ temperature: parseFloat(e.target.value) })} />
       </div>
       <div className="form-group">
         <label>Response Length</label>
-        <select defaultValue={data.responseLength}>
+        <select defaultValue={data.responseLength} onChange={e => onSave({ responseLength: e.target.value as any })}>
           <option value="short">Short</option>
           <option value="normal">Normal</option>
           <option value="detailed">Detailed</option>
@@ -243,19 +264,19 @@ function ChatSection({ data }: { data: any }) {
       </div>
       <div className="form-group">
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.streaming} />
+          <input type="checkbox" checked={data.streaming} onChange={e => onSave({ streaming: e.target.checked })} />
           <span>Streaming</span>
         </label>
       </div>
       <div className="form-group">
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.showReasoning} />
+          <input type="checkbox" checked={data.showReasoning} onChange={e => onSave({ showReasoning: e.target.checked })} />
           <span>Show reasoning</span>
         </label>
       </div>
       <div className="form-group">
         <label className="toggle">
-          <input type="checkbox" defaultChecked={data.saveConversations} />
+          <input type="checkbox" checked={data.saveConversations} onChange={e => onSave({ saveConversations: e.target.checked })} />
           <span>Save conversations</span>
         </label>
       </div>
@@ -308,11 +329,11 @@ function SkillsSection({ data }: { data: any }) {
   );
 }
 
-function PermissionsSection({ data }: { data: any }) {
+function PermissionsSection({ data, onSave }: { data: any; onSave: (u: any) => void }) {
   const renderPerm = (label: string, config: any) => (
     <div className="form-group">
       <label>{label}</label>
-      <select defaultValue={config.action}>
+      <select defaultValue={config.action} onChange={e => onSave({ [config.resource]: { ...config, action: e.target.value as any } })}>
         <option value="allow">Allow</option>
         <option value="ask">Ask every time</option>
         <option value="deny">Deny</option>
@@ -331,11 +352,17 @@ function PermissionsSection({ data }: { data: any }) {
   );
 }
 
-function KeyboardSection({ data }: { data: any }) {
+function KeyboardSection() {
+  const shortcuts = [
+    { key: 'Ctrl+Space', description: 'Open BeeHive' },
+    { key: 'Ctrl+K', description: 'New conversation' },
+    { key: 'Ctrl+Shift+P', description: 'Command palette' },
+  ];
+
   return (
     <div className="section">
       <h3>Keyboard Shortcuts</h3>
-      {data.shortcuts?.map((s: any) => (
+      {shortcuts.map(s => (
         <div key={s.key} className="shortcut-row">
           <kbd>{s.key}</kbd>
           <span>{s.description}</span>
@@ -345,16 +372,11 @@ function KeyboardSection({ data }: { data: any }) {
   );
 }
 
-function ArchivedSection({ data }: { data: any }) {
+function ArchivedSection() {
   return (
     <div className="section">
       <h3>Archived</h3>
-      <div className="archive-sections">
-        <div><strong>Conversations:</strong> {data.conversations?.length || 0}</div>
-        <div><strong>Workflows:</strong> {data.workflows?.length || 0}</div>
-        <div><strong>Projects:</strong> {data.projects?.length || 0}</div>
-        <div><strong>Artifacts:</strong> {data.artifacts?.length || 0}</div>
-      </div>
+      <p className="placeholder-text">No archived items yet.</p>
     </div>
   );
 }
