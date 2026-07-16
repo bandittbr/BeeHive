@@ -38,6 +38,7 @@
 "example:youtube-script":  "npx tsx examples/generic/youtube-script/run.ts",
 "example:daily-news":  "npx tsx examples/generic/daily-news/run.ts",
 "example:research":  "npx tsx examples/generic/research-company/run.ts",
+"example:ai-chat":  "npx tsx examples/generic/ai-chat/run.ts",
 "example:hello-app":  "npx tsx examples/integrations/hello-world-app/index.ts",
 "example:weather":  "npx tsx examples/integrations/external-weather-plugin/run.ts",
 "benchmark":  "npx tsx tools/benchmark.ts",

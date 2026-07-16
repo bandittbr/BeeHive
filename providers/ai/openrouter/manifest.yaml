@@ -1,0 +1,19 @@
+name: openrouter
+version: 0.1.0
+type: ai
+description: "AI provider via OpenRouter API. Suporta múltiplos modelos LLM."
+author: BeeHive
+
+capabilities:
+  - chat.generate
+
+settings:
+  default_model: meta-llama/llama-3-8b-instruct:free
+  supported_models:
+    - meta-llama/llama-3-8b-instruct:free
+    - google/gemma-2-9b-it:free
+    - microsoft/wizardlm-2-7b:free
+    - openai/gpt-4o-mini
+    - anthropic/claude-3-haiku-20240307
+  api_key_env: OPENROUTER_API_KEY
+  endpoint: https://openrouter.ai/api/v1

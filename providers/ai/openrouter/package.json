@@ -1,0 +1,7 @@
+{
+  "name": "@beehive/provider-openrouter",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./OpenRouterProvider.ts"
+}

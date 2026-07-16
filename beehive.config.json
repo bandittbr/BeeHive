@@ -2,9 +2,10 @@
   "providers": {
     "ai": {
       "default": "mock",
+      "available": ["mock", "openrouter", "ollama", "gemini", "openai", "anthropic"],
       "chat.generate": {
         "provider": "mock",
-        "model": "gpt-4"
+        "model": "meta-llama/llama-3-8b-instruct:free"
       },
       "memory.search": {
         "provider": "mock"

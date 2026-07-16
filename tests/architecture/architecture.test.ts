@@ -266,7 +266,8 @@ async function main() {
       const badImports: string[] = [];
       const lines = content.split('\n');
       for (const line of lines) {
-        if ((line.includes('plugins') || line.includes('@beehive/sdk')) && line.includes('from')) {
+        // Providers can import SDK (they need IProvider interface)
+        if (line.includes('from') && line.includes('plugins')) {
           badImports.push(line.trim());
         }
       }

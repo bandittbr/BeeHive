@@ -2,11 +2,13 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import type { IProviderRegistry, IProvider } from '@beehive/sdk';
 import { MockProvider } from '@beehive/sdk';
+import { OpenRouterProvider } from '../../providers/ai/openrouter/OpenRouterProvider';
 
 export interface ProviderConfig {
   providers: {
     [category: string]: {
       default: string;
+      available?: string[];
       [capabilityId: string]: {
         provider: string;
         model?: string;
@@ -45,19 +47,27 @@ export function loadProviderConfig(): ProviderConfig {
 export function bootstrapProviderRegistry(registry: IProviderRegistry, config?: ProviderConfig): void {
   const cfg = config ?? loadProviderConfig();
 
-  // Always register mock provider
+  // Always register mock provider (baseline)
   const mock = new MockProvider();
   registry.register(mock);
 
-  // Future: register real providers based on config
-  // e.g., if cfg.providers.ai.default === 'openrouter':
-  //   registry.register(new OpenRouterProvider(cfg.providers.ai['chat.generate']));
+  // Register real providers based on config
+  const aiConfig = cfg.providers.ai;
+  if (aiConfig) {
+    // Check each available provider
+    const available = aiConfig.available || ['mock'];
 
-  // Apply defaults: for each category, wire capabilities to the default provider
-  for (const [category, settings] of Object.entries(cfg.providers)) {
-    const defaultProvider = settings.default;
-    if (defaultProvider === 'mock') continue; // already registered
+    for (const providerId of available) {
+      if (providerId === 'mock') continue; // already registered
 
-    // Future: registry.register(new <Provider>(defaultProvider));
+      if (providerId === 'openrouter') {
+        const chatConfig = aiConfig['chat.generate'];
+        if (typeof chatConfig === 'object' && chatConfig.provider === 'openrouter') {
+          const model = chatConfig.model || 'meta-llama/llama-3-8b-instruct:free';
+          registry.register(new OpenRouterProvider({ model }));
+        }
+      }
+      // Future: ollama, gemini, openai, anthropic
+    }
   }
 }
