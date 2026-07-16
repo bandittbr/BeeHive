@@ -1,0 +1,11 @@
+{
+  "name": "@beehive/plugin-browser",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "dependencies": {
+    "@beehive/sdk": "workspace:*",
+    "playwright": "^1.61.1"
+  }
+}

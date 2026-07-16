@@ -1,0 +1,1 @@
+export { FoundationPlugin } from './plugin';

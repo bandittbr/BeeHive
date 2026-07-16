@@ -19,3 +19,8 @@ export interface IServiceRegistry {
   getAll(): Map<string, IService>;
   isRegistered(serviceId: string): boolean;
 }
+
+export interface IPermissionService {
+  hasPermission(subject: string, action: string, resource: string): Promise<boolean>;
+  requirePermission(subject: string, action: string, resource: string): Promise<void>;
+}

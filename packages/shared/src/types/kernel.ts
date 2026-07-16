@@ -1,8 +1,8 @@
-import type { IEventBus } from './interfaces';
+import type { IEventBus } from './events';
 import type { ICommandBus } from './commands';
 import type { IQueryBus } from './queries';
 import type { IModuleLoader } from './modules';
-import type { IPluginLoader } from './plugins';
+import type { IPluginManager as IPluginLoader } from './plugins';
 import type { IServiceRegistry } from './services';
 import type { IScheduler } from './scheduler';
 import type { IConfigurationManager } from './config';
@@ -63,4 +63,12 @@ export interface KernelDependencies {
   scheduler?: IScheduler;
   config?: IConfigurationManager;
   logger?: ILogger;
+}
+
+
+export interface KernelReport {
+  kernel: { version: string; status: KernelStatus; duration: number };
+  plugins: Array<{ id: string; status: 'activated' | 'failed'; error?: string }>;
+  capabilities: number;
+  providers: number;
 }

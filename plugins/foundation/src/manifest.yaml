@@ -1,0 +1,48 @@
+name: foundation
+version: 1.0.0
+description: "Plugin base do BeeHive. Provê chat, memória e ferramentas essenciais."
+author: BeeHive
+
+capabilities:
+  - id: chat.generate
+    description: "Gera resposta de IA a partir de mensagem"
+    inputs:
+      - { name: message, type: string, required: true }
+      - { name: provider, type: string }
+      - { name: model, type: string }
+      - { name: stream, type: boolean, default: false }
+    outputs:
+      - { name: response, type: string }
+      - { name: usage, type: object }
+
+  - id: memory.search
+    description: "Busca na memória do workspace"
+    inputs:
+      - { name: query, type: string, required: true }
+      - { name: limit, type: number, default: 10 }
+    outputs:
+      - { name: results, type: array }
+
+  - id: tool.execute
+    description: "Executa ferramenta do sistema"
+    inputs:
+      - { name: tool, type: string, required: true }
+      - { name: args, type: object, required: true }
+    outputs:
+      - { name: result, type: object }
+
+adapters:
+  - OpenRouter
+  - OpenAI
+  - Ollama
+
+dependencies:
+  - AIManager
+  - Storage
+  - Memory
+
+permissions:
+  - ai:chat
+  - ai:stream
+  - memory:read
+  - memory:write

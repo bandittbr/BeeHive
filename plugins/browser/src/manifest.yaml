@@ -1,32 +1,37 @@
 name: browser
 version: 1.0.0
-description: "Automação de navegador"
+description: "Plugin de navegador. Navega, extrai conteudo e captura screenshots."
 author: BeeHive
 
 capabilities:
-  - id: browser.browse
-    description: "Navega para URL e retorna conteúdo"
+  - id: browser.navigate
+    description: "Navega para uma URL e retorna titulo e URL final"
     inputs:
-      - { name: url, type: string, required: true }
+      - { name: url, type: string, required: true, description: "URL para navegar" }
     outputs:
-      - { name: content, type: string }
-      - { name: screenshot, type: string }
+      - { name: title, type: string, description: "Titulo da pagina" }
+      - { name: url, type: string, description: "URL final apos redirects" }
 
   - id: browser.scrape
-    description: "Extrai conteúdo estruturado de página"
+    description: "Extrai conteudo de uma URL como Markdown"
+    inputs:
+      - { name: url, type: string, required: true, description: "URL para extrair" }
+    outputs:
+      - { name: markdown, type: string, description: "Conteudo em Markdown" }
+      - { name: title, type: string, description: "Titulo da pagina" }
 
-  - id: browser.login
-    description: "Executa fluxo de login em site"
-
-  - id: browser.download
-    description: "Download de arquivos"
+  - id: browser.screenshot
+    description: "Captura screenshot de uma URL"
+    inputs:
+      - { name: url, type: string, required: true, description: "URL para capturar" }
+      - { name: fullPage, type: boolean, default: false, description: "Capturar pagina inteira" }
+    outputs:
+      - { name: image, type: object, description: "Imagem como artifact" }
 
 adapters:
   - Playwright
-  - Puppeteer
-  - BrowserUse
-  - Stagehand
 
 permissions:
-  - network:access
-  - storage:write
+  - browser:navigate
+  - browser:scrape
+  - browser:screenshot

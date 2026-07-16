@@ -1,38 +1,50 @@
 {
-  "name": "beehive",
-  "version": "0.1.0",
-  "private": true,
-  "description": "BeeHive — Sistema Operacional de Inteligência Artificial",
-  "workspaces": [
-    "apps/*",
-    "packages/*"
-  ],
-  "scripts": {
-    "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
-    "dev:web": "npm run dev --workspace apps/web",
-    "dev:api": "npm run dev --workspace apps/api",
-    "build": "npm run build --workspace apps/web",
-    "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present",
-    "format": "prettier --write \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
-    "format:check": "prettier --check \"{apps,packages}/**/src/**/*.{ts,tsx,css}\""
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2",
-    "prettier": "^3.3.3"
-  },
-  "engines": {
-    "node": ">=18.18.0"
-  },
-  "dependencies": {
-    "playwright": "^1.61.1",
-    "typescript": "^7.0.2"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "better-sqlite3",
-      "esbuild"
-    ]
-  }
+    "name":  "beehive",
+    "version":  "0.1.0",
+    "private":  true,
+    "description":  "BeeHive — Sistema Operacional de Inteligência Artificial",
+    "workspaces":  [
+                       "kernel/*",
+                       "application/*",
+                       "plugins/*",
+                       "providers/*",
+                       "apps/*",
+                       "packages/*"
+                   ],
+    "scripts":  {
+                    "dev":  "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+                    "dev:web":  "npm run dev --workspace apps/web",
+                    "dev:api":  "npm run dev --workspace apps/api",
+                    "build":  "npm run build --workspace apps/web",
+                    "lint":  "npm run lint --workspaces --if-present",
+                    "typecheck":  "npm run typecheck --workspaces --if-present",
+                    "test":  "npm run test --workspaces --if-present",
+                    "format":  "prettier --write \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
+                    "format:check":  "prettier --check \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
+                    "test:architecture":  "npx tsx tests/architecture.test.ts",
+                    "inspect:capabilities":  "npx tsx tools/capability-inspector.ts",
+                    "inspect:events":  "npx tsx tools/event-inspector.ts",
+                    "inspect:deps":  "npx tsx tools/dependency-graph.ts",
+                    "create:plugin":  "npx tsx scripts/create-plugin.ts",
+                    "validate:plugin":  "npx tsx scripts/validate-plugin.ts",
+                    "test:browser":  "npx tsx plugins/browser/tests/browser.test.ts",
+"workflow:studio":  "npx tsx tools/workflow-studio.ts"
+                },
+    "devDependencies":  {
+                            "concurrently":  "^8.2.2",
+                            "prettier":  "^3.3.3"
+                        },
+    "engines":  {
+                    "node":  "\u003e=18.18.0"
+                },
+    "dependencies":  {
+                         "playwright":  "^1.61.1",
+                         "typescript":  "^7.0.2"
+                     },
+    "pnpm":  {
+                 "onlyBuiltDependencies":  [
+                                               "better-sqlite3",
+                                               "esbuild"
+                                           ]
+             }
 }

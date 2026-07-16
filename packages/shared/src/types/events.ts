@@ -12,10 +12,17 @@ export interface EventEnvelope<T = unknown> {
   metadata?: Record<string, unknown>;
 }
 
-export type EventHandler<T = unknown> = (
-  event: EventEnvelope<T>,
-  ctx: EventContext
-) => Promise<void> | void;
+export interface Event<T = unknown> {
+  type: string;
+  source: string;
+  payload: T;
+  timestamp: number;
+  correlationId?: string;
+  causationId?: string;
+  priority?: 'low' | 'normal' | 'high' | 'critical';
+}
+
+export type EventHandler<T = unknown> = (event: Event<T>) => Promise<void> | void;
 
 export interface EventContext {
   kernelId: string;
@@ -29,6 +36,12 @@ export interface EventSubscription {
   handler: EventHandler;
   filter?: (event: EventEnvelope) => boolean;
   priority: EventPriority;
+}
+
+export interface Subscription {
+  id: string;
+  eventType: string;
+  unsubscribe(): void;
 }
 
 export interface EmitOptions {
@@ -46,10 +59,7 @@ export interface SubscribeOptions {
   group?: string;
 }
 
-export type EventMiddleware = (
-  event: EventEnvelope,
-  next: () => Promise<void>
-) => Promise<void>;
+export type EventMiddleware = (event: EventEnvelope, next: () => Promise<void>) => Promise<void>;
 
 export interface EventBusStats {
   totalEmitted: number;
@@ -57,4 +67,12 @@ export interface EventBusStats {
   totalFailed: number;
   activeSubscriptions: number;
   queuedEvents: number;
+}
+
+export interface IEventBus {
+  publish<T>(event: Event<T>): Promise<void>;
+  subscribe<T>(eventType: string, handler: EventHandler<T>): Subscription;
+  once<T>(eventType: string, handler: EventHandler<T>): Subscription;
+  unsubscribe(sub: Subscription): void;
+  publishMany(events: Event[]): Promise<void>;
 }

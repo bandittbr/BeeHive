@@ -11,3 +11,11 @@ export interface IConfigurationManager {
   getModuleConfig(moduleId: string): Record<string, unknown>;
   setModuleConfig(moduleId: string, config: Record<string, unknown>): void;
 }
+
+export interface IConfigService {
+  get<T>(key: string, defaultVal?: T): T | undefined;
+  set<T>(key: string, value: T): void;
+  getAll(): Record<string, unknown>;
+  getPluginConfig(pluginId: string): Record<string, unknown>;
+  watch<T>(key: string, cb: (val: T) => void): () => void;
+}

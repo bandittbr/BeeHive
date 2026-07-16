@@ -96,3 +96,8 @@ export interface IWorkflowEngine {
     status?: WorkflowStatus
   ): Promise<WorkflowInstance[]>;
 }
+
+export interface IWorkflowService {
+  execute(workflowId: string, inputs: Record<string, unknown>): Promise<unknown>;
+  getStatus(instanceId: string): Promise<string>;
+}

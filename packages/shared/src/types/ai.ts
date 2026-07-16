@@ -132,3 +132,8 @@ export interface ModelFilter {
   capability?: AICapability;
   free?: boolean;
 }
+
+export interface IAIService {
+  chat(messages: AIMessage[], options?: AIRequest): Promise<AIResponse>;
+  chatStream(messages: AIMessage[], options?: AIRequest): AsyncIterable<AIStreamChunk>;
+}

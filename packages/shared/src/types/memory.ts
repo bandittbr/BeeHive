@@ -68,3 +68,10 @@ export interface MemoryBackend {
   delete(id: string): Promise<void>;
   clear(type?: MemoryType): Promise<void>;
 }
+
+export interface IMemory {
+  search(query: string, limit?: number): Promise<MemoryEntry[]>;
+  store(entry: Omit<MemoryEntry, 'id' | 'timestamp'>): Promise<string>;
+  get(id: string): Promise<MemoryEntry | null>;
+  delete(id: string): Promise<void>;
+}

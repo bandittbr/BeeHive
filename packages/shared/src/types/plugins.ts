@@ -3,7 +3,6 @@ export interface BeeHivePlugin {
   readonly name: string;
   readonly version: string;
   readonly capabilities: PluginCapability[];
-
   onLoad(core: CoreAPI): Promise<void>;
   onUnload(): Promise<void>;
 }
@@ -33,12 +32,7 @@ export interface ActionResult {
   success: boolean;
   data?: unknown;
   error?: string;
-  metadata?: {
-    duration: number;
-    pluginId: string;
-    capabilityId: string;
-    actionName: string;
-  };
+  metadata?: { duration: number; pluginId: string; capabilityId: string; actionName: string };
 }
 
 export interface PluginInfo {
@@ -57,38 +51,58 @@ export interface IPluginManager {
   list(): PluginInfo[];
   get(id: string): BeeHivePlugin | undefined;
   getCapability(capabilityId: string): PluginCapability | null;
-  executeAction(
-    capabilityId: string,
-    action: string,
-    params: unknown,
-    context: ActionContext
-  ): Promise<ActionResult>;
+  executeAction(capabilityId: string, action: string, params: unknown, context: ActionContext): Promise<ActionResult>;
   findByCapability(capabilityId: string): BeeHivePlugin[];
 }
 
 export interface CoreAPI {
-  ai: {
-    execute(req: AIRequest): Promise<AIResponse>;
-    executeStream(req: AIRequest): AsyncIterable<AIStreamChunk>;
-  };
-  storage: {
-    get(key: string): Promise<unknown>;
-    set(key: string, value: unknown): Promise<void>;
-    delete(key: string): Promise<void>;
-  };
-  events: {
-    emit(type: string, payload: unknown): Promise<void>;
-    on(type: string, handler: (event: any) => void): void;
-  };
-  tools: {
-    execute(name: string, args: unknown): Promise<unknown>;
-  };
-  log: {
-    info(msg: string, ...args: unknown[]): void;
-    warn(msg: string, ...args: unknown[]): void;
-    error(msg: string, ...args: unknown[]): void;
-  };
-  config: {
-    get<T>(key: string, defaultVal?: T): T | undefined;
-  };
+  ai: { execute(req: AIRequest): Promise<AIResponse>; executeStream(req: AIRequest): AsyncIterable<AIStreamChunk> };
+  storage: { get(key: string): Promise<unknown>; set(key: string, value: unknown): Promise<void>; delete(key: string): Promise<void> };
+  events: { emit(type: string, payload: unknown): Promise<void>; on(type: string, handler: (event: any) => void): void };
+  tools: { execute(name: string, args: unknown): Promise<unknown> };
+  log: { info(msg: string, ...args: unknown[]): void; warn(msg: string, ...args: unknown[]): void; error(msg: string, ...args: unknown[]): void };
+  config: { get<T>(key: string, defaultVal?: T): T | undefined };
+}
+
+// --- New Architecture Types ---
+import type { ICapabilityRegistry } from './capability';
+import type { IEventBus, Event } from './events';
+import type { IStorage } from './storage';
+import type { ILogger } from './logger';
+import type { IMemory } from './memory';
+import type { IAIService } from './ai';
+import type { IConfigService } from './config';
+import type { IPermissionService } from './services';
+import type { IWorkflowService } from './workflow';
+import type { AIRequest, AIResponse, AIStreamChunk } from './ai';
+
+export interface IPlugin {
+  readonly id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly manifest: PluginManifest;
+  activate(ctx: PluginContext): Promise<void>;
+  deactivate(): Promise<void>;
+}
+
+export interface PluginManifest {
+  name: string;
+  version: string;
+  description: string;
+  author?: string;
+  capabilities: string[];
+  adapters: string[];
+  permissions: string[];
+}
+
+export interface PluginContext {
+  capabilities: ICapabilityRegistry;
+  events: IEventBus;
+  storage: IStorage;
+  logger: ILogger;
+  memory: IMemory;
+  ai: IAIService;
+  config: IConfigService;
+  permissions: IPermissionService;
+  workflow: IWorkflowService;
 }

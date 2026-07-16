@@ -9,3 +9,8 @@ export * from './memory';
 export * from './workflow';
 export * from './auth';
 export * from './storage';
+export * from './capability';
+export * from './artifact';
+export * from './config';
+export * from './services';
+export * from './logger';
