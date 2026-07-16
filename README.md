@@ -62,23 +62,84 @@ Fase 5  Ecosystem       ⏳
 | Workflow Runtime | ✅ Stable |
 | Provider Abstraction | ✅ Stable |
 | Architecture | ✅ Frozen |
-| Real Providers | 🚧 In Progress |
-| Agent Runtime | ⏳ Planned |
+
+> **Architecture Status: Frozen**
+>
+> The BeeHive architecture is considered stable. Future work focuses on capabilities, providers, plugins, workflows and user experience. Changes to the architecture require justification through a Hard Invariant violation or repeated needs across real implementations.
 
 ## Maturidade das Capabilities
 
 | Capability | Estado |
 |------------|--------|
-| chat.generate | 🟢 Production (mock) |
-| memory.search | 🟢 Production (mock) |
-| tool.execute | 🟢 Production (mock) |
-| browser.navigate | 🟢 Production (playwright) |
+| chat.generate | 🟢 Stable (mock) |
+| memory.search | 🟢 Stable (mock) |
+| tool.execute | 🟢 Stable (mock) |
+| browser.navigate | 🟢 Stable (playwright) |
 | browser.scrape | 🟢 Stable (playwright) |
 | browser.screenshot | 🟢 Stable (playwright) |
 | weather.current | 🟢 Stable (mock) |
 | image.generate | 🟡 Planned |
 | video.generate | 🟡 Planned |
 | audio.generate | ⚪ Not Started |
+
+## Roadmap
+
+### AI Providers
+
+| Provider | Status |
+|----------|--------|
+| OpenRouter | 🟡 Planned |
+| Ollama | 🟡 Planned |
+| Gemini | ⚪ Not Started |
+| OpenAI | ⚪ Not Started |
+| Anthropic | ⚪ Not Started |
+
+### Browser
+
+| Capability | Status |
+|------------|--------|
+| browser.navigate | 🟢 Stable |
+| browser.scrape | 🟢 Stable |
+| browser.screenshot | 🟢 Stable |
+| browser.login | ⚪ Not Started |
+| browser.cookies | ⚪ Not Started |
+| browser.sessions | ⚪ Not Started |
+
+### Media
+
+| Capability | Status |
+|------------|--------|
+| image.generate | 🟡 Planned |
+| video.generate | 🟡 Planned |
+| audio.generate | ⚪ Not Started |
+| subtitle.generate | ⚪ Not Started |
+
+### Automation
+
+| Feature | Status |
+|---------|--------|
+| scheduler | ⚪ Not Started |
+| webhook trigger | ⚪ Not Started |
+| cron trigger | ⚪ Not Started |
+| queue | ⚪ Not Started |
+
+### Agents
+
+| Feature | Status |
+|---------|--------|
+| memory | 🟡 Planned |
+| planning | ⚪ Not Started |
+| multi-agent | ⚪ Not Started |
+| long-running tasks | ⚪ Not Started |
+
+## KPIs de Progresso
+
+| Métrica | Atual | Meta |
+|---------|-------|------|
+| Capabilities Stable | 7 | 25 |
+| Providers Reais | 0 | 5 |
+| Plugins Externos | 1 | 10 |
+| Aplicações Externas | 2 | 10 |
 
 ## Regra
 
