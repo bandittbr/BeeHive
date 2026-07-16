@@ -19,6 +19,7 @@ O BeeHive passou por três fases:
 | Plugin System | ✅ Stable |
 | Workflow Runtime | ✅ Stable |
 | Provider Abstraction | ✅ Stable |
+| Architecture | ✅ Frozen |
 | Real Providers | 🚧 In Progress |
 | Agent Runtime | ⏳ Planned |
 

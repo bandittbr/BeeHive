@@ -1,13 +1,15 @@
 # Architecture Invariants
 
-> Regras que **nunca** podem ser quebradas.
+> Regras que protegem a integridade do BeeHive ao longo dos anos.
 >
 > Quando alguém perguntar "posso colocar essa lógica no Kernel?",
-> a resposta é: "Não. Quebra o Invariant 1."
+> a resposta é: "Não. Quebra o Invariant X."
 
 ---
 
-## INV-1: Kernel nunca conhece Providers
+## Hard Invariants — Nunca podem ser quebrados
+
+### INV-1: Kernel nunca conhece Providers
 
 O Kernel é o sistema nervoso. Não é a loja de integrações.
 
@@ -20,32 +22,23 @@ O Kernel é o sistema nervoso. Não é a loja de integrações.
 
 ---
 
-## INV-2: Plugins nunca importam Kernel
+### INV-2: Plugins não importam implementações internas do Kernel
 
-Plugins são unidades autônomas. Eles importam apenas `@beehive/sdk` e `@beehive/shared`.
+Plugins são unidades autônomas. Importam `@beehive/sdk`, `@beehive/shared` (tipos) e suas próprias dependências declaradas no package.json.
 
 **Proibido:**
-- Importar `../kernel` ou `../../kernel`
-- Referenciar classes do Kernel (`Kernel`, `CapabilityRegistry`, etc.)
+- Importar classes do Kernel (`Kernel`, `CapabilityRegistry`, `EventBus`, etc.)
+- Importar de `../kernel` ou `../../kernel`
 
-**Teste:** `tests/architecture.test.ts` (Test 3)
+**Permitido:**
+- Dependências externas declaradas no package.json (playwright, ffmpeg, sqlite, etc.)
+- Interfaces e tipos de `@beehive/shared`
+
+**Teste:** `tests/architecture/kernel-boundaries.test.ts` (INV-2)
 
 ---
 
-## INV-3: SDK é a única API pública
-
-Tudo que um plugin ou app externo precisa está em `@beehive/sdk`.
-
-**Proibido:**
-- Plugin importar biblioteca que não esteja no SDK
-- Plugin importar `@beehive/shared` diretamente (exceto tipos)
-- App externa importar `packages/sdk/src/` (apenas `@beehive/sdk`)
-
-**Teste:** `tests/architecture/kernel-boundaries.test.ts` (INV-3)
-
----
-
-## INV-4: Providers podem ser trocados sem alterar Workflow, Plugin ou Application
+### INV-3: Providers podem ser trocados sem alterar Workflow, Plugin ou Application
 
 A mesma capability + o mesmo workflow + a mesma aplicação conseguem trocar o motor de execução sem saber que houve troca.
 
@@ -58,7 +51,7 @@ A mesma capability + o mesmo workflow + a mesma aplicação conseguem trocar o m
 
 ---
 
-## INV-5: Core não contém conhecimento de domínio
+### INV-4: Core não contém conhecimento de domínio
 
 Domínio pertence a aplicações externas, nunca ao Kernel.
 
@@ -71,19 +64,17 @@ Domínio pertence a aplicações externas, nunca ao Kernel.
 
 ---
 
-## INV-6: Plugin Lifecycle ≠ Provider Lifecycle
+### INV-5: SDK é a única API pública
 
-Plugin tem install, activate, deactivate, readiness, health.
-Provider tem configure, readiness, health.
+Tudo que um plugin ou app externo precisa está em `@beehive/sdk`.
 
 **Proibido:**
-- Provider ter activate/deactivate
-- Plugin ter configure
-- Duplicar PluginLifecycle em Provider
+- App externa importar `packages/sdk/src/` (apenas `@beehive/sdk`)
+- Plugin importar classes do Kernel
 
 ---
 
-## INV-7: Capability ≠ Implementação
+### INV-6: Capability ≠ Implementação
 
 A capability declara **o que** faz. O provider declara **como** faz.
 
@@ -92,11 +83,36 @@ A capability declara **o que** faz. O provider declara **como** faz.
 - Capability saber qual provider está usando
 - Provider saber qual capability chamou
 
-**Teste:** `tests/architecture/provider-swap.test.ts`
+---
+
+## Soft Invariants — Objetivos de design
+
+Estes são ideais. Podem ter exceções documentadas.
+Se uma exceção é necessária, registre-a com motivo e data.
+
+### INV-S1: ProviderRouter deve depender de ICapabilityRegistry, não de CapabilityRegistry
+
+Hoje o ProviderRouter importa a classe concreta. Isso funciona, mas idealmente deveria depender apenas da interface.
+
+**Status:** melhoria futura
 
 ---
 
-## INV-8: Readiness ≠ Health
+### INV-S2: Plugins preferem dependências locais
+
+Plugins podem importar bibliotecas externas (playwright, ffmpeg, etc.) desde que declaradas no package.json.
+Mas preferem manter o mínimo de dependências possível.
+
+---
+
+### INV-S3: Health checks devem existir
+
+Cada capability e provider deve ter um health check.
+Mas a profundidade do health check pode variar conforme a necessidade.
+
+---
+
+### INV-S4: Readiness ≠ Health
 
 São conceitos diferentes:
 
@@ -108,18 +124,25 @@ Um plugin pode estar:
 - ready ✅
 - health ❌
 
-**Teste:** `tools/health.ts` (separação de colunas Readiness vs Health)
-
 ---
 
 ## Como usar
 
 Quando uma nova decisão arquitetural surgir:
 
-1. Liste os invariants relevantes
-2. Pergunte: "Isso quebra algum invariant?"
-3. Se sim — refatore antes de prosseguir
-4. Se não — adicione um teste que garanta o invariant
+1. Liste os **hard invariants** relevantes
+2. Pergunte: "Isso quebra algum hard invariant?"
+3. Se sim — pare. Refatore antes de prosseguir.
+4. Se não — avance.
+5. Se precisar de uma exceção a um **soft invariant**, documente o motivo.
 
-> Um invariant quebrado é mais grave que um bug funcional.
+### Regra de ouro para novas abstrações
+
+> **Nenhuma abstração nova entra sem que dois plugins reais tenham precisado dela.**
+
+Isso é mais forte que a regra antiga dos "3 plugins".
+Se só um plugin precisa, a abstração é prematura.
+Espere o segundo caso de uso real.
+
+> Um hard invariant quebrado é mais grave que um bug funcional.
 > Bug funcional corrige-se. Invariant quebrado corrompe a plataforma.
