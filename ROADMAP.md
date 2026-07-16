@@ -68,23 +68,58 @@ pnpm test:workflows     3.0s (7 workflows, 14 assertions)
 
 ---
 
-## Sprint 5 — Workflows de Valor
+## Sprint 5 — Workflow Campeão: OAB Content Factory
 
-> Objetivo: "Um usuário consegue criar um ativo digital em um único comando."
+> **Escolhido:** Estudo OAB Content Factory
+> Motivo: Você já tem o produto (estudooab.com), o domínio (direito) e a audiência.
+> Qualquer outro workflow seria genérico. Este é específico e monetizável.
 
-### Candidatos a workflow campeão
+### Workflow
 
-1. **Short OAB** — Tema → Roteiro (chat.generate) → Imagens → Vídeo → Legendas → Hashtags
-2. **Shopee Affiliate** — Produto → Pesquisa → Roteiro → Vídeo → Thumbnail → Descrição → Publicação
-3. **Daily Briefing** — Notícias de 3 categorias → Resumo → Briefing formatado
+```
+Tema ("Princípio da Insignificância")
+  ↓  chat.generate — Pesquisa jurídica
+  ↓  chat.generate — Resumo didático
+  ↓  chat.generate — Roteiro (60s)
+  ↓  chat.generate — Legenda + Hashtags
+  ↓  image.generate — Thumbnail
+  ↓  video.generate — Short completo
+  ↓  Artifact(video)
+```
 
-### Critério de seleção
+### Marcos
 
-O primeiro workflow que fizer alguém dizer **"eu pagaria por isso"** define o Sprint 5.
+| Marco | O que entrega | Status |
+|-------|---------------|--------|
+| M1 | Geração de roteiro + legenda + hashtags via chat.generate | ✅ (mock) |
+| M2 | image.generate (thumbnail) | ⏳ |
+| M3 | video.generate (short com narração) | ⏳ |
+| M4 | Workflow executável fim-a-fim | ⏳ |
+| M5 | Publicação automática no Instagram | ⏳ |
+
+### Regra
+
+> Esta Sprint só termina quando existir um workflow que um usuário do Estudo OAB consiga executar.
 
 ---
 
-## Sprint 6+ — Agent Runtime, Publisher, Expansão
+## Sprint 6 — Novos Workflows de Valor
+
+> Expansão para outros casos de uso, seguindo o mesmo padrão do OAB.
+
+### Candidatos
+
+1. **Shopee Affiliate** — Produto → Pesquisa → Roteiro → Vídeo → Thumbnail → Descrição → Publicação
+2. **Research Agent** — Empresa → Website → Redes → Relatório
+3. **Daily Briefing** — Notícias → Resumo → Briefing
+
+### Critério
+
+Cada workflow precisa ter um `case-studies/<nome>/` com caso de uso documentado.
+
+---
+
+## Sprint 7+ — Agent Runtime, Publisher, Expansão
 
 ```
 Agente → Planeja → WorkflowDefinition → WorkflowRuntime → Capabilities
@@ -109,11 +144,14 @@ Tudo rastreável, reproduzível, editável depois.
 | Plugin creation time | < 30 min | ✅ < 5 min |
 | Benchmark | documentado | ✅ benchmarks/RESULTS.md |
 | DX Scorecard | documentado | ✅ benchmarks/DX.md |
+| Product Metrics | documentado | ✅ benchmarks/product-metrics.md |
 | Contributing guide | publicado | ✅ CONTRIBUTING.md |
 | Plugin guide | publicado | ✅ docs/plugin-development.md |
 | SDK tutorial | publicado | ✅ docs/sdk-tutorial.md |
-| Validação externa | N users | ⏳ |
-| Workflow campeão | 1 resolvendo problema real | ⏳ |
+| Case studies | 1+ | ✅ estudo-oab |
+| Fase 2 (Arquitetura) | completa | ✅ |
+| Fase 3 (Produto) | iniciada | ⬅️ **AQUI** |
+| Workflow campeão | executável fim-a-fim | ⏳ Sprint 5 |
 
 ---
 
