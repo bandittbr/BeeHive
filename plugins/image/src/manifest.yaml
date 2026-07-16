@@ -1,0 +1,30 @@
+name: image
+version: 1.0.0
+description: "Geração e edição de imagens com IA"
+author: BeeHive
+
+capabilities:
+  - text_to_image
+  - image_to_image
+  - upscale
+  - edit_image
+
+interfaces:
+  - IImageEngine
+
+adapters:
+  - ComfyUI
+  - DALL-E
+  - StableDiffusion
+
+dependencies:
+  - AIManager
+  - Storage
+
+permissions:
+  - storage:read
+  - storage:write
+
+config:
+  default_adapter: ComfyUI
+  max_resolution: 2048

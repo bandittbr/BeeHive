@@ -1,0 +1,30 @@
+name: chat
+version: 1.0.0
+description: "Conversação multi-provedor com IA"
+author: BeeHive
+
+capabilities:
+  - converse
+  - stream_converse
+  - tool_calling
+
+interfaces:
+  - IChatPlugin
+
+adapters: []
+
+dependencies:
+  - AIManager
+  - ProviderManager
+  - Memory
+
+permissions:
+  - ai:chat
+  - ai:stream
+  - memory:read
+  - memory:write
+
+config:
+  default_provider: openai
+  default_model: gpt-4o-mini
+  max_tokens: 4096

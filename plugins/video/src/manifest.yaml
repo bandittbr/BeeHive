@@ -1,0 +1,35 @@
+name: video
+version: 1.0.0
+description: "Geração e edição de vídeos com IA"
+author: BeeHive
+
+capabilities:
+  - generate_shorts
+  - render_video
+  - export_media
+  - add_subtitles
+  - generate_thumbnail
+
+interfaces:
+  - IVideoEngine
+
+adapters:
+  - MoneyPrinterTurbo
+  - VidBee
+  - Remotion
+  - MoviePy
+
+dependencies:
+  - AIManager
+  - Storage
+  - Queue
+
+permissions:
+  - storage:read
+  - storage:write
+  - queue:create
+
+config:
+  default_adapter: MoneyPrinterTurbo
+  max_duration: 300
+  supported_formats: [mp4, mov, avi]

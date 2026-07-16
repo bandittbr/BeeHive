@@ -1,0 +1,10 @@
+export { IPlugin, PluginManifest, ICoreAPI, IAIService, IWorkflowService, IMemoryService, IStorageService, IEventService, IToolService, ILogService, IConfigService } from './IPlugin';
+export { IWorkflow, WorkflowContext, WorkflowResult, WorkflowStepResult } from './IWorkflow';
+export { IAgent, AgentContext, AgentChunk, AgentState } from './IAgent';
+export { IVideoEngine, VideoCapability, ShortsParams, ShortsResult, ClipInfo, VideoParams, Scene, VideoResult, ExportParams, ExportResult, VideoMetadata } from './IVideoEngine';
+export { IImageEngine, ImageCapability, ImageGenerationParams, ImageEditParams, ImageResult } from './IImageEngine';
+export { ITool, ToolParameter, ToolCategory, ToolContext, ToolResult } from './ITool';
+export { IProvider, ProviderType, ProviderConfig, IProviderManager, ProviderCriteria } from './IProvider';
+export { IMemory, MemoryStoreType, MemoryEntry, MemoryQuery } from './IMemory';
+export { IStorage } from './IStorage';
+export { IBrowser, IBrowserPage, ScreenshotOptions, PDFOptions } from './IBrowser';
