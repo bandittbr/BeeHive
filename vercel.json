@@ -1,9 +1,8 @@
 {
-  "builds": [
-    { "src": "apps/control-center/package.json", "use": "@vercel/node" }
-  ],
+  "buildCommand": "cd apps/control-center && npm install && npm run build",
+  "outputDirectory": "apps/control-center/dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/apps/control-center/dist/index.html" }
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
   "headers": [
     {
