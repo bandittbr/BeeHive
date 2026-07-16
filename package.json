@@ -36,6 +36,7 @@
 "example:daily-news":  "npx tsx examples/generic/daily-news/run.ts",
 "example:research":  "npx tsx examples/generic/research-company/run.ts",
 "example:hello-app":  "npx tsx examples/integrations/hello-world-app/index.ts",
+"example:weather":  "npx tsx examples/integrations/external-weather-plugin/run.ts",
 "benchmark":  "npx tsx tools/benchmark.ts",
 "benchmark:dx":  "npx tsx tools/measure-dx.ts"
                 },

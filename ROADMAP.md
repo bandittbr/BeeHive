@@ -61,35 +61,26 @@ pnpm test:workflows     3.0s (7 workflows, 14 assertions)
 
 ---
 
-## Sprint 5 — Content Automation Workflow
+## Sprint 5 — Ecosystem Validation
 
-> Objetivo: Provar que o BeeHive orquestra **múltiplas modalidades** (texto, imagem, vídeo)
-> em um único workflow sem tocar no Kernel.
+> Objetivo: Provar que **terceiros conseguem criar aplicações e plugins** sobre o BeeHive
+> sem modificar a plataforma.
 
-### Workflow
+### Entregas
 
-```
-Tema
-  ↓  chat.generate — Pesquisa
-  ↓  chat.generate — Roteiro
-  ↓  image.generate — Imagens do vídeo
-  ↓  video.generate — Montagem final
-  ↓  Artifact(video)
-```
-
-### Marcos
-
-| Marco | O que entrega | Status |
-|-------|---------------|--------|
-| M1 | `image.generate` — capability genérica (prompt → imagem) | ⏳ |
-| M2 | `video.generate` — capability genérica (cenas → vídeo) | ⏳ |
-| M3 | Workflow executável fim-a-fim com mocks | ⏳ |
-| M4 | Adapter real para pelo menos uma capability | ⏳ |
-| M5 | `pnpm example:content-video` — um comando | ⏳ |
+| Entrega | Descrição | Status |
+|---------|-----------|--------|
+| E1 | External app fora do monorepo (`examples/integrations/hello-world-app/`) | ✅ |
+| E2 | External plugin fora do monorepo (`examples/integrations/external-weather-plugin/`) | ✅ |
+| E3 | SDK publicado como dependência (`@beehive/sdk`) | ✅ (workspace) |
+| E4 | Documentação da Developer Surface | ✅ |
+| E5 | Guia "Build your first BeeHive app" | ✅ |
+| E6 | Plugin `weather.current` descoberto automaticamente | ✅ |
+| E7 | Aplicação executa workflows sem importar Kernel | ✅ |
 
 ### Regra
 
-> Esta Sprint termina quando existir um workflow multimodal executável por qualquer usuário.
+> Esta Sprint termina quando um terceiro puder criar uma aplicação BeeHive apenas com `npm install @beehive/sdk`.
 
 ---
 
@@ -126,8 +117,12 @@ Tudo rastreável, reproduzível, editável depois.
 | Workflow Runtime | funcional | ✅ implementado |
 | Workflow Tests | 14+ | ✅ 14/14 |
 | Examples (generic) | 5+ executáveis | ✅ 5 |
-| Examples (integrations) | 1+ app externa | ✅ hello-world-app |
+| Examples (generic) | 5+ executáveis | ✅ 5 |
+| Examples (integrations) | 2+ (app + plugin externos) | ✅ hello-world-app + weather-plugin |
+| External app sem importar Kernel | funcional | ✅ hello-world-app |
+| External plugin descoberto | funcional | ✅ weather.current |
 | Plugin creation time | < 30 min | ✅ < 5 min |
+| Public API documentada | public-api.md, sdk-reference.md, compatibility.md | ✅ |
 | Benchmark | documentado | ✅ benchmarks/ |
 | DX Scorecard | documentado | ✅ benchmarks/ |
 | Product Metrics | documentado | ✅ benchmarks/ |

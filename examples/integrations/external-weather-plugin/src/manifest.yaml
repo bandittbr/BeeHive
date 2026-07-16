@@ -1,0 +1,30 @@
+id: external-weather
+name: Weather Plugin
+version: 1.0.0
+description: Plugin externo de clima — desenvolvido sem tocar no Kernel BeeHive
+
+capabilities:
+  - id: weather.current
+    name: Current Weather
+    description: Obtem temperatura e condicoes climaticas atuais para uma cidade
+    inputs:
+      - name: city
+        type: string
+        required: true
+        description: Nome da cidade
+    outputs:
+      - name: temperature
+        type: number
+        description: Temperatura atual em Celsius
+      - name: condition
+        type: string
+        description: Condicao climatica
+      - name: humidity
+        type: number
+        description: Umidade relativa do ar
+    tags:
+      - weather
+      - external
+
+adapters: []
+permissions: []

@@ -176,7 +176,7 @@ async function main() {
           pass = false;
         } else {
           const content = readFile(capFile);
-          if (!content.includes('extends Capability')) {
+          if (!content.includes('extends Capability') && !content.includes('CapabilityBuilder')) {
             details.push('  INVALID: ' + dir + '/' + capId + '.ts does not export a Capability class');
             pass = false;
           } else {

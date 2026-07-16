@@ -1,4 +1,5 @@
 import type { PluginContext as IPluginContext } from './types';
+import type { ICapability } from './types';
 
 export class PluginContext implements IPluginContext {
   constructor(
@@ -12,4 +13,16 @@ export class PluginContext implements IPluginContext {
     public readonly permissions: any,
     public readonly workflow: any,
   ) {}
+
+  registerCapability(capability: ICapability): void {
+    this.capabilities.register('plugin', capability);
+  }
+
+  unregisterCapability(capabilityId: string): void {
+    this.capabilities.unregister('plugin', capabilityId);
+  }
+
+  publishEvent(event: any): void {
+    this.events.publish(event);
+  }
 }

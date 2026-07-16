@@ -1,0 +1,10 @@
+{
+  "name": "external-weather-plugin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Plugin externo de clima para BeeHive — demonstra que um terceiro pode estender a plataforma sem modificar o Kernel",
+  "main": "src/index.ts",
+  "dependencies": {
+    "@beehive/sdk": "workspace:*"
+  }
+}
