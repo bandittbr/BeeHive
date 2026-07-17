@@ -1,100 +1,72 @@
 import { useState } from 'react';
 import {
-  MessageSquare,
-  FolderKanban,
-  Grid3X3,
-  Settings,
-  Home,
-  Plus,
-  Search,
-  ChevronRight,
-  Bot,
-  Workflow,
-  Zap,
-  Brain,
-  Code,
-  BarChart3,
-  Megaphone,
-  FileText,
-  Image,
-  Video,
-  Music,
-  Globe,
-  Package,
-  Layers,
-  GitBranch,
-  Clock,
-  Activity,
-  Users,
-  ArrowUpRight,
-  Sparkles,
-  Terminal,
-  Database,
-  Shield,
-  Bell,
-  Palette,
-  Key,
-  Cpu,
-  HardDrive,
-  FileCode,
-  Receipt,
-  Info,
+  Home, MessageSquare, FolderKanban, Building2, Settings,
+  Plus, Search, ChevronRight, ChevronDown, ArrowUpRight,
+  Bot, Workflow, Zap, Brain, Code, BarChart3, Megaphone,
+  FileText, Image, Video, Music, Globe, Package, Layers,
+  GitBranch, Clock, Activity, Users, Sparkles, Terminal,
+  Database, Shield, Bell, Palette, Key, Cpu, HardDrive,
+  FileCode, Receipt, Info, Play, Pause, CheckCircle2,
+  AlertTriangle, XCircle, MoreHorizontal, Send, Paperclip,
+  Hash, Star, Archive, Trash2, Download, ExternalLink,
+  TrendingUp, DollarSign, Eye, Calendar, Target, Rocket,
+  CircleDot, Loader2, RefreshCw, Filter, SortAsc,
 } from 'lucide-react';
 import './App.css';
 
 type MainArea = 'home' | 'chat' | 'projetos' | 'negocios' | 'settings';
 
-const NAV_ITEMS: { id: MainArea; label: string; icon: typeof MessageSquare }[] = [
-  { id: 'home', label: 'Home', icon: Home },
-  { id: 'chat', label: 'Chat', icon: MessageSquare },
-  { id: 'projetos', label: 'Projetos', icon: FolderKanban },
-  { id: 'negocios', label: 'Negócios', icon: Grid3X3 },
-  { id: 'settings', label: 'Settings', icon: Settings },
-];
-
 export default function App() {
   const [activeArea, setActiveArea] = useState<MainArea>('home');
+  const [activeProject, setActiveProject] = useState<string | null>(null);
+
+  const handleNavigate = (area: MainArea, project?: string) => {
+    setActiveArea(area);
+    if (project) setActiveProject(project);
+  };
 
   return (
     <div className="app">
-      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-icon">
-            <Sparkles size={20} />
+          <div className="logo-mark">
+            <Sparkles size={18} />
           </div>
+          <span className="logo-text">BeeHive</span>
         </div>
 
         <nav className="sidebar-nav">
-          {NAV_ITEMS.map(item => {
-            const Icon = item.icon;
-            const isActive = activeArea === item.id;
-            return (
-              <button
-                key={item.id}
-                className={`nav-btn${isActive ? ' active' : ''}`}
-                onClick={() => setActiveArea(item.id)}
-                title={item.label}
-              >
-                <Icon size={20} strokeWidth={1.5} />
-                {isActive && <span className="nav-label">{item.label}</span>}
-              </button>
-            );
-          })}
+          <button className={`nav-item${activeArea === 'home' ? ' active' : ''}`} onClick={() => handleNavigate('home')}>
+            <Home size={18} strokeWidth={1.5} />
+            <span>Home</span>
+          </button>
+          <button className={`nav-item${activeArea === 'chat' ? ' active' : ''}`} onClick={() => handleNavigate('chat')}>
+            <MessageSquare size={18} strokeWidth={1.5} />
+            <span>Chat</span>
+          </button>
+          <button className={`nav-item${activeArea === 'projetos' ? ' active' : ''}`} onClick={() => handleNavigate('projetos')}>
+            <FolderKanban size={18} strokeWidth={1.5} />
+            <span>Projetos</span>
+          </button>
+          <button className={`nav-item${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => handleNavigate('negocios')}>
+            <Building2 size={18} strokeWidth={1.5} />
+            <span>Negócios</span>
+          </button>
         </nav>
 
-        <div className="sidebar-bottom">
-          <button className="nav-btn" title="New">
-            <Plus size={20} strokeWidth={1.5} />
+        <div className="sidebar-footer">
+          <div className="sidebar-divider" />
+          <button className={`nav-item${activeArea === 'settings' ? ' active' : ''}`} onClick={() => handleNavigate('settings')}>
+            <Settings size={18} strokeWidth={1.5} />
+            <span>Settings</span>
           </button>
         </div>
       </aside>
 
-      {/* Main Content */}
-      <main className="main-content">
-        {activeArea === 'home' && <HomeView onNavigate={setActiveArea} />}
+      <main className="main">
+        {activeArea === 'home' && <HomeView onNavigate={handleNavigate} />}
         {activeArea === 'chat' && <ChatView />}
-        {activeArea === 'projetos' && <ProjetosView />}
+        {activeArea === 'projetos' && <ProjetosView onNavigate={handleNavigate} />}
         {activeArea === 'negocios' && <NegociosView />}
         {activeArea === 'settings' && <SettingsView />}
       </main>
@@ -103,191 +75,233 @@ export default function App() {
 }
 
 // ============================================================
-// HOME / DASHBOARD VIEW
+// HOME — AI Operating System Cockpit
 // ============================================================
+
+interface MetricCard {
+  label: string;
+  value: string;
+  change?: string;
+  changeType?: 'up' | 'down' | 'neutral';
+  icon: typeof Bot;
+  color: string;
+}
+
+interface RecentProject {
+  id: string;
+  name: string;
+  icon: string;
+  progress: number;
+  agents: number;
+  lastAccess: string;
+}
 
 interface ActivityItem {
   id: string;
-  type: 'workflow' | 'agent' | 'artifact' | 'chat';
-  title: string;
-  description: string;
+  icon: typeof CheckCircle2;
+  text: string;
   time: string;
-  status: 'running' | 'completed' | 'failed';
+  type: 'success' | 'warning' | 'error' | 'info';
 }
 
-const MOCK_ACTIVITIES: ActivityItem[] = [
-  { id: '1', type: 'workflow', title: 'Marketing Campaign', description: 'Gerando copy para Instagram...', time: '2 min', status: 'running' },
-  { id: '2', type: 'agent', title: 'TradeAI Agent', description: 'Análise de mercado concluída', time: '15 min', status: 'completed' },
-  { id: '3', type: 'artifact', title: 'Relatório Q4', description: 'PDF gerado com sucesso', time: '1h', status: 'completed' },
-  { id: '4', type: 'chat', title: 'Research Session', description: 'Comparação de modelos AI', time: '2h', status: 'completed' },
-  { id: '5', type: 'workflow', title: 'Data Pipeline', description: 'Erro na conexão com API', time: '3h', status: 'failed' },
+interface ArtifactItem {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  icon: typeof FileText;
+}
+
+const METRICS: MetricCard[] = [
+  { label: 'Agentes Online', value: '6', change: '+2 hoje', changeType: 'up', icon: Bot, color: '#a855f7' },
+  { label: 'Workflows Ativos', value: '14', change: '3 executando', changeType: 'neutral', icon: Workflow, color: '#3b82f6' },
+  { label: 'Execuções Hoje', value: '284', change: '+12%', changeType: 'up', icon: Zap, color: '#f59e0b' },
+  { label: 'Tempo Economizado', value: '6.2h', change: '+1.4h', changeType: 'up', icon: Clock, color: '#10b981' },
+  { label: 'Artifacts', value: '47', change: '+8 hoje', changeType: 'up', icon: FileText, color: '#ec4899' },
+  { label: 'Providers', value: '3', change: 'Todos online', changeType: 'neutral', icon: Cpu, color: '#6366f1' },
 ];
 
-const MOCK_WORKFLOWS = [
-  { id: '1', name: 'Content Generator', runs: 47, success: 94, icon: FileText },
-  { id: '2', name: 'Data Analyst', runs: 23, success: 100, icon: BarChart3 },
-  { id: '3', name: 'Social Poster', runs: 156, success: 98, icon: Megaphone },
+const RECENT_PROJECTS: RecentProject[] = [
+  { id: '1', name: 'BeeHive', icon: '🐝', progress: 72, agents: 3, lastAccess: '2 min' },
+  { id: '2', name: 'TradeAI', icon: '📈', progress: 45, agents: 2, lastAccess: '15 min' },
+  { id: '3', name: 'Marketing', icon: '📢', progress: 88, agents: 4, lastAccess: '1h' },
+  { id: '4', name: 'Cliente X', icon: '💼', progress: 23, agents: 1, lastAccess: '3h' },
 ];
 
-const MOCK_AGENTS = [
-  { id: '1', name: 'Assistant', status: 'active', tasks: 12, icon: Bot },
-  { id: '2', name: 'Researcher', status: 'idle', tasks: 5, icon: Search },
-  { id: '3', name: 'Coder', status: 'active', tasks: 3, icon: Code },
+const ACTIVITIES: ActivityItem[] = [
+  { id: '1', icon: CheckCircle2, text: 'Video publicado no YouTube', time: '2 min', type: 'success' },
+  { id: '2', icon: CheckCircle2, text: 'Workflow "Marketing Diário" concluído', time: '15 min', type: 'success' },
+  { id: '3', icon: AlertTriangle, text: 'OpenRouter com latência alta', time: '30 min', type: 'warning' },
+  { id: '4', icon: CheckCircle2, text: 'Browser scraping finalizado', time: '1h', type: 'success' },
+  { id: '5', icon: CheckCircle2, text: 'Pesquisa de mercado concluída', time: '2h', type: 'success' },
+  { id: '6', icon: XCircle, text: 'Deploy falhou — retry automático', time: '3h', type: 'error' },
 ];
 
-function HomeView({ onNavigate }: { onNavigate: (area: MainArea) => void }) {
+const ARTIFACTS: ArtifactItem[] = [
+  { id: '1', name: 'relatorio-q4.pdf', type: 'PDF', size: '2.4 MB', icon: FileText },
+  { id: '2', name: 'thumbnail-campanha.png', type: 'Image', size: '156 KB', icon: Image },
+  { id: '3', name: 'video-final.mp4', type: 'Video', size: '48 MB', icon: Video },
+  { id: '4', name: 'script-automation.md', type: 'Markdown', size: '4.2 KB', icon: FileCode },
+];
+
+function HomeView({ onNavigate }: { onNavigate: (area: MainArea, project?: string) => void }) {
   return (
-    <div className="home-view">
-      {/* Header */}
-      <div className="home-header">
-        <div>
+    <div className="home">
+      {/* Hero */}
+      <div className="hero">
+        <div className="hero-text">
           <h1>Bom dia, Gabriel</h1>
-          <p className="home-subtitle">Seu sistema de IA está funcionando</p>
+          <p>6 agentes trabalhando · 14 workflows ativos · 284 execuções hoje</p>
         </div>
-        <div className="home-header-actions">
-          <button className="btn-primary" onClick={() => onNavigate('chat')}>
-            <MessageSquare size={16} />
-            Nova Conversa
-          </button>
-        </div>
+        <button className="btn-glow" onClick={() => onNavigate('chat')}>
+          <MessageSquare size={16} />
+          Nova Conversa
+        </button>
       </div>
 
-      {/* Quick Stats */}
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3b82f6' }}>
-            <Activity size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-value">12</span>
-            <span className="stat-label">Workflows Ativos</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(16, 185, 129, 0.1)', color: '#10b981' }}>
-            <Bot size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-value">5</span>
-            <span className="stat-label">Agentes Rodando</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(168, 85, 247, 0.1)', color: '#a855f7' }}>
-            <Zap size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-value">284</span>
-            <span className="stat-label">Tarefas Hoje</span>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>
-            <Clock size={20} />
-          </div>
-          <div className="stat-info">
-            <span className="stat-value">6.2h</span>
-            <span className="stat-label">Tempo Economizado</span>
-          </div>
-        </div>
+      {/* Metrics */}
+      <div className="metrics">
+        {METRICS.map(m => {
+          const Icon = m.icon;
+          return (
+            <div key={m.label} className="metric-card">
+              <div className="metric-icon" style={{ background: `${m.color}15`, color: m.color }}>
+                <Icon size={20} />
+              </div>
+              <div className="metric-body">
+                <span className="metric-value">{m.value}</span>
+                <span className="metric-label">{m.label}</span>
+              </div>
+              {m.change && (
+                <span className={`metric-change ${m.changeType}`}>
+                  {m.changeType === 'up' && <TrendingUp size={12} />}
+                  {m.change}
+                </span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       {/* Main Grid */}
       <div className="home-grid">
-        {/* Recent Activity */}
-        <div className="home-card activity-card">
-          <div className="card-header">
+        {/* Recent Projects */}
+        <div className="panel projects-panel">
+          <div className="panel-header">
+            <h2>Continue trabalhando</h2>
+            <button className="btn-ghost-sm" onClick={() => onNavigate('projetos')}>Ver todos</button>
+          </div>
+          <div className="projects-list">
+            {RECENT_PROJECTS.map(p => (
+              <button key={p.id} className="project-row" onClick={() => onNavigate('projetos', p.name)}>
+                <span className="project-icon">{p.icon}</span>
+                <div className="project-info">
+                  <span className="project-name">{p.name}</span>
+                  <div className="project-meta">
+                    <span className="project-progress">
+                      <span className="progress-bar"><span className="progress-fill" style={{ width: `${p.progress}%` }} /></span>
+                      {p.progress}%
+                    </span>
+                    <span className="project-agents"><Bot size={12} /> {p.agents}</span>
+                    <span className="project-time">{p.lastAccess}</span>
+                  </div>
+                </div>
+                <ArrowUpRight size={14} className="project-arrow" />
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Activity */}
+        <div className="panel activity-panel">
+          <div className="panel-header">
             <h2>Atividade Recente</h2>
             <button className="btn-ghost-sm">Ver tudo</button>
           </div>
           <div className="activity-list">
-            {MOCK_ACTIVITIES.map(item => (
-              <div key={item.id} className="activity-item">
-                <div className={`activity-status ${item.status}`} />
-                <div className="activity-info">
-                  <span className="activity-title">{item.title}</span>
-                  <span className="activity-desc">{item.description}</span>
+            {ACTIVITIES.map(a => {
+              const Icon = a.icon;
+              return (
+                <div key={a.id} className="activity-row">
+                  <Icon size={14} className={`activity-icon ${a.type}`} />
+                  <span className="activity-text">{a.text}</span>
+                  <span className="activity-time">{a.time}</span>
                 </div>
-                <span className="activity-time">{item.time}</span>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Artifacts */}
+        <div className="panel artifacts-panel">
+          <div className="panel-header">
+            <h2>Artifacts Recentes</h2>
+            <button className="btn-ghost-sm">Ver todos</button>
+          </div>
+          <div className="artifacts-grid">
+            {ARTIFACTS.map(a => {
+              const Icon = a.icon;
+              return (
+                <div key={a.id} className="artifact-chip">
+                  <Icon size={14} />
+                  <span className="artifact-name">{a.name}</span>
+                  <span className="artifact-size">{a.size}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Agents Status */}
+        <div className="panel agents-panel">
+          <div className="panel-header">
+            <h2>Equipe de Agentes</h2>
+          </div>
+          <div className="agents-list">
+            {[
+              { name: 'Marketing Agent', status: 'running', task: 'Gerando copy para Instagram', color: '#a855f7' },
+              { name: 'Research Agent', status: 'idle', task: 'Aguardando tarefa', color: '#3b82f6' },
+              { name: 'Video Agent', status: 'working', task: 'Editando vídeo final', color: '#10b981' },
+              { name: 'Publishing Agent', status: 'waiting', task: 'Fila de publicação', color: '#f59e0b' },
+            ].map(a => (
+              <div key={a.name} className="agent-row">
+                <div className="agent-dot" style={{ background: a.color }} />
+                <div className="agent-info">
+                  <span className="agent-name">{a.name}</span>
+                  <span className="agent-task">{a.task}</span>
+                </div>
+                <span className={`agent-status ${a.status}`}>{a.status}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Quick Workflows */}
-        <div className="home-card workflows-card">
-          <div className="card-header">
+        {/* Workflows */}
+        <div className="panel workflows-panel">
+          <div className="panel-header">
             <h2>Workflows</h2>
-            <button className="btn-ghost-sm">Ver todos</button>
           </div>
           <div className="workflows-list">
-            {MOCK_WORKFLOWS.map(wf => {
-              const Icon = wf.icon;
-              return (
-                <div key={wf.id} className="workflow-item">
-                  <div className="workflow-icon">
-                    <Icon size={18} />
-                  </div>
-                  <div className="workflow-info">
-                    <span className="workflow-name">{wf.name}</span>
-                    <span className="workflow-stats">{wf.runs} runs · {wf.success}% success</span>
-                  </div>
-                  <button className="btn-run">
-                    <Zap size={14} />
-                  </button>
+            {[
+              { name: 'Marketing Diário', status: 'running', progress: 98 },
+              { name: 'Pesquisa Empresa', status: 'completed', progress: 100 },
+              { name: 'Trade BTC', status: 'error', progress: 45 },
+              { name: 'Publicação Instagram', status: 'scheduled', progress: 0 },
+            ].map(w => (
+              <div key={w.name} className="workflow-row">
+                <div className="workflow-status">
+                  {w.status === 'running' && <Loader2 size={14} className="spin" />}
+                  {w.status === 'completed' && <CheckCircle2 size={14} />}
+                  {w.status === 'error' && <XCircle size={14} />}
+                  {w.status === 'scheduled' && <Clock size={14} />}
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Active Agents */}
-        <div className="home-card agents-card">
-          <div className="card-header">
-            <h2>Agentes</h2>
-            <button className="btn-ghost-sm">Gerenciar</button>
-          </div>
-          <div className="agents-list">
-            {MOCK_AGENTS.map(agent => {
-              const Icon = agent.icon;
-              return (
-                <div key={agent.id} className="agent-item">
-                  <div className="agent-avatar">
-                    <Icon size={20} />
-                  </div>
-                  <div className="agent-info">
-                    <span className="agent-name">{agent.name}</span>
-                    <span className={`agent-status ${agent.status}`}>{agent.status}</span>
-                  </div>
-                  <span className="agent-tasks">{agent.tasks} tasks</span>
+                <div className="workflow-info">
+                  <span className="workflow-name">{w.name}</span>
+                  <span className={`workflow-status-text ${w.status}`}>{w.status}</span>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Quick Access */}
-        <div className="home-card quick-card">
-          <div className="card-header">
-            <h2>Acesso Rápido</h2>
-          </div>
-          <div className="quick-grid">
-            <button className="quick-item" onClick={() => onNavigate('chat')}>
-              <MessageSquare size={20} />
-              <span>Chat</span>
-            </button>
-            <button className="quick-item" onClick={() => onNavigate('projetos')}>
-              <FolderKanban size={20} />
-              <span>Projetos</span>
-            </button>
-            <button className="quick-item" onClick={() => onNavigate('negocios')}>
-              <Grid3X3 size={20} />
-              <span>Módulos</span>
-            </button>
-            <button className="quick-item" onClick={() => onNavigate('settings')}>
-              <Settings size={20} />
-              <span>Config</span>
-            </button>
+                <span className="workflow-progress">{w.progress}%</span>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -296,207 +310,206 @@ function HomeView({ onNavigate }: { onNavigate: (area: MainArea) => void }) {
 }
 
 // ============================================================
-// CHAT VIEW
+// CHAT — The Center of the AI OS
 // ============================================================
 
 interface Conversation {
   id: string;
   title: string;
-  lastMessage: string;
-  timestamp: string;
-  agent?: string;
+  preview: string;
+  time: string;
+  starred?: boolean;
 }
 
-interface Message {
+interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
-  timestamp: string;
-  agent?: string;
+  time: string;
 }
 
-const MOCK_CONVERSATIONS: Conversation[] = [
-  { id: '1', title: 'TradeAI Strategy', lastMessage: 'Análise do mercado...', timestamp: '2 min', agent: 'Researcher' },
-  { id: '2', title: 'Marketing Campaign', lastMessage: 'Criar copy para...', timestamp: '1h', agent: 'Assistant' },
-  { id: '3', title: 'Code Review', lastMessage: 'Refatorar o módulo...', timestamp: '3h', agent: 'Coder' },
-  { id: '4', title: 'Research AI Models', lastMessage: 'Comparar GPT-4 vs...', timestamp: '1d', agent: 'Researcher' },
+const CONVERSATIONS: Conversation[] = [
+  { id: '1', title: 'Análise de Mercado Q4', preview: 'Dados compilados com sucesso...', time: '2 min', starred: true },
+  { id: '2', title: 'Campanha Instagram', preview: '5 posts criados para...', time: '1h' },
+  { id: '3', title: 'Code Review Módulo', preview: 'Refatoração sugerida...', time: '3h' },
+  { id: '4', title: 'Pesquisa Concorrentes', preview: 'Top 5 concorrentes...', time: '1d' },
+  { id: '5', title: 'Script YouTube', preview: 'Roteiro para vídeo de...', time: '2d', starred: true },
 ];
 
-const MOCK_MESSAGES: Message[] = [
-  { id: '1', role: 'user', content: 'Analise o desempenho da nossa última campanha de marketing.', timestamp: '10:30' },
-  { id: '2', role: 'assistant', content: 'Analisando os dados da campanha...\n\n**Métricas Principais:**\n- Taxa de conversão: +23% vs mês anterior\n- ROI: 4.2x\n- CAC: R$ 45.20\n\n**Canais com melhor performance:**\n1. Instagram Ads (45%)\n2. Google Ads (35%)\n3. TikTok Ads (20%)\n\n**Recomendações:**\n- Aumentar investimento em Instagram\n- Testar TikTok Ads no próximo ciclo\n- Implementar retargeting para visitantes', timestamp: '10:31', agent: 'Assistant' },
+const MESSAGES: ChatMessage[] = [
+  { id: '1', role: 'user', content: 'Analise o desempenho da campanha de marketing do último trimestre.', time: '10:30' },
+  { id: '2', role: 'assistant', content: 'Análise concluída. Aqui estão os principais insights:\n\n**Métricas do Trimestre:**\n- ROI: 4.2x (↑18% vs trimestre anterior)\n- CAC: R$ 42.30 (↓12%)\n- LTV: R$ 890 (↑23%)\n- Churn: 3.2% (↓0.8%)\n\n**Canais com melhor performance:**\n1. Instagram Ads — 45% das conversões\n2. Google Ads — 35% das conversões\n3. TikTok Ads — 20% das conversões\n\n**Recomendações:**\n- Aumentar budget em Instagram em 30%\n- Testar formatos Reels no TikTok\n- Implementar retargeting para carrinho abandonado\n- Criar campanha de relançamento para leads frios', time: '10:31' },
 ];
 
-const AGENTS = ['Assistant', 'Researcher', 'Coder', 'Analyst'];
-const MODELS = ['GPT-4o', 'Claude 3.5', 'Llama 3 70B', 'Gemini Pro'];
-const PROVIDERS = ['OpenRouter', 'OpenAI', 'Anthropic'];
+const AGENTS_LIST = ['Marketing Agent', 'Research Agent', 'Coding Agent', 'Video Agent'];
+const MODELS_LIST = ['Claude Sonnet', 'GPT-4o', 'Llama 3 70B', 'Gemini Pro'];
+const PROVIDERS_LIST = ['OpenRouter', 'OpenAI', 'Anthropic'];
+const WORKFLOWS_LIST = ['Nenhum', 'Marketing Diário', 'Pesquisa Auto', 'Trade Bot'];
 
 function ChatView() {
-  const [selectedConv, setSelectedConv] = useState<string>('1');
-  const [inputValue, setInputValue] = useState('');
-  const [messages, setMessages] = useState<Message[]>(MOCK_MESSAGES);
-  const [showArtifacts, setShowArtifacts] = useState(true);
-  const [selectedAgent, setSelectedAgent] = useState('Assistant');
-  const [selectedModel, setSelectedModel] = useState('GPT-4o');
-  const [selectedProvider, setSelectedProvider] = useState('OpenRouter');
+  const [selectedConv, setSelectedConv] = useState('1');
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<ChatMessage[]>(MESSAGES);
+  const [agent, setAgent] = useState('Marketing Agent');
+  const [model, setModel] = useState('Claude Sonnet');
+  const [provider, setProvider] = useState('OpenRouter');
+  const [workflow, setWorkflow] = useState('Nenhum');
+  const [showRightPanel, setShowRightPanel] = useState<'artifacts' | 'executions' | 'logs' | 'context' | null>('artifacts');
 
   const handleSend = () => {
-    if (!inputValue.trim()) return;
-    const newMsg: Message = {
-      id: String(Date.now()),
-      role: 'user',
-      content: inputValue,
-      timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    };
-    setMessages(prev => [...prev, newMsg]);
-    setInputValue('');
-
+    if (!input.trim()) return;
+    const msg: ChatMessage = { id: String(Date.now()), role: 'user', content: input, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
+    setMessages(prev => [...prev, msg]);
+    setInput('');
     setTimeout(() => {
-      const assistantMsg: Message = {
-        id: String(Date.now() + 1),
-        role: 'assistant',
-        content: 'Processando sua solicitação...\n\nAnalisando os dados disponíveis e gerando insights relevantes. Posso ajudar com mais alguma coisa?',
-        timestamp: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-        agent: selectedAgent,
-      };
-      setMessages(prev => [...prev, assistantMsg]);
-    }, 1000);
+      setMessages(prev => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: 'Processando sua solicitação com o agente selecionado...', time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }]);
+    }, 800);
   };
 
   return (
-    <div className="chat-layout">
+    <div className="chat">
       {/* Conversations Sidebar */}
       <div className="chat-sidebar">
         <div className="chat-sidebar-header">
           <h2>Conversas</h2>
-          <button className="btn-icon" title="New conversation">
-            <Plus size={16} />
-          </button>
+          <button className="btn-icon"><Plus size={16} /></button>
         </div>
         <div className="chat-search">
           <Search size={14} />
-          <input type="text" placeholder="Buscar..." />
+          <input type="text" placeholder="Buscar conversas..." />
         </div>
-        <div className="conversation-list">
-          {MOCK_CONVERSATIONS.map(conv => (
-            <button
-              key={conv.id}
-              className={`conversation-item${selectedConv === conv.id ? ' active' : ''}`}
-              onClick={() => setSelectedConv(conv.id)}
-            >
-              <div className="conv-info">
-                <span className="conv-title">{conv.title}</span>
-                <span className="conv-preview">{conv.lastMessage}</span>
+        <div className="chat-tabs">
+          <button className="chat-tab active">Todas</button>
+          <button className="chat-tab"><Star size={12} /> Favoritas</button>
+          <button className="chat-tab"><Archive size={12} /> Arquivo</button>
+        </div>
+        <div className="conv-list">
+          {CONVERSATIONS.map(c => (
+            <button key={c.id} className={`conv-item${selectedConv === c.id ? ' active' : ''}`} onClick={() => setSelectedConv(c.id)}>
+              <div className="conv-body">
+                <span className="conv-title">{c.title}</span>
+                <span className="conv-preview">{c.preview}</span>
               </div>
               <div className="conv-meta">
-                <span className="conv-time">{conv.timestamp}</span>
-                {conv.agent && <span className="conv-agent">{conv.agent}</span>}
+                <span className="conv-time">{c.time}</span>
+                {c.starred && <Star size={10} className="conv-star" />}
               </div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Messages Area */}
+      {/* Chat Main */}
       <div className="chat-main">
-        <div className="chat-header">
-          <div className="chat-header-left">
-            <h3>{MOCK_CONVERSATIONS.find(c => c.id === selectedConv)?.title}</h3>
+        {/* Topbar with selectors */}
+        <div className="chat-topbar">
+          <div className="topbar-selectors">
+            <div className="selector">
+              <span className="selector-label">Projeto</span>
+              <select><option>BeeHive</option><option>TradeAI</option><option>Marketing</option></select>
+            </div>
+            <div className="selector-divider" />
+            <div className="selector">
+              <span className="selector-label">Agente</span>
+              <select value={agent} onChange={e => setAgent(e.target.value)}>
+                {AGENTS_LIST.map(a => <option key={a}>{a}</option>)}
+              </select>
+            </div>
+            <div className="selector-divider" />
+            <div className="selector">
+              <span className="selector-label">Modelo</span>
+              <select value={model} onChange={e => setModel(e.target.value)}>
+                {MODELS_LIST.map(m => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="selector-divider" />
+            <div className="selector">
+              <span className="selector-label">Provider</span>
+              <select value={provider} onChange={e => setProvider(e.target.value)}>
+                {PROVIDERS_LIST.map(p => <option key={p}>{p}</option>)}
+              </select>
+            </div>
+            <div className="selector-divider" />
+            <div className="selector">
+              <span className="selector-label">Workflow</span>
+              <select value={workflow} onChange={e => setWorkflow(e.target.value)}>
+                {WORKFLOWS_LIST.map(w => <option key={w}>{w}</option>)}
+              </select>
+            </div>
           </div>
-          <div className="chat-header-right">
-            <div className="header-selector">
-              <label>Agent</label>
-              <select value={selectedAgent} onChange={e => setSelectedAgent(e.target.value)}>
-                {AGENTS.map(a => <option key={a} value={a}>{a}</option>)}
-              </select>
-            </div>
-            <div className="header-selector">
-              <label>Model</label>
-              <select value={selectedModel} onChange={e => setSelectedModel(e.target.value)}>
-                {MODELS.map(m => <option key={m} value={m}>{m}</option>)}
-              </select>
-            </div>
-            <div className="header-selector">
-              <label>Provider</label>
-              <select value={selectedProvider} onChange={e => setSelectedProvider(e.target.value)}>
-                {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
-              </select>
-            </div>
-            <button
-              className={`btn-icon${showArtifacts ? ' active' : ''}`}
-              onClick={() => setShowArtifacts(!showArtifacts)}
-              title="Toggle artifacts"
-            >
-              <Layers size={16} />
-            </button>
+          <div className="topbar-actions">
+            <button className={`btn-icon${showRightPanel === 'artifacts' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'artifacts' ? null : 'artifacts')} title="Artifacts"><Layers size={16} /></button>
+            <button className={`btn-icon${showRightPanel === 'logs' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'logs' ? null : 'logs')} title="Logs"><Terminal size={16} /></button>
+            <button className={`btn-icon${showRightPanel === 'context' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'context' ? null : 'context')} title="Context"><Database size={16} /></button>
           </div>
         </div>
 
-        <div className="messages-container">
-          {messages.map(msg => (
-            <div key={msg.id} className={`message ${msg.role}`}>
-              <div className="message-avatar">
-                {msg.role === 'user' ? <Users size={16} /> : <Bot size={16} />}
-              </div>
-              <div className="message-content">
-                <div className="message-header">
-                  <span className="message-role">{msg.role === 'user' ? 'Você' : msg.agent || 'BeeHive'}</span>
-                  <span className="message-time">{msg.timestamp}</span>
+        {/* Messages */}
+        <div className="chat-messages">
+          {messages.map(m => (
+            <div key={m.id} className={`msg ${m.role}`}>
+              <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
+              <div className="msg-body">
+                <div className="msg-header">
+                  <span className="msg-role">{m.role === 'user' ? 'Você' : agent}</span>
+                  <span className="msg-time">{m.time}</span>
                 </div>
-                <div className="message-text">{msg.content}</div>
+                <div className="msg-content">{m.content}</div>
               </div>
             </div>
           ))}
         </div>
 
-        <div className="chat-input-area">
-          <div className="chat-input-wrapper">
-            <input
-              type="text"
-              className="chat-input"
-              placeholder="Enviar mensagem..."
-              value={inputValue}
-              onChange={e => setInputValue(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSend()}
-            />
-            <button className="btn-send" onClick={handleSend}>
-              <ChevronRight size={18} />
-            </button>
-          </div>
-          <div className="chat-input-hint">
-            Enter para enviar · Shift+Enter para nova linha
+        {/* Input */}
+        <div className="chat-input">
+          <div className="input-wrapper">
+            <button className="input-action"><Paperclip size={16} /></button>
+            <input type="text" placeholder="Digite sua mensagem..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
+            <button className="input-send" onClick={handleSend}><Send size={16} /></button>
           </div>
         </div>
       </div>
 
-      {/* Artifacts Panel */}
-      {showArtifacts && (
-        <div className="artifacts-panel">
-          <div className="artifacts-header">
-            <span>Artifacts</span>
+      {/* Right Panel */}
+      {showRightPanel && (
+        <div className="chat-right-panel">
+          <div className="right-panel-header">
+            <span>{showRightPanel === 'artifacts' ? 'Artifacts' : showRightPanel === 'logs' ? 'Logs' : 'Contexto'}</span>
+            <button className="btn-icon" onClick={() => setShowRightPanel(null)}><XCircle size={14} /></button>
           </div>
-          <div className="artifacts-body">
-            <div className="artifact-item">
-              <FileText size={16} />
-              <div className="artifact-info">
-                <span className="artifact-name">relatorio-q4.pdf</span>
-                <span className="artifact-size">2.4 MB</span>
+          <div className="right-panel-body">
+            {showRightPanel === 'artifacts' && (
+              <div className="artifacts-list">
+                {ARTIFACTS.map(a => {
+                  const Icon = a.icon;
+                  return (
+                    <div key={a.id} className="artifact-row">
+                      <Icon size={14} />
+                      <div className="artifact-info">
+                        <span className="artifact-name">{a.name}</span>
+                        <span className="artifact-meta">{a.type} · {a.size}</span>
+                      </div>
+                      <button className="btn-icon-sm"><Download size={12} /></button>
+                    </div>
+                  );
+                })}
               </div>
-            </div>
-            <div className="artifact-item">
-              <Image size={16} />
-              <div className="artifact-info">
-                <span className="artifact-name">chart-revenue.png</span>
-                <span className="artifact-size">156 KB</span>
+            )}
+            {showRightPanel === 'logs' && (
+              <div className="logs-list">
+                {['[10:30] Workflow started', '[10:31] Agent response generated', '[10:32] Artifact saved', '[10:33] Memory updated'].map((l, i) => (
+                  <div key={i} className="log-line"><code>{l}</code></div>
+                ))}
               </div>
-            </div>
-            <div className="artifact-item">
-              <FileCode size={16} />
-              <div className="artifact-info">
-                <span className="artifact-name">analysis.py</span>
-                <span className="artifact-size">4.2 KB</span>
+            )}
+            {showRightPanel === 'context' && (
+              <div className="context-info">
+                <div className="context-row"><span>Memória utilizada</span><span>2.4 KB</span></div>
+                <div className="context-row"><span>Tokens na conversa</span><span>1,247</span></div>
+                <div className="context-row"><span>Artifacts vinculados</span><span>3</span></div>
+                <div className="context-row"><span>Projeto</span><span>BeeHive</span></div>
               </div>
-            </div>
+            )}
           </div>
         </div>
       )}
@@ -505,7 +518,7 @@ function ChatView() {
 }
 
 // ============================================================
-// PROJETOS VIEW
+// PROJETOS — Workspaces
 // ============================================================
 
 interface Project {
@@ -514,65 +527,55 @@ interface Project {
   description: string;
   icon: string;
   status: 'active' | 'paused' | 'completed';
-  tags: string[];
+  progress: number;
   agents: number;
   workflows: number;
-  updatedAt: string;
+  tags: string[];
+  lastAccess: string;
 }
 
-const MOCK_PROJECTS: Project[] = [
-  { id: '1', name: 'TradeAI', description: 'Sistema de trading automatizado com IA', icon: '📈', status: 'active', tags: ['AI', 'Trading', 'Python'], agents: 3, workflows: 5, updatedAt: '2 min' },
-  { id: '2', name: 'BeeHive', description: 'Plataforma de IA modular e extensível', icon: '🐝', status: 'active', tags: ['Platform', 'TypeScript', 'React'], agents: 2, workflows: 8, updatedAt: '1h' },
-  { id: '3', name: 'Estudo OAB', description: 'Material de estudo para exame da OAB', icon: '📚', status: 'paused', tags: ['Study', 'Law'], agents: 1, workflows: 2, updatedAt: '3d' },
-  { id: '4', name: 'Marketing Digital', description: 'Campanhas e conteúdo para redes sociais', icon: '📢', status: 'active', tags: ['Marketing', 'Social'], agents: 4, workflows: 12, updatedAt: '5h' },
-  { id: '5', name: 'Cliente X', description: 'Projeto de consultoria para empresa X', icon: '💼', status: 'active', tags: ['Consulting', 'Enterprise'], agents: 2, workflows: 3, updatedAt: '1d' },
-  { id: '6', name: 'Automação RH', description: 'Processos automatizados de recursos humanos', icon: '🔄', status: 'completed', tags: ['Automation', 'HR'], agents: 1, workflows: 4, updatedAt: '1w' },
+const PROJECTS: Project[] = [
+  { id: '1', name: 'BeeHive', description: 'Plataforma de IA modular e extensível', icon: '🐝', status: 'active', progress: 72, agents: 3, workflows: 8, tags: ['Platform', 'TypeScript'], lastAccess: '2 min' },
+  { id: '2', name: 'TradeAI', description: 'Sistema de trading automatizado', icon: '📈', status: 'active', progress: 45, agents: 2, workflows: 5, tags: ['AI', 'Python'], lastAccess: '15 min' },
+  { id: '3', name: 'Marketing Digital', description: 'Campanhas e conteúdo para redes sociais', icon: '📢', status: 'active', progress: 88, agents: 4, workflows: 12, tags: ['Marketing', 'Social'], lastAccess: '1h' },
+  { id: '4', name: 'Cliente X', description: 'Projeto de consultoria', icon: '💼', status: 'paused', progress: 23, agents: 1, workflows: 3, tags: ['Consulting'], lastAccess: '3h' },
+  { id: '5', name: 'Estudo OAB', description: 'Material de estudo para exame', icon: '📚', status: 'completed', progress: 100, agents: 1, workflows: 2, tags: ['Study'], lastAccess: '1w' },
 ];
 
-function ProjetosView() {
+function ProjetosView({ onNavigate }: { onNavigate: (area: MainArea) => void }) {
   return (
-    <div className="projetos-view">
-      <div className="view-header">
+    <div className="projetos">
+      <div className="page-header">
         <div>
           <h1>Projetos</h1>
-          <p className="view-subtitle">Workspaces e ambientes de trabalho</p>
+          <p>Workspaces e ambientes de trabalho</p>
         </div>
-        <button className="btn-primary">
-          <Plus size={16} />
-          Novo Projeto
-        </button>
+        <button className="btn-primary"><Plus size={16} /> Novo Projeto</button>
       </div>
 
       <div className="projects-grid">
-        {MOCK_PROJECTS.map(project => (
-          <div key={project.id} className="project-card">
-            <div className="project-card-header">
-              <span className="project-icon">{project.icon}</span>
-              <span className={`status-badge ${project.status}`}>{project.status}</span>
+        {PROJECTS.map(p => (
+          <div key={p.id} className="project-card">
+            <div className="project-card-top">
+              <span className="project-icon-lg">{p.icon}</span>
+              <span className={`status-dot ${p.status}`} />
             </div>
-            <h3 className="project-name">{project.name}</h3>
-            <p className="project-description">{project.description}</p>
+            <h3>{p.name}</h3>
+            <p className="project-desc">{p.description}</p>
+            <div className="project-progress-bar">
+              <div className="progress-fill" style={{ width: `${p.progress}%` }} />
+            </div>
+            <div className="project-stats">
+              <span><Bot size={12} /> {p.agents} agents</span>
+              <span><Workflow size={12} /> {p.workflows} workflows</span>
+              <span>{p.progress}%</span>
+            </div>
             <div className="project-tags">
-              {project.tags.map(tag => (
-                <span key={tag} className="tag">{tag}</span>
-              ))}
+              {p.tags.map(t => <span key={t} className="tag">{t}</span>)}
             </div>
-            <div className="project-metrics">
-              <div className="project-metric">
-                <Bot size={14} />
-                <span>{project.agents} agents</span>
-              </div>
-              <div className="project-metric">
-                <Workflow size={14} />
-                <span>{project.workflows} workflows</span>
-              </div>
-            </div>
-            <div className="project-footer">
-              <span className="project-time">Atualizado {project.updatedAt}</span>
-              <button className="btn-ghost">
-                Abrir
-                <ArrowUpRight size={14} />
-              </button>
+            <div className="project-card-footer">
+              <span className="project-last">{p.lastAccess}</span>
+              <button className="btn-ghost-sm">Abrir <ArrowUpRight size={12} /></button>
             </div>
           </div>
         ))}
@@ -582,131 +585,117 @@ function ProjetosView() {
 }
 
 // ============================================================
-// NEGÓCIOS VIEW
+// NEGÓCIOS — Organized Categories
 // ============================================================
 
-interface ModuleCategory {
+interface BizCategory {
   id: string;
   name: string;
-  icon: typeof Bot;
+  icon: typeof Brain;
   color: string;
-  modules: Module[];
+  modules: { id: string; name: string; icon: typeof Bot; desc: string }[];
 }
 
-interface Module {
-  id: string;
-  name: string;
-  icon: typeof Bot;
-  description: string;
-}
-
-const MODULE_CATEGORIES: ModuleCategory[] = [
+const BIZ_CATEGORIES: BizCategory[] = [
   {
-    id: 'ia',
-    name: 'Inteligência Artificial',
-    icon: Brain,
-    color: '#a855f7',
+    id: 'ia', name: 'Inteligência Artificial', icon: Brain, color: '#a855f7',
     modules: [
-      { id: 'agents', name: 'Agentes', icon: Bot, description: 'Assistentes de IA personalizados' },
-      { id: 'skills', name: 'Skills', icon: Sparkles, description: 'Habilidades e competências' },
-      { id: 'memory', name: 'Memory', icon: Database, description: 'Memória do sistema' },
-      { id: 'knowledge', name: 'Knowledge Base', icon: Layers, description: 'Base de conhecimento' },
+      { id: 'agents', name: 'Agentes', icon: Bot, desc: 'Assistentes de IA' },
+      { id: 'skills', name: 'Skills', icon: Sparkles, desc: 'Habilidades' },
+      { id: 'memory', name: 'Memory', icon: Database, desc: 'Memória do sistema' },
+      { id: 'browser', name: 'Browser', icon: Globe, desc: 'Navegação web' },
     ],
   },
   {
-    id: 'automacao',
-    name: 'Automação',
-    icon: Zap,
-    color: '#3b82f6',
+    id: 'conteudo', name: 'Conteúdo', icon: FileText, color: '#10b981',
     modules: [
-      { id: 'workflows', name: 'Workflows', icon: GitBranch, description: 'Fluxos de trabalho' },
-      { id: 'automations', name: 'Automações', icon: Workflow, description: 'Tarefas automatizadas' },
-      { id: 'schedules', name: 'Agendamentos', icon: Clock, description: 'Tarefas agendadas' },
-      { id: 'triggers', name: 'Triggers', icon: Zap, description: 'Gatilhos e eventos' },
+      { id: 'image', name: 'Image', icon: Image, desc: 'Geração de imagens' },
+      { id: 'video', name: 'Video', icon: Video, desc: 'Geração de vídeos' },
+      { id: 'audio', name: 'Audio', icon: Music, desc: 'Geração de áudio' },
+      { id: 'shorts', name: 'Shorts', icon: Zap, desc: 'Vídeos curtos' },
     ],
   },
   {
-    id: 'conteudo',
-    name: 'Conteúdo',
-    icon: FileText,
-    color: '#10b981',
+    id: 'automacao', name: 'Automação', icon: Zap, color: '#3b82f6',
     modules: [
-      { id: 'youtube', name: 'YouTube', icon: Video, description: 'Gestão de canal' },
-      { id: 'instagram', name: 'Instagram', icon: Image, description: 'Gestão de perfil' },
-      { id: 'tiktok', name: 'TikTok', icon: Music, description: 'Gestão de conteúdo' },
-      { id: 'blog', name: 'Blog', icon: FileText, description: 'Artigos e posts' },
+      { id: 'workflows', name: 'Workflows', icon: GitBranch, desc: 'Fluxos de trabalho' },
+      { id: 'scheduler', name: 'Scheduler', icon: Calendar, desc: 'Agendamentos' },
+      { id: 'triggers', name: 'Triggers', icon: Target, desc: 'Gatilhos' },
+      { id: 'queue', name: 'Queue', icon: Layers, desc: 'Fila de tarefas' },
+      { id: 'webhooks', name: 'Webhooks', icon: Globe, desc: 'Endpoints HTTP' },
     ],
   },
   {
-    id: 'marketing',
-    name: 'Marketing',
-    icon: Megaphone,
-    color: '#f59e0b',
+    id: 'marketing', name: 'Marketing', icon: Megaphone, color: '#f59e0b',
     modules: [
-      { id: 'campaigns', name: 'Campanhas', icon: Megaphone, description: 'Campanhas de marketing' },
-      { id: 'analytics', name: 'Analytics', icon: BarChart3, description: 'Análises e relatórios' },
-      { id: 'seo', name: 'SEO', icon: Globe, description: 'Otimização para buscadores' },
-      { id: 'email', name: 'Email Marketing', icon: Bell, description: 'Campanhas por email' },
+      { id: 'instagram', name: 'Instagram', icon: Instagram, desc: 'Gestão de perfil' },
+      { id: 'tiktok', name: 'TikTok', icon: Music, desc: 'Gestão de conteúdo' },
+      { id: 'facebook', name: 'Facebook', icon: Globe, desc: 'Gestão de página' },
+      { id: 'youtube', name: 'YouTube', icon: Video, desc: 'Gestão de canal' },
+      { id: 'analytics', name: 'Analytics', icon: BarChart3, desc: 'Análises e relatórios' },
     ],
   },
   {
-    id: 'business',
-    name: 'Business',
-    icon: Package,
-    color: '#ef4444',
+    id: 'business', name: 'Business', icon: Package, color: '#ef4444',
     modules: [
-      { id: 'finance', name: 'Finance', icon: Receipt, description: 'Gestão financeira' },
-      { id: 'products', name: 'Produtos', icon: Package, description: 'Gestão de produtos' },
-      { id: 'affiliates', name: 'Afiliados', icon: Users, description: 'Programa de afiliados' },
-      { id: 'crm', name: 'CRM', icon: Users, description: 'Relacionamento com clientes' },
+      { id: 'produtos', name: 'Produtos', icon: Package, desc: 'Gestão de produtos' },
+      { id: 'crm', name: 'CRM', icon: Users, desc: 'Relacionamento' },
+      { id: 'finance', name: 'Finance', icon: DollarSign, desc: 'Gestão financeira' },
+      { id: 'affiliates', name: 'Afiliados', icon: TrendingUp, desc: 'Programa de afiliados' },
     ],
   },
   {
-    id: 'dev',
-    name: 'Desenvolvimento',
-    icon: Code,
-    color: '#6366f1',
+    id: 'dev', name: 'Desenvolvimento', icon: Code, color: '#6366f1',
     modules: [
-      { id: 'coding', name: 'Coding', icon: Terminal, description: 'Assistente de código' },
-      { id: 'browser', name: 'Browser', icon: Globe, description: 'Navegação web' },
-      { id: 'templates', name: 'Templates', icon: FileCode, description: 'Modelos prontos' },
-      { id: 'integrations', name: 'Integrações', icon: Layers, description: 'Serviços externos' },
+      { id: 'coding', name: 'Coding', icon: Terminal, desc: 'Assistente de código' },
+      { id: 'github', name: 'GitHub', icon: GitBranch, desc: 'Repositórios' },
+      { id: 'deploy', name: 'Deploy', icon: Rocket, desc: 'Publicação' },
+      { id: 'templates', name: 'Templates', icon: FileCode, desc: 'Modelos prontos' },
+      { id: 'integrations', name: 'Integrações', icon: Layers, desc: 'Serviços externos' },
     ],
   },
 ];
 
+function Instagram(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
 function NegociosView() {
   return (
-    <div className="negocios-view">
-      <div className="view-header">
+    <div className="negocios">
+      <div className="page-header">
         <div>
           <h1>Negócios</h1>
-          <p className="view-subtitle">Módulos e ferramentas do BeeHive</p>
+          <p>Módulos e ferramentas do BeeHive</p>
         </div>
       </div>
 
-      <div className="categories-grid">
-        {MODULE_CATEGORIES.map(cat => {
+      <div className="biz-grid">
+        {BIZ_CATEGORIES.map(cat => {
           const CatIcon = cat.icon;
           return (
-            <div key={cat.id} className="category-card">
-              <div className="category-header" style={{ borderColor: cat.color }}>
-                <div className="category-icon" style={{ background: `${cat.color}15`, color: cat.color }}>
+            <div key={cat.id} className="biz-card">
+              <div className="biz-card-header" style={{ '--cat-color': cat.color } as React.CSSProperties}>
+                <div className="biz-icon" style={{ background: `${cat.color}18`, color: cat.color }}>
                   <CatIcon size={20} />
                 </div>
-                <h2 className="category-name">{cat.name}</h2>
+                <h2>{cat.name}</h2>
               </div>
-              <div className="category-modules">
+              <div className="biz-modules">
                 {cat.modules.map(mod => {
                   const ModIcon = mod.icon;
                   return (
-                    <button key={mod.id} className="module-item">
+                    <button key={mod.id} className="biz-module">
                       <ModIcon size={16} />
-                      <div className="module-info">
-                        <span className="module-name">{mod.name}</span>
-                        <span className="module-desc">{mod.description}</span>
+                      <div className="biz-module-info">
+                        <span className="biz-module-name">{mod.name}</span>
+                        <span className="biz-module-desc">{mod.desc}</span>
                       </div>
-                      <ChevronRight size={14} className="module-arrow" />
+                      <ChevronRight size={14} className="biz-module-arrow" />
                     </button>
                   );
                 })}
@@ -720,76 +709,52 @@ function NegociosView() {
 }
 
 // ============================================================
-// SETTINGS VIEW
+// SETTINGS
 // ============================================================
 
-type SettingsSection = 'perfil' | 'conta' | 'aparencia' | 'notificacoes' | 'providers' | 'modelos' | 'permissoes' | 'seguranca' | 'memoria' | 'storage' | 'advanced' | 'sobre';
+type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
 
-interface SettingsGroup {
-  label: string;
-  items: { id: SettingsSection; label: string; icon: typeof User }[];
-}
-
-const SETTINGS_GROUPS: SettingsGroup[] = [
-  {
-    label: 'Conta',
-    items: [
-      { id: 'perfil', label: 'Perfil', icon: Users },
-      { id: 'conta', label: 'Conta', icon: Shield },
-      { id: 'notificacoes', label: 'Notificações', icon: Bell },
-    ],
-  },
-  {
-    label: 'Sistema',
-    items: [
-      { id: 'providers', label: 'Providers', icon: Cpu },
-      { id: 'modelos', label: 'Modelos', icon: Bot },
-      { id: 'permissoes', label: 'Permissões', icon: Key },
-      { id: 'seguranca', label: 'Segurança', icon: Shield },
-    ],
-  },
-  {
-    label: 'Dados',
-    items: [
-      { id: 'memoria', label: 'Memória', icon: Database },
-      { id: 'storage', label: 'Storage', icon: HardDrive },
-    ],
-  },
-  {
-    label: 'Personalização',
-    items: [
-      { id: 'aparencia', label: 'Aparência', icon: Palette },
-      { id: 'advanced', label: 'Avançado', icon: Settings },
-      { id: 'sobre', label: 'Sobre', icon: Info },
-    ],
-  },
+const SETTINGS_GROUPS = [
+  { label: 'Conta', items: [
+    { id: 'perfil' as SettingsPage, label: 'Perfil', icon: Users },
+    { id: 'seguranca' as SettingsPage, label: 'Segurança', icon: Shield },
+  ]},
+  { label: 'Sistema', items: [
+    { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
+    { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
+    { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
+    { id: 'integrations' as SettingsPage, label: 'Integrações', icon: Globe },
+  ]},
+  { label: 'Dados', items: [
+    { id: 'storage' as SettingsPage, label: 'Storage', icon: HardDrive },
+    { id: 'memoria' as SettingsPage, label: 'Memória', icon: Database },
+    { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
+    { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
+  ]},
+  { label: 'Personalização', items: [
+    { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
+    { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
+    { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
+    { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
+  ]},
 ];
 
-const ALL_SETTINGS_SECTIONS = SETTINGS_GROUPS.flatMap(g => g.items);
-
 function SettingsView() {
-  const [activeSection, setActiveSection] = useState<SettingsSection>('perfil');
+  const [page, setPage] = useState<SettingsPage>('perfil');
 
   return (
-    <div className="settings-layout">
+    <div className="settings">
       <div className="settings-sidebar">
-        <div className="settings-sidebar-header">
-          <h2>Settings</h2>
-        </div>
-        <nav className="settings-nav">
-          {SETTINGS_GROUPS.map(group => (
-            <div key={group.label} className="settings-group">
-              <span className="settings-group-label">{group.label}</span>
-              {group.items.map(item => {
+        <h2>Settings</h2>
+        <nav>
+          {SETTINGS_GROUPS.map(g => (
+            <div key={g.label} className="settings-group">
+              <span className="settings-group-label">{g.label}</span>
+              {g.items.map(item => {
                 const Icon = item.icon;
                 return (
-                  <button
-                    key={item.id}
-                    className={`settings-nav-item${activeSection === item.id ? ' active' : ''}`}
-                    onClick={() => setActiveSection(item.id)}
-                  >
-                    <Icon size={16} />
-                    <span>{item.label}</span>
+                  <button key={item.id} className={`settings-item${page === item.id ? ' active' : ''}`} onClick={() => setPage(item.id)}>
+                    <Icon size={16} /> {item.label}
                   </button>
                 );
               })}
@@ -797,178 +762,69 @@ function SettingsView() {
           ))}
         </nav>
       </div>
-
       <div className="settings-content">
-        <SettingsSectionContent section={activeSection} />
+        {page === 'perfil' && (
+          <div className="settings-page">
+            <h2>Perfil</h2>
+            <p className="settings-desc">Suas informações pessoais</p>
+            <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" /></div>
+            <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" /></div>
+            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." /></div>
+            <button className="btn-primary">Salvar</button>
+          </div>
+        )}
+        {page === 'providers' && (
+          <div className="settings-page">
+            <h2>Providers</h2>
+            <p className="settings-desc">Provedores de IA conectados</p>
+            {[
+              { name: 'OpenRouter', status: 'connected', desc: 'Múltiplos modelos' },
+              { name: 'OpenAI', status: 'disconnected', desc: 'GPT-4, DALL-E' },
+              { name: 'Anthropic', status: 'disconnected', desc: 'Claude 3.5' },
+            ].map(p => (
+              <div key={p.name} className="provider-card">
+                <div className="provider-header">
+                  <span className="provider-name">{p.name}</span>
+                  <span className={`status-pill ${p.status}`}>{p.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+                </div>
+                <p>{p.desc}</p>
+                <div className="form-group"><label>API Key</label><input type="password" placeholder="sk-..." /></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {page === 'tema' && (
+          <div className="settings-page">
+            <h2>Tema</h2>
+            <p className="settings-desc">Personalize a aparência</p>
+            <div className="form-group">
+              <label>Tema</label>
+              <div className="theme-grid">
+                <button className="theme-card active">🌙 Dark</button>
+                <button className="theme-card">☀️ Light</button>
+                <button className="theme-card">💻 System</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {page === 'logs' && (
+          <div className="settings-page">
+            <h2>Logs</h2>
+            <p className="settings-desc">Histórico de atividades do sistema</p>
+            <div className="logs-viewer">
+              {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
+                <div key={i} className="log-line"><code>{l}</code></div>
+              ))}
+            </div>
+          </div>
+        )}
+        {!['perfil', 'providers', 'tema', 'logs'].includes(page) && (
+          <div className="settings-page">
+            <h2>{SETTINGS_GROUPS.flatMap(g => g.items).find(i => i.id === page)?.label}</h2>
+            <p className="settings-desc">Em desenvolvimento</p>
+          </div>
+        )}
       </div>
     </div>
   );
-}
-
-function SettingsSectionContent({ section }: { section: SettingsSection }) {
-  switch (section) {
-    case 'perfil':
-      return (
-        <div className="settings-section">
-          <h2>Perfil</h2>
-          <p className="section-description">Gerencie suas informações pessoais</p>
-          <div className="form-group">
-            <label>Nome</label>
-            <input type="text" placeholder="Seu nome" />
-          </div>
-          <div className="form-group">
-            <label>Email</label>
-            <input type="email" placeholder="seu@email.com" />
-          </div>
-          <div className="form-group">
-            <label>Bio</label>
-            <textarea placeholder="Conte-nos sobre você..." rows={3} />
-          </div>
-          <button className="btn-primary">Salvar</button>
-        </div>
-      );
-    case 'providers':
-      return (
-        <div className="settings-section">
-          <h2>Providers</h2>
-          <p className="section-description">Configure seus provedores de IA</p>
-          <div className="providers-list">
-            <div className="provider-card">
-              <div className="provider-header">
-                <span className="provider-name">OpenRouter</span>
-                <span className="status-badge active">Conectado</span>
-              </div>
-              <p className="provider-desc">Acesso a múltiplos modelos via OpenRouter</p>
-              <div className="form-group">
-                <label>API Key</label>
-                <input type="password" placeholder="sk-or-..." />
-              </div>
-            </div>
-            <div className="provider-card">
-              <div className="provider-header">
-                <span className="provider-name">OpenAI</span>
-                <span className="status-badge inactive">Não configurado</span>
-              </div>
-              <p className="provider-desc">GPT-4, GPT-3.5, DALL-E</p>
-              <div className="form-group">
-                <label>API Key</label>
-                <input type="password" placeholder="sk-..." />
-              </div>
-            </div>
-            <div className="provider-card">
-              <div className="provider-header">
-                <span className="provider-name">Anthropic</span>
-                <span className="status-badge inactive">Não configurado</span>
-              </div>
-              <p className="provider-desc">Claude 3.5, Claude 3 Opus</p>
-              <div className="form-group">
-                <label>API Key</label>
-                <input type="password" placeholder="sk-ant-..." />
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    case 'modelos':
-      return (
-        <div className="settings-section">
-          <h2>Modelos</h2>
-          <p className="section-description">Configure os modelos padrão</p>
-          <div className="form-group">
-            <label>Chat Model</label>
-            <select>
-              <option>GPT-4o</option>
-              <option>Claude 3.5 Sonnet</option>
-              <option>Llama 3 70B</option>
-              <option>Gemini Pro</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Coding Model</label>
-            <select>
-              <option>GPT-4o</option>
-              <option>Claude 3.5 Sonnet</option>
-              <option>CodeLlama</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label>Temperature</label>
-            <input type="range" min={0} max={2} step={0.1} defaultValue={0.7} />
-            <span className="range-value">0.7</span>
-          </div>
-          <div className="form-group">
-            <label>Max Tokens</label>
-            <input type="number" defaultValue={4096} />
-          </div>
-        </div>
-      );
-    case 'aparencia':
-      return (
-        <div className="settings-section">
-          <h2>Aparência</h2>
-          <p className="section-description">Personalize a aparência do BeeHive</p>
-          <div className="form-group">
-            <label>Tema</label>
-            <div className="theme-options">
-              <button className="theme-btn active">🌙 Dark</button>
-              <button className="theme-btn">☀️ Light</button>
-              <button className="theme-btn">💻 System</button>
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Idioma</label>
-            <select>
-              <option value="pt-BR">Português (BR)</option>
-              <option value="en-US">English (US)</option>
-              <option value="es">Español</option>
-            </select>
-          </div>
-          <div className="form-group">
-            <label className="toggle">
-              <input type="checkbox" defaultChecked />
-              <span>Animações</span>
-            </label>
-          </div>
-        </div>
-      );
-    case 'sobre':
-      return (
-        <div className="settings-section">
-          <h2>Sobre</h2>
-          <p className="section-description">Informações sobre o BeeHive</p>
-          <div className="about-info">
-            <div className="about-item">
-              <span className="about-label">Versão</span>
-              <span className="about-value">0.1.0</span>
-            </div>
-            <div className="about-item">
-              <span className="about-label">Architecture</span>
-              <span className="about-value">v1.0 (Frozen)</span>
-            </div>
-            <div className="about-item">
-              <span className="about-label">Runtime</span>
-              <span className="about-value status-online">Online</span>
-            </div>
-            <div className="about-item">
-              <span className="about-label">Plugins</span>
-              <span className="about-value">3 loaded</span>
-            </div>
-            <div className="about-item">
-              <span className="about-label">Providers</span>
-              <span className="about-value">2 available</span>
-            </div>
-          </div>
-        </div>
-      );
-    default:
-      return (
-        <div className="settings-section">
-          <h2>{ALL_SETTINGS_SECTIONS.find(n => n.id === section)?.label}</h2>
-          <p className="section-description">Configuração em desenvolvimento</p>
-          <div className="empty-state">
-            <p>Esta seção será implementada em breve.</p>
-          </div>
-        </div>
-      );
-  }
 }
