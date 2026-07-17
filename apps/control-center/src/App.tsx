@@ -183,10 +183,12 @@ const ALL_EVENTS: Event[] = [
 // APP
 // ============================================================
 
+type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
+
 export default function App() {
   const navigate = useNavigate();
   const { projects: storeProjects, setCurrentProject, addProject } = useAppStore();
-  const [view, setView] = useState<View>('home');
+  const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [selectedProject, setSelectedProject] = useState<Project>(PROJECTS[0]);
   const [projectView, setProjectView] = useState<'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings'>('chat');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
@@ -194,8 +196,7 @@ export default function App() {
   const openProject = (project: Project) => {
     setSelectedProject(project);
     setCurrentProject(storeProjects.find(p => p.id === project.id) || null);
-    setView('project');
-    setProjectView('chat');
+    setActiveArea('projetos');
   };
 
   const handleNewProject = async () => {
@@ -216,12 +217,18 @@ export default function App() {
         </div>
 
         <nav className="sidebar-nav">
-          <button className={`nav-item${view === 'home' ? ' active' : ''}`} onClick={() => setView('home')} title="Mission Control">
-            <Home size={18} strokeWidth={1.5} />
+          <button className={`nav-item${activeArea === 'chat' ? ' active' : ''}`} onClick={() => setActiveArea('chat')} title="Chat">
+            <MessageSquare size={18} strokeWidth={1.5} />
+          </button>
+          <button className={`nav-item${activeArea === 'projetos' ? ' active' : ''}`} onClick={() => setActiveArea('projetos')} title="Projetos">
+            <FolderKanban size={18} strokeWidth={1.5} />
+          </button>
+          <button className={`nav-item${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')} title="Negócios">
+            <Package size={18} strokeWidth={1.5} />
           </button>
           <div className="sidebar-divider" />
           {PROJECTS.map(p => (
-            <button key={p.id} className={`nav-item project-nav${view === 'project' && selectedProject.id === p.id ? ' active' : ''}`} onClick={() => openProject(p)} title={p.name}>
+            <button key={p.id} className={`nav-item project-nav${activeArea === 'projetos' && selectedProject.id === p.id ? ' active' : ''}`} onClick={() => openProject(p)} title={p.name}>
               <span className="project-nav-icon">{p.icon}</span>
             </button>
           ))}
@@ -230,23 +237,27 @@ export default function App() {
 
         <div className="sidebar-footer">
           <div className="sidebar-divider" />
-          <button className="nav-item" title="Settings" onClick={() => navigate('/settings')}><Settings size={18} strokeWidth={1.5} /></button>
+          <button className={`nav-item${activeArea === 'settings' ? ' active' : ''}`} title="Settings" onClick={() => setActiveArea('settings')}>
+            <Settings size={18} strokeWidth={1.5} />
+          </button>
         </div>
       </aside>
 
       {/* Main */}
       <main className="main">
-        {view === 'home' && <MissionControl onOpenProject={openProject} />}
-        {view === 'project' && (
+        {activeArea === 'chat' && <ProjectChat project={selectedProject} />}
+        {activeArea === 'projetos' && (
           <ProjectView
             project={selectedProject}
             activeView={projectView}
             onViewChange={setProjectView}
             rightPanel={rightPanel}
             onRightPanelChange={setRightPanel}
-            onBack={() => setView('home')}
+            onBack={() => setActiveArea('chat')}
           />
         )}
+        {activeArea === 'negocios' && <NegociosView />}
+        {activeArea === 'settings' && <SettingsView />}
       </main>
     </div>
   );
@@ -744,6 +755,263 @@ function LogsPanel() {
             <div key={i} className="rp-log-line"><code>{l}</code></div>
           ))}
         </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// NEGÓCIOS — Categorias de Módulos
+// ============================================================
+
+interface BizCategory {
+  id: string;
+  name: string;
+  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  color: string;
+  modules: { id: string; name: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; desc: string }[];
+}
+
+const BIZ_CATEGORIES: BizCategory[] = [
+  {
+    id: 'ia', name: 'Inteligência Artificial', icon: Brain, color: '#a855f7',
+    modules: [
+      { id: 'agents', name: 'Agentes', icon: Bot, desc: 'Assistentes de IA autônomos' },
+      { id: 'skills', name: 'Skills', icon: Sparkles, desc: 'Habilidades e capacidades' },
+      { id: 'memory', name: 'Memory', icon: Database, desc: 'Memória do sistema' },
+      { id: 'knowledge', name: 'Knowledge Base', icon: BookOpen, desc: 'Base de conhecimento' },
+    ],
+  },
+  {
+    id: 'automacao', name: 'Automação', icon: Zap, color: '#3b82f6',
+    modules: [
+      { id: 'workflows', name: 'Workflows', icon: GitBranch, desc: 'Fluxos de trabalho' },
+      { id: 'scheduler', name: 'Scheduler', icon: Calendar, desc: 'Agendamentos' },
+      { id: 'triggers', name: 'Triggers', icon: Target, desc: 'Gatilhos e eventos' },
+      { id: 'queue', name: 'Queue', icon: Layers, desc: 'Fila de tarefas' },
+    ],
+  },
+  {
+    id: 'conteudo', name: 'Conteúdo', icon: FileText, color: '#10b981',
+    modules: [
+      { id: 'youtube', name: 'YouTube', icon: Video, desc: 'Gestão de canal' },
+      { id: 'instagram', name: 'Instagram', icon: Instagram, desc: 'Gestão de perfil' },
+      { id: 'tiktok', name: 'TikTok', icon: Music, desc: 'Conteúdo viral' },
+      { id: 'blog', name: 'Blog', icon: FileText, desc: 'Artigos e SEO' },
+    ],
+  },
+  {
+    id: 'media', name: 'Mídia', icon: Image, color: '#ec4899',
+    modules: [
+      { id: 'image', name: 'Image', icon: Image, desc: 'Geração de imagens' },
+      { id: 'video', name: 'Video', icon: Video, desc: 'Geração de vídeos' },
+      { id: 'audio', name: 'Audio', icon: Music, desc: 'Geração de áudio' },
+    ],
+  },
+  {
+    id: 'business', name: 'Business', icon: Package, color: '#ef4444',
+    modules: [
+      { id: 'finance', name: 'Finance', icon: DollarSign, desc: 'Gestão financeira' },
+      { id: 'crm', name: 'CRM', icon: Users, desc: 'Relacionamento' },
+      { id: 'marketing', name: 'Marketing', icon: Megaphone, desc: 'Campanhas' },
+      { id: 'analytics', name: 'Analytics', icon: BarChart3, desc: 'Análises e relatórios' },
+    ],
+  },
+  {
+    id: 'dev', name: 'Desenvolvimento', icon: Code, color: '#6366f1',
+    modules: [
+      { id: 'coding', name: 'Coding', icon: Terminal, desc: 'Assistente de código' },
+      { id: 'github', name: 'GitHub', icon: GitBranch, desc: 'Repositórios' },
+      { id: 'deploy', name: 'Deploy', icon: Rocket, desc: 'Publicação' },
+      { id: 'templates', name: 'Templates', icon: FileCode, desc: 'Modelos prontos' },
+    ],
+  },
+];
+
+function Instagram(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
+    </svg>
+  );
+}
+
+function BookOpen(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+    </svg>
+  );
+}
+
+function Megaphone(props: React.SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
+      <path d="M4 11V8a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1m-9 3a8 8 0 1 1 16 0v4" /><path d="M8 14v5" /><path d="M12 16v3" />
+    </svg>
+  );
+}
+
+function NegociosView() {
+  return (
+    <div className="negocios">
+      <div className="page-header">
+        <div>
+          <h1>Negócios</h1>
+          <p>Módulos e ferramentas do BeeHive</p>
+        </div>
+      </div>
+
+      <div className="biz-grid">
+        {BIZ_CATEGORIES.map(cat => {
+          const CatIcon = cat.icon;
+          return (
+            <div key={cat.id} className="biz-card" style={{ '--cat-color': cat.color } as React.CSSProperties}>
+              <div className="biz-card-header">
+                <div className="biz-icon" style={{ background: `${cat.color}18`, color: cat.color }}>
+                  <CatIcon size={20} />
+                </div>
+                <h2>{cat.name}</h2>
+              </div>
+              <div className="biz-modules">
+                {cat.modules.map(mod => {
+                  const ModIcon = mod.icon;
+                  return (
+                    <button key={mod.id} className="biz-module">
+                      <ModIcon size={16} />
+                      <div className="biz-module-info">
+                        <span className="biz-module-name">{mod.name}</span>
+                        <span className="biz-module-desc">{mod.desc}</span>
+                      </div>
+                      <ChevronRight size={14} className="biz-module-arrow" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SETTINGS — Organizado por Grupos
+// ============================================================
+
+type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
+
+const SETTINGS_GROUPS = [
+  { label: 'Conta', items: [
+    { id: 'perfil' as SettingsPage, label: 'Perfil', icon: Users },
+    { id: 'seguranca' as SettingsPage, label: 'Segurança', icon: Shield },
+  ]},
+  { label: 'Sistema', items: [
+    { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
+    { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
+    { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
+    { id: 'integrations' as SettingsPage, label: 'Integrações', icon: Globe },
+  ]},
+  { label: 'Dados', items: [
+    { id: 'storage' as SettingsPage, label: 'Storage', icon: HardDrive },
+    { id: 'memoria' as SettingsPage, label: 'Memória', icon: Database },
+    { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
+    { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
+  ]},
+  { label: 'Personalização', items: [
+    { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
+    { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
+    { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
+    { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
+  ]},
+];
+
+function SettingsView() {
+  const [page, setPage] = useState<SettingsPage>('perfil');
+
+  return (
+    <div className="settings">
+      <div className="settings-sidebar">
+        <h2>Settings</h2>
+        <nav>
+          {SETTINGS_GROUPS.map(g => (
+            <div key={g.label} className="settings-group">
+              <span className="settings-group-label">{g.label}</span>
+              {g.items.map(item => {
+                const Icon = item.icon;
+                return (
+                  <button key={item.id} className={`settings-item${page === item.id ? ' active' : ''}`} onClick={() => setPage(item.id)}>
+                    <Icon size={16} /> {item.label}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+      </div>
+      <div className="settings-content">
+        {page === 'perfil' && (
+          <div className="settings-page">
+            <h2>Perfil</h2>
+            <p className="settings-desc">Suas informações pessoais</p>
+            <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
+            <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
+            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
+            <button className="btn-primary">Salvar</button>
+          </div>
+        )}
+        {page === 'providers' && (
+          <div className="settings-page">
+            <h2>Providers</h2>
+            <p className="settings-desc">Provedores de IA conectados</p>
+            {[
+              { name: 'OpenRouter', status: 'connected', desc: 'Múltiplos modelos' },
+              { name: 'OpenAI', status: 'disconnected', desc: 'GPT-4, DALL-E' },
+              { name: 'Anthropic', status: 'disconnected', desc: 'Claude 3.5' },
+            ].map(p => (
+              <div key={p.name} className="provider-card">
+                <div className="provider-header">
+                  <span className="provider-name">{p.name}</span>
+                  <span className={`status-pill ${p.status}`}>{p.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+                </div>
+                <p>{p.desc}</p>
+                <div className="form-group"><label>API Key</label><input type="password" placeholder="sk-..." /></div>
+              </div>
+            ))}
+          </div>
+        )}
+        {page === 'tema' && (
+          <div className="settings-page">
+            <h2>Tema</h2>
+            <p className="settings-desc">Personalize a aparência</p>
+            <div className="form-group">
+              <label>Tema</label>
+              <div className="theme-grid">
+                <button className="theme-card active">🌙 Dark</button>
+                <button className="theme-card">☀️ Light</button>
+                <button className="theme-card">💻 System</button>
+              </div>
+            </div>
+          </div>
+        )}
+        {page === 'logs' && (
+          <div className="settings-page">
+            <h2>Logs</h2>
+            <p className="settings-desc">Histórico de atividades do sistema</p>
+            <div className="logs-viewer">
+              {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
+                <div key={i} className="log-line"><code>{l}</code></div>
+              ))}
+            </div>
+          </div>
+        )}
+        {!['perfil', 'providers', 'tema', 'logs'].includes(page) && (
+          <div className="settings-page">
+            <h2>{SETTINGS_GROUPS.flatMap(g => g.items).find(i => i.id === page)?.label}</h2>
+            <p className="settings-desc">Em desenvolvimento</p>
+          </div>
+        )}
       </div>
     </div>
   );
