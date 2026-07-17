@@ -1,311 +1,385 @@
 ﻿import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Home, MessageSquare, FolderKanban, Building2, Settings,
-  Plus, Search, ChevronRight, ChevronDown, ArrowUpRight,
-  Bot, Workflow, Zap, Brain, Code, BarChart3, Megaphone,
-  FileText, Image, Video, Music, Globe, Package, Layers,
-  GitBranch, Clock, Activity, Users, Sparkles, Terminal,
-  Database, Shield, Bell, Palette, Key, Cpu, HardDrive,
-  FileCode, Receipt, Info, Play, Pause, CheckCircle2,
-  AlertTriangle, XCircle, MoreHorizontal, Send, Paperclip,
-  Hash, Star, Archive, Trash2, Download, ExternalLink,
-  TrendingUp, DollarSign, Eye, Calendar, Target, Rocket,
-  CircleDot, Loader2, RefreshCw, Filter, SortAsc,
+  Home, MessageSquare, FolderKanban, Settings, Bot, Workflow,
+  Zap, Brain, Code, BarChart3, FileText, Image, Video, Music,
+  Globe, Package, Layers, GitBranch, Clock, Users, Sparkles,
+  Terminal, Database, Shield, Bell, Palette, Key, Cpu, HardDrive,
+  FileCode, CheckCircle2, AlertTriangle, XCircle, Send, Paperclip,
+  Star, Download, ChevronRight, ArrowUpRight, CircleDot, Loader2,
+  Target, Rocket, Eye, TrendingUp, DollarSign, Activity, Search,
+  Plus, Minus, MoreHorizontal, ChevronDown, BrainCircuit, Network,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import './App.css';
 
-type MainArea = 'home' | 'chat' | 'projetos' | 'negocios' | 'settings';
+// ============================================================
+// TYPES
+// ============================================================
 
-const AREA_ROUTES: Record<MainArea, string> = {
-  home: '/',
-  chat: '/chat',
-  projetos: '/projects',
-  negocios: '/negocios',
-  settings: '/settings',
-};
+type View = 'home' | 'project';
+
+interface Project {
+  id: string;
+  name: string;
+  icon: string;
+  description: string;
+  status: 'active' | 'paused' | 'completed';
+  agents: Agent[];
+  workflows: WorkflowItem[];
+  artifacts: Artifact[];
+}
+
+interface Agent {
+  id: string;
+  name: string;
+  status: 'running' | 'idle' | 'working' | 'waiting' | 'error';
+  task: string;
+  color: string;
+  pipeline?: PipelineStep[];
+}
+
+interface PipelineStep {
+  id: string;
+  label: string;
+  type: 'agent' | 'provider' | 'tool' | 'artifact';
+  status: 'pending' | 'active' | 'done' | 'error';
+}
+
+interface WorkflowItem {
+  id: string;
+  name: string;
+  status: 'running' | 'completed' | 'error' | 'scheduled';
+  progress: number;
+  project: string;
+}
+
+interface Artifact {
+  id: string;
+  name: string;
+  type: string;
+  size: string;
+  project: string;
+}
+
+interface Mission {
+  id: string;
+  name: string;
+  progress: number;
+  status: 'running' | 'completed' | 'error' | 'scheduled';
+  agents: string[];
+  project: string;
+}
+
+interface Event {
+  id: string;
+  type: 'success' | 'warning' | 'error' | 'info';
+  text: string;
+  time: string;
+  project: string;
+}
+
+// ============================================================
+// MOCK DATA
+// ============================================================
+
+const PROJECTS: Project[] = [
+  {
+    id: '1', name: 'BeeHive', icon: '­ƒÉØ', description: 'Plataforma de IA modular', status: 'active',
+    agents: [
+      { id: 'a1', name: 'Marketing Agent', status: 'working', task: 'Criando campanha para Instagram', color: '#a855f7',
+        pipeline: [
+          { id: 'p1', label: 'Thinking', type: 'agent', status: 'done' },
+          { id: 'p2', label: 'Research', type: 'agent', status: 'done' },
+          { id: 'p3', label: 'Browser', type: 'tool', status: 'done' },
+          { id: 'p4', label: 'Claude Sonnet', type: 'provider', status: 'active' },
+          { id: 'p5', label: 'Image Gen', type: 'tool', status: 'pending' },
+          { id: 'p6', label: 'Artifact', type: 'artifact', status: 'pending' },
+        ]
+      },
+      { id: 'a2', name: 'Research Agent', status: 'running', task: 'Analisando concorrentes', color: '#3b82f6' },
+      { id: 'a3', name: 'Browser Agent', status: 'idle', task: 'Ocioso', color: '#10b981' },
+    ],
+    workflows: [
+      { id: 'w1', name: 'Deploy Pipeline', status: 'running', progress: 64, project: 'BeeHive' },
+      { id: 'w2', name: 'Code Review', status: 'completed', progress: 100, project: 'BeeHive' },
+    ],
+    artifacts: [
+      { id: 'ar1', name: 'architecture-v1.png', type: 'Image', size: '2.4 MB', project: 'BeeHive' },
+      { id: 'ar2', name: 'deploy-config.yaml', type: 'Code', size: '1.2 KB', project: 'BeeHive' },
+    ],
+  },
+  {
+    id: '2', name: 'TradeAI', icon: '­ƒôê', description: 'Trading automatizado', status: 'active',
+    agents: [
+      { id: 'b1', name: 'Trade Agent', status: 'working', task: 'Monitorando BTC/USDT', color: '#f59e0b',
+        pipeline: [
+          { id: 'q1', label: 'Thinking', type: 'agent', status: 'done' },
+          { id: 'q2', label: 'Market Data', type: 'tool', status: 'done' },
+          { id: 'q3', label: 'GPT-4o', type: 'provider', status: 'active' },
+          { id: 'q4', label: 'Signal', type: 'artifact', status: 'pending' },
+        ]
+      },
+      { id: 'b2', name: 'Risk Agent', status: 'idle', task: 'Ocioso', color: '#ef4444' },
+    ],
+    workflows: [
+      { id: 'x1', name: 'Trade BTC', status: 'error', progress: 45, project: 'TradeAI' },
+      { id: 'x2', name: 'Market Scan', status: 'running', progress: 78, project: 'TradeAI' },
+    ],
+    artifacts: [
+      { id: 'y1', name: 'trade-signal.json', type: 'JSON', size: '0.8 KB', project: 'TradeAI' },
+    ],
+  },
+  {
+    id: '3', name: 'Marketing', icon: '­ƒôó', description: 'Campanhas e conte├║do', status: 'active',
+    agents: [
+      { id: 'c1', name: 'Content Agent', status: 'working', task: 'Gerando posts para Instagram', color: '#ec4899' },
+      { id: 'c2', name: 'SEO Agent', status: 'running', task: 'Otimizando artigos', color: '#14b8a6' },
+      { id: 'c3', name: 'Video Agent', status: 'waiting', task: 'Na fila de renderiza├º├úo', color: '#8b5cf6' },
+      { id: 'c4', name: 'Analytics Agent', status: 'idle', task: 'Ocioso', color: '#6366f1' },
+    ],
+    workflows: [
+      { id: 'z1', name: 'Marketing Di├írio', status: 'running', progress: 64, project: 'Marketing' },
+      { id: 'z2', name: 'Publica├º├úo Instagram', status: 'scheduled', progress: 0, project: 'Marketing' },
+      { id: 'z3', name: 'Pesquisa Empresa X', status: 'running', progress: 38, project: 'Marketing' },
+    ],
+    artifacts: [
+      { id: 'w1', name: 'post-campanha.png', type: 'Image', size: '156 KB', project: 'Marketing' },
+      { id: 'w2', name: 'relatorio-q4.pdf', type: 'PDF', size: '2.4 MB', project: 'Marketing' },
+      { id: 'w3', name: 'video-final.mp4', type: 'Video', size: '48 MB', project: 'Marketing' },
+    ],
+  },
+  {
+    id: '4', name: 'Cliente X', icon: '­ƒÆ╝', description: 'Consultoria', status: 'paused',
+    agents: [
+      { id: 'd1', name: 'Consulting Agent', status: 'idle', task: 'Projeto pausado', color: '#64748b' },
+    ],
+    workflows: [],
+    artifacts: [],
+  },
+];
+
+const ALL_MISSIONS: Mission[] = [
+  { id: 'm1', name: 'Marketing Di├írio', progress: 64, status: 'running', agents: ['Marketing Agent', 'Content Agent'], project: 'Marketing' },
+  { id: 'm2', name: 'Pesquisa Empresa X', progress: 38, status: 'running', agents: ['Research Agent'], project: 'Marketing' },
+  { id: 'm3', name: 'Publica├º├úo YouTube', progress: 100, status: 'completed', agents: ['Video Agent'], project: 'Marketing' },
+  { id: 'm4', name: 'Deploy Pipeline', progress: 64, status: 'running', agents: ['Browser Agent'], project: 'BeeHive' },
+  { id: 'm5', name: 'Trade BTC', progress: 45, status: 'error', agents: ['Trade Agent'], project: 'TradeAI' },
+  { id: 'm6', name: 'Market Scan', progress: 78, status: 'running', agents: ['Trade Agent'], project: 'TradeAI' },
+];
+
+const ALL_EVENTS: Event[] = [
+  { id: 'e1', type: 'success', text: 'Publica├º├úo YouTube conclu├¡da', time: '2 min', project: 'Marketing' },
+  { id: 'e2', type: 'success', text: 'Workflow "Marketing Di├írio" atualizado', time: '15 min', project: 'Marketing' },
+  { id: 'e3', type: 'warning', text: 'OpenRouter com lat├¬ncia alta', time: '30 min', project: 'BeeHive' },
+  { id: 'e4', type: 'success', text: 'Browser scraping finalizado', time: '1h', project: 'BeeHive' },
+  { id: 'e5', type: 'error', text: 'Trade BTC ÔÇö conex├úo perdida', time: '2h', project: 'TradeAI' },
+  { id: 'e6', type: 'success', text: 'Screenshot criada', time: '3h', project: 'BeeHive' },
+];
+
+// ============================================================
+// APP
+// ============================================================
 
 export default function App() {
   const navigate = useNavigate();
-  const [activeArea, setActiveArea] = useState<MainArea>('home');
-  const [activeProject, setActiveProject] = useState<string | null>(null);
+  const { projects: storeProjects, setCurrentProject, addProject } = useAppStore();
+  const [view, setView] = useState<View>('home');
+  const [selectedProject, setSelectedProject] = useState<Project>(PROJECTS[0]);
+  const [projectView, setProjectView] = useState<'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings'>('chat');
+  const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
 
-  const handleNavigate = (area: MainArea, project?: string) => {
-    setActiveArea(area);
-    if (project) setActiveProject(project);
-    navigate(AREA_ROUTES[area]);
+  const openProject = (project: Project) => {
+    setSelectedProject(project);
+    setCurrentProject(storeProjects.find(p => p.id === project.id) || null);
+    setView('project');
+    setProjectView('chat');
+  };
+
+  const handleNewProject = async () => {
+    const name = prompt('Nome do novo projeto:');
+    if (name) {
+      const icons = ['📁', '🚀', '💡', '🎯', '🔥'];
+      const icon = icons[Math.floor(Math.random() * icons.length)];
+      await projectService.create({ name, icon, description: '', status: 'active' });
+    }
   };
 
   return (
     <div className="app">
+      {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-mark">
-            <Sparkles size={18} />
-          </div>
-          <span className="logo-text">BeeHive</span>
+          <div className="logo-mark"><Sparkles size={18} /></div>
         </div>
 
         <nav className="sidebar-nav">
-          <button className={`nav-item${activeArea === 'home' ? ' active' : ''}`} onClick={() => handleNavigate('home')}>
+          <button className={`nav-item${view === 'home' ? ' active' : ''}`} onClick={() => setView('home')} title="Mission Control">
             <Home size={18} strokeWidth={1.5} />
-            <span>Home</span>
           </button>
-          <button className={`nav-item${activeArea === 'chat' ? ' active' : ''}`} onClick={() => handleNavigate('chat')}>
-            <MessageSquare size={18} strokeWidth={1.5} />
-            <span>Chat</span>
-          </button>
-          <button className={`nav-item${activeArea === 'projetos' ? ' active' : ''}`} onClick={() => handleNavigate('projetos')}>
-            <FolderKanban size={18} strokeWidth={1.5} />
-            <span>Projetos</span>
-          </button>
-          <button className={`nav-item${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => handleNavigate('negocios')}>
-            <Building2 size={18} strokeWidth={1.5} />
-            <span>Neg├│cios</span>
-          </button>
+          <div className="sidebar-divider" />
+          {PROJECTS.map(p => (
+            <button key={p.id} className={`nav-item project-nav${view === 'project' && selectedProject.id === p.id ? ' active' : ''}`} onClick={() => openProject(p)} title={p.name}>
+              <span className="project-nav-icon">{p.icon}</span>
+            </button>
+          ))}
+          <button className="nav-item" title="Novo Projeto" onClick={handleNewProject}><Plus size={18} strokeWidth={1.5} /></button>
         </nav>
 
         <div className="sidebar-footer">
           <div className="sidebar-divider" />
-          <button className={`nav-item${activeArea === 'settings' ? ' active' : ''}`} onClick={() => handleNavigate('settings')}>
-            <Settings size={18} strokeWidth={1.5} />
-            <span>Settings</span>
-          </button>
+          <button className="nav-item" title="Settings" onClick={() => navigate('/settings')}><Settings size={18} strokeWidth={1.5} /></button>
         </div>
       </aside>
 
+      {/* Main */}
       <main className="main">
-        {activeArea === 'home' && <HomeView onNavigate={handleNavigate} />}
-        {activeArea === 'chat' && <ChatView />}
-        {activeArea === 'projetos' && <ProjetosView onNavigate={handleNavigate} />}
-        {activeArea === 'negocios' && <NegociosView />}
-        {activeArea === 'settings' && <SettingsView />}
+        {view === 'home' && <MissionControl onOpenProject={openProject} />}
+        {view === 'project' && (
+          <ProjectView
+            project={selectedProject}
+            activeView={projectView}
+            onViewChange={setProjectView}
+            rightPanel={rightPanel}
+            onRightPanelChange={setRightPanel}
+            onBack={() => setView('home')}
+          />
+        )}
       </main>
     </div>
   );
 }
 
 // ============================================================
-// HOME ÔÇö AI Operating System Cockpit
+// MISSION CONTROL ÔÇö The Command Center
 // ============================================================
 
-interface MetricCard {
-  label: string;
-  value: string;
-  change?: string;
-  changeType?: 'up' | 'down' | 'neutral';
-  icon: typeof Bot;
-  color: string;
-}
-
-interface RecentProject {
-  id: string;
-  name: string;
-  icon: string;
-  progress: number;
-  agents: number;
-  lastAccess: string;
-}
-
-interface ActivityItem {
-  id: string;
-  icon: typeof CheckCircle2;
-  text: string;
-  time: string;
-  type: 'success' | 'warning' | 'error' | 'info';
-}
-
-interface ArtifactItem {
-  id: string;
-  name: string;
-  type: string;
-  size: string;
-  icon: typeof FileText;
-}
-
-const METRICS: MetricCard[] = [
-  { label: 'Agentes Online', value: '6', change: '+2 hoje', changeType: 'up', icon: Bot, color: '#a855f7' },
-  { label: 'Workflows Ativos', value: '14', change: '3 executando', changeType: 'neutral', icon: Workflow, color: '#3b82f6' },
-  { label: 'Execu├º├Áes Hoje', value: '284', change: '+12%', changeType: 'up', icon: Zap, color: '#f59e0b' },
-  { label: 'Tempo Economizado', value: '6.2h', change: '+1.4h', changeType: 'up', icon: Clock, color: '#10b981' },
-  { label: 'Artifacts', value: '47', change: '+8 hoje', changeType: 'up', icon: FileText, color: '#ec4899' },
-  { label: 'Providers', value: '3', change: 'Todos online', changeType: 'neutral', icon: Cpu, color: '#6366f1' },
-];
-
-const RECENT_PROJECTS: RecentProject[] = [
-  { id: '1', name: 'BeeHive', icon: '­ƒÉØ', progress: 72, agents: 3, lastAccess: '2 min' },
-  { id: '2', name: 'TradeAI', icon: '­ƒôê', progress: 45, agents: 2, lastAccess: '15 min' },
-  { id: '3', name: 'Marketing', icon: '­ƒôó', progress: 88, agents: 4, lastAccess: '1h' },
-  { id: '4', name: 'Cliente X', icon: '­ƒÆ╝', progress: 23, agents: 1, lastAccess: '3h' },
-];
-
-const ACTIVITIES: ActivityItem[] = [
-  { id: '1', icon: CheckCircle2, text: 'Video publicado no YouTube', time: '2 min', type: 'success' },
-  { id: '2', icon: CheckCircle2, text: 'Workflow "Marketing Di├írio" conclu├¡do', time: '15 min', type: 'success' },
-  { id: '3', icon: AlertTriangle, text: 'OpenRouter com lat├¬ncia alta', time: '30 min', type: 'warning' },
-  { id: '4', icon: CheckCircle2, text: 'Browser scraping finalizado', time: '1h', type: 'success' },
-  { id: '5', icon: CheckCircle2, text: 'Pesquisa de mercado conclu├¡da', time: '2h', type: 'success' },
-  { id: '6', icon: XCircle, text: 'Deploy falhou ÔÇö retry autom├ítico', time: '3h', type: 'error' },
-];
-
-const ARTIFACTS: ArtifactItem[] = [
-  { id: '1', name: 'relatorio-q4.pdf', type: 'PDF', size: '2.4 MB', icon: FileText },
-  { id: '2', name: 'thumbnail-campanha.png', type: 'Image', size: '156 KB', icon: Image },
-  { id: '3', name: 'video-final.mp4', type: 'Video', size: '48 MB', icon: Video },
-  { id: '4', name: 'script-automation.md', type: 'Markdown', size: '4.2 KB', icon: FileCode },
-];
-
-function HomeView({ onNavigate }: { onNavigate: (area: MainArea, project?: string) => void }) {
-  const { projects, missions, events } = useAppStore();
+function MissionControl({ onOpenProject }: { onOpenProject: (p: Project) => void }) {
+  const runningMissions = ALL_MISSIONS.filter(m => m.status === 'running');
+  const allAgents = PROJECTS.flatMap(p => p.agents);
+  const runningAgents = allAgents.filter(a => a.status === 'running' || a.status === 'working');
+  const totalQueue = 12;
 
   return (
-    <div className="home">
+    <div className="mission-control">
       {/* Hero */}
-      <div className="hero">
-        <div className="hero-text">
+      <div className="mc-hero">
+        <div>
           <h1>Bom dia, Gabriel</h1>
-          <p>6 agentes trabalhando · 14 workflows ativos · 284 execuções hoje</p>
+          <p>{runningAgents.length} agentes trabalhando ┬À {runningMissions.length} miss├Áes ativas ┬À {totalQueue} tarefas na fila</p>
         </div>
-        <button className="btn-glow" onClick={() => onNavigate('chat')}>
-          <MessageSquare size={16} />
-          Nova Conversa
-        </button>
       </div>
 
-      {/* Metrics */}
-      <div className="metrics">
-        {METRICS.map(m => {
-          const Icon = m.icon;
-          return (
-            <div key={m.label} className="metric-card">
-              <div className="metric-icon" style={{ background: `${m.color}15`, color: m.color }}>
-                <Icon size={20} />
-              </div>
-              <div className="metric-body">
-                <span className="metric-value">{m.value}</span>
-                <span className="metric-label">{m.label}</span>
-              </div>
-              {m.change && (
-                <span className={`metric-change ${m.changeType}`}>
-                  {m.changeType === 'up' && <TrendingUp size={12} />}
-                  {m.change}
-                </span>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Main Grid */}
-      <div className="home-grid">
-        {/* Recent Projects */}
-        <div className="panel projects-panel">
-          <div className="panel-header">
-            <h2>Continue trabalhando</h2>
-            <button className="btn-ghost-sm" onClick={() => onNavigate('projetos')}>Ver todos</button>
+      <div className="mc-grid">
+        {/* Missions */}
+        <div className="mc-panel mc-missions">
+          <div className="mc-panel-header">
+            <h2><Target size={16} /> Miss├Áes em Execu├º├úo</h2>
+            <span className="mc-badge">{runningMissions.length}</span>
           </div>
-          <div className="projects-list">
-            {projects.slice(0, 4).map(p => (
-              <button key={p.id} className="project-row" onClick={() => onNavigate('projetos', p.name)}>
-                <span className="project-icon">{p.icon}</span>
-                <div className="project-info">
-                  <span className="project-name">{p.name}</span>
-                  <div className="project-meta">
-                    <span className="project-progress">
-                      <span className="progress-bar"><span className="progress-fill" style={{ width: `${p.workflows.length > 0 ? 50 : 0}%` }} /></span>
-                      {p.workflows.length > 0 ? '50' : '0'}%
-                    </span>
-                    <span className="project-agents"><Bot size={12} /> {p.agents.length}</span>
+          <div className="missions-list">
+            {ALL_MISSIONS.map(m => (
+              <div key={m.id} className="mission-row" onClick={() => {
+                const proj = PROJECTS.find(p => p.name === m.project);
+                if (proj) onOpenProject(proj);
+              }}>
+                <div className="mission-status">
+                  {m.status === 'running' && <Loader2 size={14} className="spin" />}
+                  {m.status === 'completed' && <CheckCircle2 size={14} />}
+                  {m.status === 'error' && <XCircle size={14} />}
+                  {m.status === 'scheduled' && <Clock size={14} />}
+                </div>
+                <div className="mission-info">
+                  <div className="mission-top">
+                    <span className="mission-name">{m.name}</span>
+                    <span className="mission-project">{m.project}</span>
+                  </div>
+                  <div className="mission-progress">
+                    <div className="progress-track">
+                      <div className={`progress-fill ${m.status}`} style={{ width: `${m.progress}%` }} />
+                    </div>
+                    <span className="progress-label">{m.progress}%</span>
                   </div>
                 </div>
-                <ArrowUpRight size={14} className="project-arrow" />
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Activity */}
-        <div className="panel activity-panel">
-          <div className="panel-header">
-            <h2>Atividade Recente</h2>
-            <button className="btn-ghost-sm">Ver tudo</button>
-          </div>
-          <div className="activity-list">
-            {events.map(a => (
-              <div key={a.id} className="activity-row">
-                {a.type === 'success' && <CheckCircle2 size={14} className="activity-icon success" />}
-                {a.type === 'warning' && <AlertTriangle size={14} className="activity-icon warning" />}
-                {a.type === 'error' && <XCircle size={14} className="activity-icon error" />}
-                {a.type === 'info' && <Info size={14} className="activity-icon info" />}
-                <span className="activity-text">{a.text}</span>
-                <span className="activity-time">{a.time}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Artifacts */}
-        <div className="panel artifacts-panel">
-          <div className="panel-header">
-            <h2>Artifacts Recentes</h2>
-            <button className="btn-ghost-sm">Ver todos</button>
-          </div>
-          <div className="artifacts-grid">
-            {ARTIFACTS.map(a => {
-              const Icon = a.icon;
-              return (
-                <div key={a.id} className="artifact-chip">
-                  <Icon size={14} />
-                  <span className="artifact-name">{a.name}</span>
-                  <span className="artifact-size">{a.size}</span>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Agents Status */}
-        <div className="panel agents-panel">
-          <div className="panel-header">
-            <h2>Equipe de Agentes</h2>
+        {/* Agents */}
+        <div className="mc-panel mc-agents">
+          <div className="mc-panel-header">
+            <h2><Bot size={16} /> Agentes</h2>
+            <span className="mc-badge">{runningAgents.length}/{allAgents.length}</span>
           </div>
           <div className="agents-list">
-            {projects.flatMap(p => p.agents).slice(0, 4).map(a => (
+            {allAgents.map(a => (
               <div key={a.id} className="agent-row">
                 <div className="agent-dot" style={{ background: a.color }} />
                 <div className="agent-info">
                   <span className="agent-name">{a.name}</span>
                   <span className="agent-task">{a.task}</span>
                 </div>
-                <span className={`agent-status ${a.status}`}>{a.status}</span>
+                <span className={`agent-badge ${a.status}`}>{a.status}</span>
               </div>
             ))}
           </div>
         </div>
 
-        {/* Workflows */}
-        <div className="panel workflows-panel">
-          <div className="panel-header">
-            <h2>Workflows</h2>
+        {/* Queue */}
+        <div className="mc-panel mc-queue">
+          <div className="mc-panel-header">
+            <h2><Layers size={16} /> Fila</h2>
           </div>
-          <div className="workflows-list">
-            {projects.flatMap(p => p.workflows).slice(0, 4).map(w => (
-              <div key={w.id} className="workflow-row">
-                <div className="workflow-status">
-                  {w.status === 'running' && <Loader2 size={14} className="spin" />}
-                  {w.status === 'completed' && <CheckCircle2 size={14} />}
-                  {w.status === 'error' && <XCircle size={14} />}
-                  {w.status === 'scheduled' && <Clock size={14} />}
+          <div className="queue-content">
+            <div className="queue-number">{totalQueue}</div>
+            <div className="queue-label">tarefas aguardando</div>
+            <div className="queue-breakdown">
+              <span><CircleDot size={10} /> 3 workflows</span>
+              <span><CircleDot size={10} /> 5 automa├º├Áes</span>
+              <span><CircleDot size={10} /> 4 agentes</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Events */}
+        <div className="mc-panel mc-events">
+          <div className="mc-panel-header">
+            <h2><Activity size={16} /> Eventos</h2>
+          </div>
+          <div className="events-list">
+            {ALL_EVENTS.map(e => (
+              <div key={e.id} className="event-row">
+                <div className={`event-icon ${e.type}`}>
+                  {e.type === 'success' && <CheckCircle2 size={12} />}
+                  {e.type === 'warning' && <AlertTriangle size={12} />}
+                  {e.type === 'error' && <XCircle size={12} />}
                 </div>
-                <div className="workflow-info">
-                  <span className="workflow-name">{w.name}</span>
-                  <span className={`workflow-status-text ${w.status}`}>{w.status}</span>
-                </div>
-                <span className="workflow-progress">{w.progress}%</span>
+                <span className="event-text">{e.text}</span>
+                <span className="event-project">{e.project}</span>
+                <span className="event-time">{e.time}</span>
               </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Quick Projects */}
+        <div className="mc-panel mc-projects">
+          <div className="mc-panel-header">
+            <h2><FolderKanban size={16} /> Projetos</h2>
+          </div>
+          <div className="quick-projects">
+            {PROJECTS.map(p => (
+              <button key={p.id} className="quick-project" onClick={() => onOpenProject(p)}>
+                <span className="qp-icon">{p.icon}</span>
+                <div className="qp-info">
+                  <span className="qp-name">{p.name}</span>
+                  <span className="qp-meta">{p.agents.length} agents ┬À {p.workflows.length} workflows</span>
+                </div>
+                <ArrowUpRight size={14} className="qp-arrow" />
+              </button>
             ))}
           </div>
         </div>
@@ -315,341 +389,168 @@ function HomeView({ onNavigate }: { onNavigate: (area: MainArea, project?: strin
 }
 
 // ============================================================
-// CHAT ÔÇö The Center of the AI OS
+// PROJECT VIEW ÔÇö Context-Aware
 // ============================================================
 
-interface Conversation {
-  id: string;
-  title: string;
-  preview: string;
-  time: string;
-  starred?: boolean;
+function ProjectView({
+  project, activeView, onViewChange, rightPanel, onRightPanelChange, onBack,
+}: {
+  project: Project;
+  activeView: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings';
+  onViewChange: (v: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings') => void;
+  rightPanel: 'artifacts' | 'pipeline' | 'logs' | null;
+  onRightPanelChange: (p: 'artifacts' | 'pipeline' | 'logs' | null) => void;
+  onBack: () => void;
+}) {
+  return (
+    <div className="project-view">
+      {/* Project Topbar */}
+      <div className="project-topbar">
+        <div className="topbar-left">
+          <button className="btn-back" onClick={onBack}><Home size={16} /></button>
+          <span className="topbar-icon">{project.icon}</span>
+          <span className="topbar-name">{project.name}</span>
+          <span className={`topbar-status ${project.status}`}>{project.status}</span>
+        </div>
+        <div className="topbar-tabs">
+          <button className={`tab${activeView === 'chat' ? ' active' : ''}`} onClick={() => onViewChange('chat')}>
+            <MessageSquare size={14} /> Chat
+          </button>
+          <button className={`tab${activeView === 'agents' ? ' active' : ''}`} onClick={() => onViewChange('agents')}>
+            <Bot size={14} /> Agentes
+            <span className="tab-badge">{project.agents.length}</span>
+          </button>
+          <button className={`tab${activeView === 'workflows' ? ' active' : ''}`} onClick={() => onViewChange('workflows')}>
+            <Workflow size={14} /> Workflows
+            <span className="tab-badge">{project.workflows.length}</span>
+          </button>
+          <button className={`tab${activeView === 'artifacts' ? ' active' : ''}`} onClick={() => onViewChange('artifacts')}>
+            <Layers size={14} /> Artifacts
+            <span className="tab-badge">{project.artifacts.length}</span>
+          </button>
+          <button className={`tab${activeView === 'settings' ? ' active' : ''}`} onClick={() => onViewChange('settings')}>
+            <Settings size={14} /> Config
+          </button>
+        </div>
+        <div className="topbar-right">
+          <button className={`btn-icon${rightPanel === 'pipeline' ? ' active' : ''}`} onClick={() => onRightPanelChange(rightPanel === 'pipeline' ? null : 'pipeline')} title="Pipeline">
+            <Network size={16} />
+          </button>
+          <button className={`btn-icon${rightPanel === 'artifacts' ? ' active' : ''}`} onClick={() => onRightPanelChange(rightPanel === 'artifacts' ? null : 'artifacts')} title="Artifacts">
+            <Layers size={16} />
+          </button>
+          <button className={`btn-icon${rightPanel === 'logs' ? ' active' : ''}`} onClick={() => onRightPanelChange(rightPanel === 'logs' ? null : 'logs')} title="Logs">
+            <Terminal size={16} />
+          </button>
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="project-content">
+        <div className="project-main">
+          {activeView === 'chat' && <ProjectChat project={project} />}
+          {activeView === 'agents' && <ProjectAgents project={project} />}
+          {activeView === 'workflows' && <ProjectWorkflows project={project} />}
+          {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
+          {activeView === 'settings' && <ProjectSettings project={project} />}
+        </div>
+
+        {rightPanel && (
+          <div className="project-right-panel">
+            {rightPanel === 'pipeline' && <PipelinePanel project={project} />}
+            {rightPanel === 'artifacts' && <ArtifactsPanel project={project} />}
+            {rightPanel === 'logs' && <LogsPanel />}
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  time: string;
-}
+// ============================================================
+// PROJECT CHAT
+// ============================================================
 
-const CONVERSATIONS: Conversation[] = [
-  { id: '1', title: 'An├ílise de Mercado Q4', preview: 'Dados compilados com sucesso...', time: '2 min', starred: true },
-  { id: '2', title: 'Campanha Instagram', preview: '5 posts criados para...', time: '1h' },
-  { id: '3', title: 'Code Review M├│dulo', preview: 'Refatora├º├úo sugerida...', time: '3h' },
-  { id: '4', title: 'Pesquisa Concorrentes', preview: 'Top 5 concorrentes...', time: '1d' },
-  { id: '5', title: 'Script YouTube', preview: 'Roteiro para v├¡deo de...', time: '2d', starred: true },
-];
-
-const MESSAGES: ChatMessage[] = [
-  { id: '1', role: 'user', content: 'Analise o desempenho da campanha de marketing do ├║ltimo trimestre.', time: '10:30' },
-  { id: '2', role: 'assistant', content: 'An├ílise conclu├¡da. Aqui est├úo os principais insights:\n\n**M├®tricas do Trimestre:**\n- ROI: 4.2x (Ôåæ18% vs trimestre anterior)\n- CAC: R$ 42.30 (Ôåô12%)\n- LTV: R$ 890 (Ôåæ23%)\n- Churn: 3.2% (Ôåô0.8%)\n\n**Canais com melhor performance:**\n1. Instagram Ads ÔÇö 45% das convers├Áes\n2. Google Ads ÔÇö 35% das convers├Áes\n3. TikTok Ads ÔÇö 20% das convers├Áes\n\n**Recomenda├º├Áes:**\n- Aumentar budget em Instagram em 30%\n- Testar formatos Reels no TikTok\n- Implementar retargeting para carrinho abandonado\n- Criar campanha de relan├ºamento para leads frios', time: '10:31' },
-];
-
-const AGENTS_LIST = ['Marketing Agent', 'Research Agent', 'Coding Agent', 'Video Agent'];
-const MODELS_LIST = ['Claude Sonnet', 'GPT-4o', 'Llama 3 70B', 'Gemini Pro'];
-const PROVIDERS_LIST = ['OpenRouter', 'OpenAI', 'Anthropic'];
-const WORKFLOWS_LIST = ['Nenhum', 'Marketing Di├írio', 'Pesquisa Auto', 'Trade Bot'];
-
-function ChatView() {
-  const { currentProvider, currentModel, currentProject, providers, models, projects, setCurrentProvider, setCurrentModel, setCurrentProject, conversations, addConversation, updateConversation, deleteConversation } = useAppStore();
-  const [selectedConv, setSelectedConv] = useState('1');
+function ProjectChat({ project }: { project: Project }) {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<ChatMessage[]>(MESSAGES);
-  const [agent, setAgent] = useState('Marketing Agent');
-  const [workflow, setWorkflow] = useState('Nenhum');
-  const [showRightPanel, setShowRightPanel] = useState<'artifacts' | 'executions' | 'logs' | 'context' | null>('artifacts');
-  const [editingConv, setEditingConv] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-
-  const handleNewChat = async () => {
-    const conv = await chatService.createConversation({
-      title: 'Nova Conversa',
-      preview: '',
-      projectId: currentProject?.id || '1',
-      starred: false,
-    });
-    setSelectedConv(conv.id);
-  };
-
-  const handleRename = async (id: string) => {
-    if (editTitle.trim()) {
-      await chatService.renameConversation(id, editTitle);
-    }
-    setEditingConv(null);
-  };
-
-  const handleToggleFavorite = async (id: string) => {
-    await chatService.toggleFavorite(id);
-  };
-
-  const handleDelete = async (id: string) => {
-    if (confirm('Excluir conversa?')) {
-      await chatService.deleteConversation(id);
-      if (selectedConv === id) setSelectedConv(conversations[0]?.id || '');
-    }
-  };
+  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string; agent?: string }[]>([
+    { id: '1', role: 'user', content: 'Analise o desempenho da ├║ltima campanha.', time: '10:30' },
+    { id: '2', role: 'assistant', content: 'An├ílise conclu├¡da para o projeto ' + project.name + '.\n\n**M├®tricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- Convers├Áes: +23%\n\n**Recomenda├º├Áes:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
+  ]);
 
   const handleSend = async () => {
     if (!input.trim()) return;
-    const msg: ChatMessage = { id: String(Date.now()), role: 'user', content: input, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
-    setMessages(prev => [...prev, msg]);
+    const userMsg = { id: String(Date.now()), role: 'user' as const, content: input, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
+    setMessages(prev => [...prev, userMsg]);
     setInput('');
-    await chatService.sendMessage(selectedConv, input);
+    await chatService.sendMessage(project.id, input);
     setTimeout(() => {
-      setMessages(prev => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: 'Processando sua solicitação com o agente selecionado...', time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: 'Processando no contexto do projeto ' + project.name + '...', time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), agent: project.agents[0]?.name }]);
     }, 800);
   };
 
   return (
-    <div className="chat">
-      {/* Conversations Sidebar */}
-      <div className="chat-sidebar">
-        <div className="chat-sidebar-header">
-          <h2>Conversas</h2>
-          <button className="btn-icon" onClick={handleNewChat}><Plus size={16} /></button>
-        </div>
-        <div className="chat-search">
-          <Search size={14} />
-          <input type="text" placeholder="Buscar conversas..." />
-        </div>
-        <div className="chat-tabs">
-          <button className="chat-tab active">Todas</button>
-          <button className="chat-tab"><Star size={12} /> Favoritas</button>
-          <button className="chat-tab"><Archive size={12} /> Arquivo</button>
-        </div>
-        <div className="conv-list">
-          {conversations.map(c => (
-            <div key={c.id} className={`conv-item${selectedConv === c.id ? ' active' : ''}`}>
-              <button className="conv-body" onClick={() => setSelectedConv(c.id)} style={{ flex: 1, background: 'none', border: 'none', padding: 0, textAlign: 'left' }}>
-                {editingConv === c.id ? (
-                  <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)} onBlur={() => handleRename(c.id)} onKeyDown={e => e.key === 'Enter' && handleRename(c.id)} autoFocus style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 4, padding: '2px 4px', color: 'var(--text)', width: '100%' }} />
-                ) : (
-                  <>
-                    <span className="conv-title">{c.title}</span>
-                    <span className="conv-preview">{c.preview}</span>
-                  </>
-                )}
-              </button>
-              <div className="conv-meta">
-                <span className="conv-time">{c.updatedAt}</span>
-                {c.starred && <Star size={10} className="conv-star" />}
-                <button className="btn-icon-sm" onClick={() => { setEditingConv(c.id); setEditTitle(c.title); }} title="Renomear"><MoreHorizontal size={12} /></button>
-                <button className="btn-icon-sm" onClick={() => handleToggleFavorite(c.id)} title="Favoritar"><Star size={12} /></button>
-                <button className="btn-icon-sm" onClick={() => handleDelete(c.id)} title="Excluir"><Trash2 size={12} /></button>
+    <div className="project-chat">
+      <div className="chat-messages">
+        {messages.map(m => (
+          <div key={m.id} className={`msg ${m.role}`}>
+            <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
+            <div className="msg-body">
+              <div className="msg-header">
+                <span className="msg-role">{m.role === 'user' ? 'Voc├¬' : m.agent || project.name}</span>
+                <span className="msg-time">{m.time}</span>
               </div>
+              <div className="msg-content">{m.content}</div>
             </div>
-          ))}
+          </div>
+        ))}
+      </div>
+      <div className="chat-input">
+        <div className="input-wrapper">
+          <button className="input-action"><Paperclip size={16} /></button>
+          <input type="text" placeholder={`Enviar para ${project.name}...`} value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
+          <button className="input-send" onClick={handleSend}><Send size={16} /></button>
         </div>
       </div>
-
-      {/* Chat Main */}
-      <div className="chat-main">
-        {/* Topbar with selectors */}
-        <div className="chat-topbar">
-          <div className="topbar-selectors">
-            <div className="selector">
-              <span className="selector-label">Projeto</span>
-              <select value={currentProject?.id || ''} onChange={e => { const p = projects.find(pr => pr.id === e.target.value); if (p) setCurrentProject(p); }}>
-                {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="selector-divider" />
-            <div className="selector">
-              <span className="selector-label">Agente</span>
-              <select value={agent} onChange={e => setAgent(e.target.value)}>
-                {AGENTS_LIST.map(a => <option key={a}>{a}</option>)}
-              </select>
-            </div>
-            <div className="selector-divider" />
-            <div className="selector">
-              <span className="selector-label">Modelo</span>
-              <select value={currentModel?.id || ''} onChange={e => { const m = models.find(md => md.id === e.target.value); if (m) setCurrentModel(m); }}>
-                {models.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
-              </select>
-            </div>
-            <div className="selector-divider" />
-            <div className="selector">
-              <span className="selector-label">Provider</span>
-              <select value={currentProvider?.id || ''} onChange={e => { const p = providers.find(pr => pr.id === e.target.value); if (p) setCurrentProvider(p); }}>
-                {providers.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-              </select>
-            </div>
-            <div className="selector-divider" />
-            <div className="selector">
-              <span className="selector-label">Workflow</span>
-              <select value={workflow} onChange={e => setWorkflow(e.target.value)}>
-                {WORKFLOWS_LIST.map(w => <option key={w}>{w}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="topbar-actions">
-            <button className={`btn-icon${showRightPanel === 'artifacts' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'artifacts' ? null : 'artifacts')} title="Artifacts"><Layers size={16} /></button>
-            <button className={`btn-icon${showRightPanel === 'logs' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'logs' ? null : 'logs')} title="Logs"><Terminal size={16} /></button>
-            <button className={`btn-icon${showRightPanel === 'context' ? ' active' : ''}`} onClick={() => setShowRightPanel(showRightPanel === 'context' ? null : 'context')} title="Context"><Database size={16} /></button>
-          </div>
-        </div>
-
-        {/* Messages */}
-        <div className="chat-messages">
-          {messages.map(m => (
-            <div key={m.id} className={`msg ${m.role}`}>
-              <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
-              <div className="msg-body">
-                <div className="msg-header">
-                  <span className="msg-role">{m.role === 'user' ? 'Voc├¬' : agent}</span>
-                  <span className="msg-time">{m.time}</span>
-                </div>
-                <div className="msg-content">{m.content}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Input */}
-        <div className="chat-input">
-          <div className="input-wrapper">
-            <button className="input-action"><Paperclip size={16} /></button>
-            <input type="text" placeholder="Digite sua mensagem..." value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend()} />
-            <button className="input-send" onClick={handleSend}><Send size={16} /></button>
-          </div>
-        </div>
-      </div>
-
-      {/* Right Panel */}
-      {showRightPanel && (
-        <div className="chat-right-panel">
-          <div className="right-panel-header">
-            <span>{showRightPanel === 'artifacts' ? 'Artifacts' : showRightPanel === 'logs' ? 'Logs' : 'Contexto'}</span>
-            <button className="btn-icon" onClick={() => setShowRightPanel(null)}><XCircle size={14} /></button>
-          </div>
-          <div className="right-panel-body">
-            {showRightPanel === 'artifacts' && (
-              <div className="artifacts-list">
-                {ARTIFACTS.map(a => {
-                  const Icon = a.icon;
-                  return (
-                    <div key={a.id} className="artifact-row">
-                      <Icon size={14} />
-                      <div className="artifact-info">
-                        <span className="artifact-name">{a.name}</span>
-                        <span className="artifact-meta">{a.type} ┬À {a.size}</span>
-                      </div>
-                      <button className="btn-icon-sm"><Download size={12} /></button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            {showRightPanel === 'logs' && (
-              <div className="logs-list">
-                {['[10:30] Workflow started', '[10:31] Agent response generated', '[10:32] Artifact saved', '[10:33] Memory updated'].map((l, i) => (
-                  <div key={i} className="log-line"><code>{l}</code></div>
-                ))}
-              </div>
-            )}
-            {showRightPanel === 'context' && (
-              <div className="context-info">
-                <div className="context-row"><span>Mem├│ria utilizada</span><span>2.4 KB</span></div>
-                <div className="context-row"><span>Tokens na conversa</span><span>1,247</span></div>
-                <div className="context-row"><span>Artifacts vinculados</span><span>3</span></div>
-                <div className="context-row"><span>Projeto</span><span>BeeHive</span></div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
 // ============================================================
-// PROJETOS ÔÇö Workspaces
+// PROJECT AGENTS
 // ============================================================
 
-interface Project {
-  id: string;
-  name: string;
-  description: string;
-  icon: string;
-  status: 'active' | 'paused' | 'completed';
-  progress: number;
-  agents: number;
-  workflows: number;
-  tags: string[];
-  lastAccess: string;
-}
-
-const PROJECTS: Project[] = [
-  { id: '1', name: 'BeeHive', description: 'Plataforma de IA modular e extens├¡vel', icon: '­ƒÉØ', status: 'active', progress: 72, agents: 3, workflows: 8, tags: ['Platform', 'TypeScript'], lastAccess: '2 min' },
-  { id: '2', name: 'TradeAI', description: 'Sistema de trading automatizado', icon: '­ƒôê', status: 'active', progress: 45, agents: 2, workflows: 5, tags: ['AI', 'Python'], lastAccess: '15 min' },
-  { id: '3', name: 'Marketing Digital', description: 'Campanhas e conte├║do para redes sociais', icon: '­ƒôó', status: 'active', progress: 88, agents: 4, workflows: 12, tags: ['Marketing', 'Social'], lastAccess: '1h' },
-  { id: '4', name: 'Cliente X', description: 'Projeto de consultoria', icon: '­ƒÆ╝', status: 'paused', progress: 23, agents: 1, workflows: 3, tags: ['Consulting'], lastAccess: '3h' },
-  { id: '5', name: 'Estudo OAB', description: 'Material de estudo para exame', icon: '­ƒôÜ', status: 'completed', progress: 100, agents: 1, workflows: 2, tags: ['Study'], lastAccess: '1w' },
-];
-
-function ProjetosView({ onNavigate }: { onNavigate: (area: MainArea) => void }) {
-  const { projects, addProject, deleteProject } = useAppStore();
-  const [showNewModal, setShowNewModal] = useState(false);
-  const [newName, setNewName] = useState('');
-  const [newIcon, setNewIcon] = useState('📁');
-  const [newDesc, setNewDesc] = useState('');
-
-  const handleCreate = async () => {
-    if (!newName.trim()) return;
-    await projectService.create({ name: newName, icon: newIcon, description: newDesc, status: 'active' });
-    setNewName('');
-    setNewIcon('📁');
-    setNewDesc('');
-    setShowNewModal(false);
-  };
-
+function ProjectAgents({ project }: { project: Project }) {
   return (
-    <div className="projetos">
-      <div className="page-header">
-        <div>
-          <h1>Projetos</h1>
-          <p>Workspaces e ambientes de trabalho</p>
-        </div>
-        <button className="btn-primary" onClick={() => setShowNewModal(true)}><Plus size={16} /> Novo Projeto</button>
+    <div className="project-agents">
+      <div className="section-header">
+        <h2>Agentes do Projeto</h2>
+        <span className="section-count">{project.agents.length} agentes</span>
       </div>
-
-      {showNewModal && (
-        <div className="modal-overlay" onClick={() => setShowNewModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <h3>Novo Projeto</h3>
-            <div className="form-group"><label>Nome</label><input type="text" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Nome do projeto" /></div>
-            <div className="form-group"><label>Ícone</label><input type="text" value={newIcon} onChange={e => setNewIcon(e.target.value)} placeholder="📁" /></div>
-            <div className="form-group"><label>Descrição</label><input type="text" value={newDesc} onChange={e => setNewDesc(e.target.value)} placeholder="Descrição do projeto" /></div>
-            <div className="form-actions">
-              <button className="btn-ghost" onClick={() => setShowNewModal(false)}>Cancelar</button>
-              <button className="btn-primary" onClick={handleCreate}>Criar</button>
+      <div className="agents-grid">
+        {project.agents.map(a => (
+          <div key={a.id} className="agent-card">
+            <div className="agent-card-header">
+              <div className="agent-dot-lg" style={{ background: a.color }} />
+              <div>
+                <span className="agent-card-name">{a.name}</span>
+                <span className={`agent-badge ${a.status}`}>{a.status}</span>
+              </div>
             </div>
-          </div>
-        </div>
-      )}
-
-      <div className="projects-grid">
-        {projects.map(p => (
-          <div key={p.id} className="project-card">
-            <div className="project-card-top">
-              <span className="project-icon-lg">{p.icon}</span>
-              <span className={`status-dot ${p.status}`} />
-            </div>
-            <h3>{p.name}</h3>
-            <p className="project-desc">{p.description}</p>
-            <div className="project-progress-bar">
-              <div className="progress-fill" style={{ width: `${p.workflows.length > 0 ? 50 : 0}%` }} />
-            </div>
-            <div className="project-stats">
-              <span><Bot size={12} /> {p.agents.length} agents</span>
-              <span><Workflow size={12} /> {p.workflows.length} workflows</span>
-            </div>
-            <div className="project-card-footer">
-              <span className="project-last">{p.updatedAt}</span>
-              <button className="btn-ghost-sm" onClick={() => onNavigate('projetos')}>Abrir <ArrowUpRight size={12} /></button>
-              <button className="btn-icon-sm" onClick={async () => { if (confirm('Excluir projeto?')) await projectService.delete(p.id); }}><Trash2 size={12} /></button>
-            </div>
+            <p className="agent-card-task">{a.task}</p>
+            {a.pipeline && (
+              <div className="agent-pipeline">
+                {a.pipeline.map((step, i) => (
+                  <div key={step.id} className="pipeline-step-wrapper">
+                    <div className={`pipeline-step ${step.status}`}>
+                      <span className="pipeline-step-label">{step.label}</span>
+                      <span className={`pipeline-step-type ${step.type}`}>{step.type}</span>
+                    </div>
+                    {i < a.pipeline!.length - 1 && <div className={`pipeline-connector ${step.status === 'done' ? 'done' : ''}`} />}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ))}
       </div>
@@ -658,251 +559,191 @@ function ProjetosView({ onNavigate }: { onNavigate: (area: MainArea) => void }) 
 }
 
 // ============================================================
-// NEG├ôCIOS ÔÇö Organized Categories
+// PROJECT WORKFLOWS
 // ============================================================
 
-interface BizCategory {
-  id: string;
-  name: string;
-  icon: typeof Brain;
-  color: string;
-  modules: { id: string; name: string; icon: typeof Bot; desc: string }[];
-}
-
-const BIZ_CATEGORIES: BizCategory[] = [
-  {
-    id: 'ia', name: 'Intelig├¬ncia Artificial', icon: Brain, color: '#a855f7',
-    modules: [
-      { id: 'agents', name: 'Agentes', icon: Bot, desc: 'Assistentes de IA' },
-      { id: 'skills', name: 'Skills', icon: Sparkles, desc: 'Habilidades' },
-      { id: 'memory', name: 'Memory', icon: Database, desc: 'Mem├│ria do sistema' },
-      { id: 'browser', name: 'Browser', icon: Globe, desc: 'Navega├º├úo web' },
-    ],
-  },
-  {
-    id: 'conteudo', name: 'Conte├║do', icon: FileText, color: '#10b981',
-    modules: [
-      { id: 'image', name: 'Image', icon: Image, desc: 'Gera├º├úo de imagens' },
-      { id: 'video', name: 'Video', icon: Video, desc: 'Gera├º├úo de v├¡deos' },
-      { id: 'audio', name: 'Audio', icon: Music, desc: 'Gera├º├úo de ├íudio' },
-      { id: 'shorts', name: 'Shorts', icon: Zap, desc: 'V├¡deos curtos' },
-    ],
-  },
-  {
-    id: 'automacao', name: 'Automa├º├úo', icon: Zap, color: '#3b82f6',
-    modules: [
-      { id: 'workflows', name: 'Workflows', icon: GitBranch, desc: 'Fluxos de trabalho' },
-      { id: 'scheduler', name: 'Scheduler', icon: Calendar, desc: 'Agendamentos' },
-      { id: 'triggers', name: 'Triggers', icon: Target, desc: 'Gatilhos' },
-      { id: 'queue', name: 'Queue', icon: Layers, desc: 'Fila de tarefas' },
-      { id: 'webhooks', name: 'Webhooks', icon: Globe, desc: 'Endpoints HTTP' },
-    ],
-  },
-  {
-    id: 'marketing', name: 'Marketing', icon: Megaphone, color: '#f59e0b',
-    modules: [
-      { id: 'instagram', name: 'Instagram', icon: Instagram, desc: 'Gest├úo de perfil' },
-      { id: 'tiktok', name: 'TikTok', icon: Music, desc: 'Gest├úo de conte├║do' },
-      { id: 'facebook', name: 'Facebook', icon: Globe, desc: 'Gest├úo de p├ígina' },
-      { id: 'youtube', name: 'YouTube', icon: Video, desc: 'Gest├úo de canal' },
-      { id: 'analytics', name: 'Analytics', icon: BarChart3, desc: 'An├ílises e relat├│rios' },
-    ],
-  },
-  {
-    id: 'business', name: 'Business', icon: Package, color: '#ef4444',
-    modules: [
-      { id: 'produtos', name: 'Produtos', icon: Package, desc: 'Gest├úo de produtos' },
-      { id: 'crm', name: 'CRM', icon: Users, desc: 'Relacionamento' },
-      { id: 'finance', name: 'Finance', icon: DollarSign, desc: 'Gest├úo financeira' },
-      { id: 'affiliates', name: 'Afiliados', icon: TrendingUp, desc: 'Programa de afiliados' },
-    ],
-  },
-  {
-    id: 'dev', name: 'Desenvolvimento', icon: Code, color: '#6366f1',
-    modules: [
-      { id: 'coding', name: 'Coding', icon: Terminal, desc: 'Assistente de c├│digo' },
-      { id: 'github', name: 'GitHub', icon: GitBranch, desc: 'Reposit├│rios' },
-      { id: 'deploy', name: 'Deploy', icon: Rocket, desc: 'Publica├º├úo' },
-      { id: 'templates', name: 'Templates', icon: FileCode, desc: 'Modelos prontos' },
-      { id: 'integrations', name: 'Integra├º├Áes', icon: Layers, desc: 'Servi├ºos externos' },
-    ],
-  },
-];
-
-function Instagram(props: React.SVGProps<SVGSVGElement>) {
+function ProjectWorkflows({ project }: { project: Project }) {
   return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-    </svg>
+    <div className="project-workflows">
+      <div className="section-header">
+        <h2>Workflows</h2>
+        <span className="section-count">{project.workflows.length} workflows</span>
+      </div>
+      {project.workflows.length === 0 ? (
+        <div className="empty-state"><p>Nenhum workflow neste projeto.</p></div>
+      ) : (
+        <div className="workflows-grid">
+          {project.workflows.map(w => (
+            <div key={w.id} className="workflow-card">
+              <div className="workflow-card-header">
+                <div className="workflow-card-status">
+                  {w.status === 'running' && <Loader2 size={16} className="spin" />}
+                  {w.status === 'completed' && <CheckCircle2 size={16} />}
+                  {w.status === 'error' && <XCircle size={16} />}
+                  {w.status === 'scheduled' && <Clock size={16} />}
+                </div>
+                <span className={`workflow-badge ${w.status}`}>{w.status}</span>
+              </div>
+              <h3 className="workflow-card-name">{w.name}</h3>
+              <div className="workflow-card-progress">
+                <div className="progress-track">
+                  <div className={`progress-fill ${w.status}`} style={{ width: `${w.progress}%` }} />
+                </div>
+                <span className="progress-label">{w.progress}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
-function NegociosView() {
-  const navigate = useNavigate();
+// ============================================================
+// PROJECT ARTIFACTS
+// ============================================================
+
+function ProjectArtifacts({ project }: { project: Project }) {
+  return (
+    <div className="project-artifacts">
+      <div className="section-header">
+        <h2>Artifacts</h2>
+        <span className="section-count">{project.artifacts.length} arquivos</span>
+      </div>
+      {project.artifacts.length === 0 ? (
+        <div className="empty-state"><p>Nenhum artifact neste projeto.</p></div>
+      ) : (
+        <div className="artifacts-grid">
+          {project.artifacts.map(a => (
+            <div key={a.id} className="artifact-card">
+              <div className="artifact-card-icon">
+                {a.type === 'Image' && <Image size={20} />}
+                {a.type === 'PDF' && <FileText size={20} />}
+                {a.type === 'Video' && <Video size={20} />}
+                {a.type === 'Code' && <FileCode size={20} />}
+                {a.type === 'JSON' && <Database size={20} />}
+                {!['Image', 'PDF', 'Video', 'Code', 'JSON'].includes(a.type) && <FileText size={20} />}
+              </div>
+              <div className="artifact-card-info">
+                <span className="artifact-card-name">{a.name}</span>
+                <span className="artifact-card-meta">{a.type} ┬À {a.size}</span>
+              </div>
+              <button className="btn-icon-sm"><Download size={14} /></button>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// PROJECT SETTINGS
+// ============================================================
+
+function ProjectSettings({ project }: { project: Project }) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description);
+  const [status, setStatus] = useState(project.status);
+
+  const handleSave = async () => {
+    await projectService.update(project.id, { name, description, status });
+    alert('Configurações salvas!');
+  };
 
   return (
-    <div className="negocios">
-      <div className="page-header">
-        <div>
-          <h1>Negócios</h1>
-          <p>Módulos e ferramentas do BeeHive</p>
+    <div className="project-settings">
+      <div className="section-header"><h2>Configurações do Projeto</h2></div>
+      <div className="settings-form">
+        <div className="form-group"><label>Nome</label><input type="text" value={name} onChange={e => setName(e.target.value)} /></div>
+        <div className="form-group"><label>Descrição</label><textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} /></div>
+        <div className="form-group">
+          <label>Status</label>
+          <select value={status} onChange={e => setStatus(e.target.value as typeof status)}>
+            <option value="active">Ativo</option>
+            <option value="paused">Pausado</option>
+            <option value="completed">Concluído</option>
+          </select>
         </div>
-      </div>
-
-      <div className="biz-grid">
-        {BIZ_CATEGORIES.map(cat => {
-          const CatIcon = cat.icon;
-          return (
-            <div key={cat.id} className="biz-card">
-              <div className="biz-card-header" style={{ '--cat-color': cat.color } as React.CSSProperties}>
-                <div className="biz-icon" style={{ background: `${cat.color}18`, color: cat.color }}>
-                  <CatIcon size={20} />
-                </div>
-                <h2>{cat.name}</h2>
-              </div>
-              <div className="biz-modules">
-                {cat.modules.map(mod => {
-                  const ModIcon = mod.icon;
-                  return (
-                    <button key={mod.id} className="biz-module" onClick={() => navigate(`/negocios/${mod.id}`)}>
-                      <ModIcon size={16} />
-                      <div className="biz-module-info">
-                        <span className="biz-module-name">{mod.name}</span>
-                        <span className="biz-module-desc">{mod.desc}</span>
-                      </div>
-                      <ChevronRight size={14} className="biz-module-arrow" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+        <button className="btn-primary" onClick={handleSave}>Salvar</button>
       </div>
     </div>
   );
 }
 
 // ============================================================
-// SETTINGS
+// RIGHT PANELS
 // ============================================================
 
-type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
-
-const SETTINGS_GROUPS = [
-  { label: 'Conta', items: [
-    { id: 'perfil' as SettingsPage, label: 'Perfil', icon: Users },
-    { id: 'seguranca' as SettingsPage, label: 'Seguran├ºa', icon: Shield },
-  ]},
-  { label: 'Sistema', items: [
-    { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
-    { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
-    { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
-    { id: 'integrations' as SettingsPage, label: 'Integra├º├Áes', icon: Globe },
-  ]},
-  { label: 'Dados', items: [
-    { id: 'storage' as SettingsPage, label: 'Storage', icon: HardDrive },
-    { id: 'memoria' as SettingsPage, label: 'Mem├│ria', icon: Database },
-    { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
-    { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
-  ]},
-  { label: 'Personaliza├º├úo', items: [
-    { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
-    { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
-    { id: 'notificacoes' as SettingsPage, label: 'Notifica├º├Áes', icon: Bell },
-    { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
-  ]},
-];
-
-function SettingsView() {
-  const { settings, updateSettings, providers, models, currentProvider, currentModel, setCurrentProvider, setCurrentModel } = useAppStore();
-  const [page, setPage] = useState<SettingsPage>('perfil');
+function PipelinePanel({ project }: { project: Project }) {
+  const activeAgent = project.agents.find(a => a.pipeline && a.pipeline.length > 0);
 
   return (
-    <div className="settings">
-      <div className="settings-sidebar">
-        <h2>Settings</h2>
-        <nav>
-          {SETTINGS_GROUPS.map(g => (
-            <div key={g.label} className="settings-group">
-              <span className="settings-group-label">{g.label}</span>
-              {g.items.map(item => {
-                const Icon = item.icon;
-                return (
-                  <button key={item.id} className={`settings-item${page === item.id ? ' active' : ''}`} onClick={() => setPage(item.id)}>
-                    <Icon size={16} /> {item.label}
-                  </button>
-                );
-              })}
+    <div className="right-panel">
+      <div className="rp-header"><span>Pipeline Visual</span></div>
+      <div className="rp-body">
+        {activeAgent ? (
+          <div className="pipeline-view">
+            <div className="pipeline-agent-label">
+              <div className="agent-dot" style={{ background: activeAgent.color }} />
+              <span>{activeAgent.name}</span>
             </div>
-          ))}
-        </nav>
-      </div>
-      <div className="settings-content">
-        {page === 'perfil' && (
-          <div className="settings-page">
-            <h2>Perfil</h2>
-            <p className="settings-desc">Suas informações pessoais</p>
-            <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
-            <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
-            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
-            <button className="btn-primary" onClick={() => alert('Perfil salvo!')}>Salvar</button>
-          </div>
-        )}
-        {page === 'providers' && (
-          <div className="settings-page">
-            <h2>Providers</h2>
-            <p className="settings-desc">Provedores de IA conectados</p>
-            {providers.map(p => (
-              <div key={p.id} className="provider-card">
-                <div className="provider-header">
-                  <span className="provider-name">{p.name}</span>
-                  <span className={`status-pill ${p.status}`}>{p.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
+            <div className="pipeline-flow">
+              {activeAgent.pipeline!.map((step, i) => (
+                <div key={step.id} className="pipeline-node-wrapper">
+                  <div className={`pipeline-node ${step.status} ${step.type}`}>
+                    <span className="pipeline-node-label">{step.label}</span>
+                    <span className="pipeline-node-type">{step.type}</span>
+                  </div>
+                  {i < activeAgent.pipeline!.length - 1 && <div className={`pipeline-arrow ${step.status === 'done' ? 'done' : ''}`} />}
                 </div>
-                <p>{p.models.join(', ')}</p>
-                <div className="form-group"><label>API Key</label><input type="password" placeholder="sk-..." /></div>
-                <button className="btn-primary" onClick={() => {
-                  if (p.status === 'connected') {
-                    useAppStore.getState().updateProvider(p.id, { status: 'disconnected' });
-                  } else {
-                    useAppStore.getState().updateProvider(p.id, { status: 'connected' });
-                  }
-                }}>{p.status === 'connected' ? 'Desconectar' : 'Conectar'}</button>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="empty-state"><p>Nenhuma pipeline ativa.</p></div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ArtifactsPanel({ project }: { project: Project }) {
+  return (
+    <div className="right-panel">
+      <div className="rp-header"><span>Artifacts</span></div>
+      <div className="rp-body">
+        {project.artifacts.length === 0 ? (
+          <div className="empty-state"><p>Nenhum artifact.</p></div>
+        ) : (
+          <div className="rp-artifacts">
+            {project.artifacts.map(a => (
+              <div key={a.id} className="rp-artifact-row">
+                <FileText size={14} />
+                <div className="rp-artifact-info">
+                  <span className="rp-artifact-name">{a.name}</span>
+                  <span className="rp-artifact-meta">{a.size}</span>
+                </div>
+                <button className="btn-icon-sm"><Download size={12} /></button>
               </div>
             ))}
           </div>
         )}
-        {page === 'tema' && (
-          <div className="settings-page">
-            <h2>Tema</h2>
-            <p className="settings-desc">Personalize a aparência</p>
-            <div className="form-group">
-              <label>Tema</label>
-              <div className="theme-grid">
-                <button className={`theme-card${settings.theme === 'dark' ? ' active' : ''}`} onClick={() => updateSettings({ theme: 'dark' })}>🌙 Dark</button>
-                <button className={`theme-card${settings.theme === 'light' ? ' active' : ''}`} onClick={() => updateSettings({ theme: 'light' })}>☀️ Light</button>
-                <button className={`theme-card${settings.theme === 'system' ? ' active' : ''}`} onClick={() => updateSettings({ theme: 'system' })}>💻 System</button>
-              </div>
-            </div>
-          </div>
-        )}
-        {page === 'logs' && (
-          <div className="settings-page">
-            <h2>Logs</h2>
-            <p className="settings-desc">Hist├│rico de atividades do sistema</p>
-            <div className="logs-viewer">
-              {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
-                <div key={i} className="log-line"><code>{l}</code></div>
-              ))}
-            </div>
-          </div>
-        )}
-        {!['perfil', 'providers', 'tema', 'logs'].includes(page) && (
-          <div className="settings-page">
-            <h2>{SETTINGS_GROUPS.flatMap(g => g.items).find(i => i.id === page)?.label}</h2>
-            <p className="settings-desc">Em desenvolvimento</p>
-          </div>
-        )}
+      </div>
+    </div>
+  );
+}
+
+function LogsPanel() {
+  return (
+    <div className="right-panel">
+      <div className="rp-header"><span>Logs</span></div>
+      <div className="rp-body">
+        <div className="rp-logs">
+          {['[10:30] Mission started', '[10:31] Agent response generated', '[10:32] Pipeline step completed', '[10:33] Artifact saved', '[10:34] Memory updated'].map((l, i) => (
+            <div key={i} className="rp-log-line"><code>{l}</code></div>
+          ))}
+        </div>
       </div>
     </div>
   );
