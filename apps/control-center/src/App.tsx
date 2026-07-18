@@ -373,7 +373,7 @@ function ChatInputArea({
     setShowFilePanel(true);
   };
 
-  return (
+return (
     <div className="chat-input-area">
       {/* Attached files chips */}
       {attachedFiles.length > 0 && (
@@ -397,101 +397,107 @@ function ChatInputArea({
         </div>
       )}
 
-      {/* Main input row: attach + textarea + send */}
-      <div className="input-row">
-        <div className="input-left">
-          <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
-            <FilePlus size={18} />
-          </button>
-          <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
-        </div>
-        <div className="input-center">
-          <textarea
-            ref={textareaRef}
-            placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem... (Shift+Enter para nova linha)'}
-            value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={sending}
-            rows={1}
-            spellCheck={false}
-          />
-        </div>
-        <div className="input-right">
-          <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)}>
-            <Send size={18} />
-          </button>
-        </div>
-      </div>
-
-      {/* Controls row: Model picker + Reasoning effort - aligned left after attach button */}
-      <div className="input-controls-row">
-        <div className="input-left-spacer" style={{ width: '44px' }} />
-        <div className="input-controls">
-          {/* Model Picker - OpenWork style grouped by provider */}
-          <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => { setSearchModel(''); setModelOpen(!modelOpen); }} title="Selecionar modelo">
-              <BrainCircuit size={16} />
-              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
-              <ChevronDown size={12} />
+      {/* Single unified input bubble - OpenWork style */}
+      <div className="input-bubble">
+        <div className="input-row">
+          {/* Left: Attach button */}
+          <div className="input-left">
+            <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo" aria-label="Anexar arquivo">
+              <FilePlus size={18} />
             </button>
-            {modelOpen && (
-              <div className="dropdown-menu model-dropdown">
-                <input
-                  type="text"
-                  placeholder="Buscar modelo..."
-                  value={searchModel}
-                  onChange={e => setSearchModel(e.target.value)}
-                  className="dropdown-search"
-                  autoFocus
-                />
-                {Object.entries(modelsByProvider).map(([provider, providerModels]) => {
-                  const filtered = providerModels.filter(m => 
-                    m.name.toLowerCase().includes(searchModel.toLowerCase()) ||
-                    m.provider.toLowerCase().includes(searchModel.toLowerCase())
-                  );
-                  if (filtered.length === 0) return null;
-                  return (
-                    <div key={provider} className="model-provider-group">
-                      <div className="model-provider-label">{provider}</div>
-                      {filtered.map(m => (
-                        <button
-                          key={m.id}
-                          className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`}
-                          onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
-                        >
-                          <span className="dropdown-item-name">{m.name}</span>
-                          {!m.supportsImages && <span className="dropdown-item-warning" title="Não suporta imagens">⚠</span>}
-                        </button>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+            <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
           </div>
-
-          {/* Reasoning Effort - OpenWork style */}
-          <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
-              <SlidersHorizontal size={16} />
-              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
-              <ChevronDown size={12} />
+          
+          {/* Center: Textarea - fills available space */}
+          <div className="input-center">
+            <textarea
+              ref={textareaRef}
+              placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem... (Shift+Enter para nova linha)'}
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              disabled={sending}
+              rows={1}
+              spellCheck={false}
+            />
+          </div>
+          
+          {/* Right: Send button */}
+          <div className="input-right">
+            <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
+              <Send size={18} />
             </button>
-            {effortOpen && (
-              <div className="dropdown-menu effort-dropdown">
-                {effortOptions.map(e => (
-                  <button
-                    key={e.value}
-                    className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`}
-                    onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}
-                  >
-                    <span className="dropdown-item-name">{e.label}</span>
-                    <span className="dropdown-item-desc">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+          </div>
+        </div>
+        
+        {/* Controls row below: Model + Reasoning */}
+        <div className="input-controls-row">
+          <div className="input-controls">
+            {/* Model Picker */}
+            <div className="dropdown-group">
+              <button className="dropdown-btn" onClick={() => { setSearchModel(''); setModelOpen(!modelOpen); }} title="Selecionar modelo">
+                <BrainCircuit size={16} />
+                <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+                <ChevronDown size={12} />
+              </button>
+              {modelOpen && (
+                <div className="dropdown-menu model-dropdown">
+                  <input
+                    type="text"
+                    placeholder="Buscar modelo..."
+                    value={searchModel}
+                    onChange={e => setSearchModel(e.target.value)}
+                    className="dropdown-search"
+                    autoFocus
+                  />
+                  {Object.entries(modelsByProvider).map(([provider, providerModels]) => {
+                    const filtered = providerModels.filter(m => 
+                      m.name.toLowerCase().includes(searchModel.toLowerCase()) ||
+                      m.provider.toLowerCase().includes(searchModel.toLowerCase())
+                    );
+                    if (filtered.length === 0) return null;
+                    return (
+                      <div key={provider} className="model-provider-group">
+                        <div className="model-provider-label">{provider}</div>
+                        {filtered.map(m => (
+                          <button
+                            key={m.id}
+                            className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`}
+                            onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
+                          >
+                            <span className="dropdown-item-name">{m.name}</span>
+                            {!m.supportsImages && <span className="dropdown-item-warning" title="Não suporta imagens">⚠</span>}
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Reasoning Effort */}
+            <div className="dropdown-group">
+              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
+                <SlidersHorizontal size={16} />
+                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
+                <ChevronDown size={12} />
+              </button>
+              {effortOpen && (
+                <div className="dropdown-menu effort-dropdown">
+                  {effortOptions.map(e => (
+                    <button
+                      key={e.value}
+                      className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`}
+                      onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}
+                    >
+                      <span className="dropdown-item-name">{e.label}</span>
+                      <span className="dropdown-item-desc">{e.desc}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
