@@ -12,5 +12,5 @@
       ]
     }
   ],
-  "installCommand": "pnpm install --filter beehive-control-center"
+  "installCommand": "cd apps/control-center && npm install"
 }
