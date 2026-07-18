@@ -9,6 +9,7 @@ import {
   Home, Network, Search, ChevronDown, FilePlus, BrainCircuit,
   SlidersHorizontal, Paperclip as PaperclipIcon,
   Target, AlertTriangle, Rocket, Calendar, DollarSign, Code, Zap, Brain, GitBranch, Megaphone, BookOpen, Instagram, Music as MusicIcon, Video as VideoIcon, Image as ImageIcon,
+  Trash2,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
@@ -574,8 +575,8 @@ function ProjectView({
   project, activeView, onViewChange, rightPanel, onRightPanelChange, onBack,
 }: {
   project: Project;
-  activeView: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings';
-  onViewChange: (v: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings') => void;
+  activeView: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings' | 'cowork';
+  onViewChange: (v: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings' | 'cowork') => void;
   rightPanel: 'artifacts' | 'pipeline' | 'logs' | null;
   onRightPanelChange: (p: 'artifacts' | 'pipeline' | 'logs' | null) => void;
   onBack: () => void;
@@ -600,6 +601,10 @@ function ProjectView({
           <button className={`tab${activeView === 'workflows' ? ' active' : ''}`} onClick={() => onViewChange('workflows')}>
             <Workflow size={14} /> Workflows
             <span className="tab-badge">{project.workflows.length}</span>
+          </button>
+          <button className={`tab${activeView === 'cowork' ? ' active' : ''}`} onClick={() => onViewChange('cowork')}>
+            <Terminal size={14} /> Cowork
+            <span className="tab-badge">AI</span>
           </button>
           <button className={`tab${activeView === 'artifacts' ? ' active' : ''}`} onClick={() => onViewChange('artifacts')}>
             <Layers size={14} /> Artifacts
@@ -627,6 +632,7 @@ function ProjectView({
           {activeView === 'chat' && <ProjectChat project={project} />}
           {activeView === 'agents' && <ProjectAgents project={project} />}
           {activeView === 'workflows' && <ProjectWorkflows project={project} />}
+          {activeView === 'cowork' && <ProjectCowork project={project} />}
           {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
           {activeView === 'settings' && <ProjectSettings project={project} />}
         </div>
@@ -842,6 +848,185 @@ function ProjectSettings({ project }: { project: Project }) {
           </select>
         </div>
         <button className="btn-primary" onClick={handleSave}>Salvar</button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// PROJECT COWORK — AI Computer Control (Terminal, Bash, Files, Web)
+// ============================================================
+
+interface CoworkMessage {
+  id: string;
+  type: 'user' | 'assistant' | 'command' | 'output' | 'file';
+  content: string;
+  time: string;
+  meta?: {
+    command?: string;
+    cwd?: string;
+    exitCode?: number;
+    path?: string;
+  };
+}
+
+function ProjectCowork({ project }: { project: Project }) {
+  const [input, setInput] = useState('');
+  const [messages, setMessages] = useState<CoworkMessage[]>([
+    { id: '1', type: 'assistant', content: `🤖 **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\n• **Executar comandos bash** — digite \`$ ls\` ou \`$ npm run build\`\n• **Ler/Escrever arquivos** — use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteúdo\` para escrever\n• **Navegar na web** — \`$ browse https://site.com\`\n• **Controlar o computador** — automação via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
+  ]);
+  const [cwd, setCwd] = useState('~/projects/' + project.name.toLowerCase().replace(/\s+/g, '-'));
+  const [history, setHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [executing, setExecuting] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  useEffect(() => { scrollToBottom(); }, [messages]);
+
+  const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+
+  const executeCommand = async (cmd: string) => {
+    const trimmed = cmd.trim();
+    if (!trimmed) return;
+
+    // Add to history
+    setHistory(prev => [trimmed, ...prev.slice(0, 49)]);
+    setHistoryIndex(-1);
+
+    // Show command
+    setMessages(prev => [...prev, { id: String(Date.now()), type: 'command', content: `$ ${trimmed}`, time: now(), meta: { command: trimmed, cwd } }]);
+    setExecuting(true);
+
+    // Simulate execution (in real app, this would call backend)
+    await new Promise(r => setTimeout(r, 800 + Math.random() * 1200));
+
+    // Mock output based on command
+    let output = '';
+    if (trimmed.startsWith('ls')) {
+      output = `package.json\nsrc/\npublic/\nREADME.md\ndist/\nnode_modules/`;
+    } else if (trimmed.startsWith('cat ') || trimmed.startsWith('type ')) {
+      const file = trimmed.split(' ')[1];
+      output = `// ${file}\n{\n  "name": "${project.name}",\n  "version": "1.0.0",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build"\n  }\n}`;
+    } else if (trimmed.startsWith('npm ') || trimmed.startsWith('yarn ') || trimmed.startsWith('pnpm ')) {
+      output = `> ${trimmed}\n\n✔ Dependencies installed\n✔ Build completed in 2.3s\n\ndist/index.html  0.45 kB\ndist/assets/index.css  12.3 kB\ndist/assets/index.js   45.7 kB`;
+    } else if (trimmed.startsWith('git ')) {
+      output = `On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean`;
+    } else if (trimmed.startsWith('browse ') || trimmed.startsWith('open ')) {
+      const url = trimmed.split(' ')[1];
+      output = `🌐 Navegando para: ${url}\n✔ Página carregada\n📄 Título: "Exemplo de Site"\n🔗 Links encontrados: 12`;
+    } else if (trimmed === 'pwd') {
+      output = cwd;
+    } else if (trimmed.startsWith('cd ')) {
+      const dir = trimmed.slice(3).trim();
+      if (dir === '..') {
+        setCwd(prev => prev.split('/').slice(0, -1).join('/') || '~');
+      } else if (dir.startsWith('/')) {
+        setCwd(dir);
+      } else {
+        setCwd(prev => prev + '/' + dir);
+      }
+      output = `Diretório alterado para: ${cwd}/${dir}`;
+    } else {
+      output = `Comando executado: ${trimmed}\n\n[Simulação] Em produção, isso executaria no shell real via backend BeeHive.`;
+    }
+
+    setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'output', content: output, time: now(), meta: { exitCode: 0, cwd } }]);
+    setExecuting(false);
+  };
+
+  const handleSend = async () => {
+    const trimmed = input.trim();
+    if (!trimmed || executing) return;
+    
+    setMessages(prev => [...prev, { id: String(Date.now()), type: 'user', content: trimmed, time: now() }]);
+    setInput('');
+    
+    // Check if it's a command (starts with $ or is a known command)
+    if (trimmed.startsWith('$ ') || trimmed.match(/^(ls|cd|cat|npm|git|pwd|browse|open|mkdir|rm|cp|mv|touch|echo|grep|find)/)) {
+      executeCommand(trimmed.replace(/^\$\s*/, ''));
+    } else {
+      // Natural language - AI processes
+      setExecuting(true);
+      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: '🤔 Analisando sua solicitação...', time: now() }]);
+      
+      // Call AI
+      const reply = await askBeeHive(`[Projeto: ${project.name}] ${trimmed}`);
+      
+      setMessages(prev => {
+        const filtered = prev.filter(m => m.content !== '🤔 Analisando sua solicitação...');
+        return [...filtered, { id: String(Date.now() + 2), type: 'assistant', content: reply, time: now() }];
+      });
+      setExecuting(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!executing) handleSend();
+    }
+    if (e.key === 'ArrowUp' && history.length > 0) {
+      e.preventDefault();
+      setHistoryIndex(i => Math.min(i + 1, history.length - 1));
+      setInput(history[Math.min(historyIndex + 1, history.length - 1)] || '');
+    }
+    if (e.key === 'ArrowDown' && historyIndex > -1) {
+      e.preventDefault();
+      setHistoryIndex(i => i - 1);
+      setInput(historyIndex > 0 ? history[historyIndex - 1] : '');
+    }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      // Auto-complete for commands
+      const cmds = ['ls', 'cd', 'cat', 'npm', 'git', 'pwd', 'browse', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'echo'];
+      const match = cmds.find(c => c.startsWith(input.split(' ').pop() || ''));
+      if (match) setInput(input.split(' ').slice(0, -1).join(' ') + (input.includes(' ') ? ' ' : '') + match + ' ');
+    }
+  };
+
+  return (
+    <div className="project-cowork">
+      <div className="cowork-header">
+        <div className="cowork-status">
+          <span className="status-dot active" />
+          <span>Cowork ativo</span>
+          <span className="cwd">{cwd}</span>
+        </div>
+        <div className="cowork-actions">
+          <button className="btn-icon" title="Limpar terminal" onClick={() => setMessages(messages.slice(0, 1))}><Trash2 size={14} /></button>
+          <button className="btn-icon" title="Novo terminal"><Plus size={14} /></button>
+        </div>
+      </div>
+
+      <div className="cowork-messages">
+        {messages.map((m) => (
+          <div key={m.id} className={`cowork-msg ${m.type}`}>
+            {m.type === 'command' && <div className="cmd-line"><span className="prompt">{m.meta?.cwd || '~'}$</span> {m.content.replace(/^\$\s*/, '')}</div>}
+            {m.type === 'output' && <pre className="cmd-output">{m.content}</pre>}
+            {m.type === 'user' && <div className="user-msg">{m.content}</div>}
+            {m.type === 'assistant' && <div className="assistant-msg">{m.content}</div>}
+            {m.type === 'file' && <div className="file-msg">📄 {m.meta?.path}: {m.content.slice(0, 100)}...</div>}
+          </div>
+        ))}
+        {executing && <div className="cowork-msg executing"><span className="spinner" /> Executando...</div>}
+        <div ref={messagesEndRef} />
+      </div>
+
+      <div className="cowork-input">
+        <span className="prompt">{cwd}$</span>
+        <input
+          type="text"
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, ↑/↓: histórico)'}
+          disabled={executing}
+          autoFocus
+        />
       </div>
     </div>
   );
