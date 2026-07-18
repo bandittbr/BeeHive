@@ -86,15 +86,19 @@ return (
               </button>
             </div>
 
-            <button className={`nav-row-main nav-row-single${activeArea === 'projetos' ? ' active' : ''}`} onClick={goToProjectsList}>
-              <FolderKanban size={17} strokeWidth={1.6} />
-              <span>Projetos</span>
-            </button>
+            <div className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`} onClick={goToProjectsList}>
+              <button className="nav-row-main nav-row-single">
+                <FolderKanban size={17} strokeWidth={1.6} />
+                <span>Projetos</span>
+              </button>
+            </div>
 
-            <button className={`nav-row-main nav-row-single${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
-              <Package size={17} strokeWidth={1.6} />
-              <span>Negócios</span>
-            </button>
+            <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
+              <button className="nav-row-main nav-row-single">
+                <Package size={17} strokeWidth={1.6} />
+                <span>Negócios</span>
+              </button>
+            </div>
           </div>
         </nav>
 

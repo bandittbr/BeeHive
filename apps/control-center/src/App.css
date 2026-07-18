@@ -72,7 +72,7 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 .logo-mark:hover { transform: scale(1.05); }
 .logo-text { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 8px; }
-.nav-group { display: flex; flex-direction: column; gap: 1px; }
+.nav-group { display: flex; flex-direction: column; gap: 2px; }
 .sidebar-divider { height: 1px; background: var(--border); margin: 6px 0; }
 .sidebar-footer { display: flex; flex-direction: column; gap: 8px; padding-top: 10px; border-top: 1px solid var(--border-light); margin-top: auto; }
 .sidebar-user { display: flex; align-items: center; gap: 8px; padding: 3px 4px; }
@@ -98,7 +98,7 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 .recent-empty { padding: 16px 8px; text-align: center; font-size: 11px; color: var(--text-muted); }
 
 /* Nav rows */
-.nav-row { display: flex; align-items: center; border-radius: var(--radius-xs); position: relative; }
+.nav-row { display: flex; align-items: center; border-radius: var(--radius-xs); position: relative; cursor: pointer; }
 .nav-row.active { background: var(--primary-muted); }
 .nav-row.active::before {
   content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
@@ -108,18 +108,11 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
   flex: 1; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px;
   background: transparent; border: none; color: var(--text-muted); border-radius: var(--radius-xs);
   cursor: pointer; transition: all var(--transition-fast); font-size: 12.5px; font-weight: 500;
-  text-align: left; position: relative;
+  text-align: left; position: relative; width: 100%;
 }
 .nav-row-main span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .nav-row:hover .nav-row-main, .nav-row-main:hover { background: var(--surface-2); color: var(--text-secondary); }
-.nav-row.active .nav-row-main, .nav-row-main.active { background: transparent; color: var(--primary-light); }
-.nav-row-single.active {
-  background: var(--primary-muted); color: var(--primary-light); position: relative;
-}
-.nav-row-single.active::before {
-  content: ''; position: absolute; left: -10px; top: 50%; transform: translateY(-50%);
-  width: 3px; height: 14px; background: var(--primary); border-radius: 0 2px 2px 0;
-}
+.nav-row.active .nav-row-main { background: transparent; color: var(--primary-light); }
 .nav-row-plus {
   width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
   background: transparent; border: none; color: var(--text-muted); border-radius: var(--radius-xs);
