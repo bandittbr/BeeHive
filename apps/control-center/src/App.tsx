@@ -65,42 +65,69 @@ export default function App() {
     setActiveArea('chat');
   };
 
-  return (
+return (
     <div className="app">
       {/* Sidebar rotulada */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-mark"><Sparkles size={16} /></div>
+          <div className="logo-mark"><img src={logoUrl} alt="BeeHive" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} /></div>
           <span className="logo-text">BeeHive</span>
         </div>
 
         <nav className="sidebar-nav">
-          <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
-            <button className="nav-row-main" onClick={() => setActiveArea('chat')}>
-              <MessageSquare size={17} strokeWidth={1.6} />
-              <span>Chat</span>
+          <div className="nav-group">
+            <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => setActiveArea('chat')}>
+                <MessageSquare size={17} strokeWidth={1.6} />
+                <span>Chat</span>
+              </button>
+              <button className="nav-row-plus" title="Nova conversa" onClick={handleNewConversation}>
+                <Plus size={13} strokeWidth={2} />
+              </button>
+            </div>
+
+            <button className={`nav-row-main nav-row-single${activeArea === 'projetos' ? ' active' : ''}`} onClick={goToProjectsList}>
+              <FolderKanban size={17} strokeWidth={1.6} />
+              <span>Projetos</span>
             </button>
-            <button className="nav-row-plus" title="Nova conversa" onClick={handleNewConversation}>
-              <Plus size={13} strokeWidth={2} />
+
+            <button className={`nav-row-main nav-row-single${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
+              <Package size={17} strokeWidth={1.6} />
+              <span>Negócios</span>
             </button>
           </div>
-
-          <button className={`nav-row-main nav-row-single${activeArea === 'projetos' ? ' active' : ''}`} onClick={goToProjectsList}>
-            <FolderKanban size={17} strokeWidth={1.6} />
-            <span>Projetos</span>
-          </button>
-
-          <button className={`nav-row-main nav-row-single${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
-            <Package size={17} strokeWidth={1.6} />
-            <span>Negócios</span>
-          </button>
         </nav>
+
+        <div className="sidebar-divider" />
+
+        <div className="sidebar-recent">
+          <div className="sidebar-section-label"><span>Recentes</span></div>
+          <div className="recent-list">
+            {projects.slice(0, 6).map((p) => (
+              <button key={p.id} className="recent-row" onClick={() => openProject(p)}>
+                <span className="recent-icon">{p.icon}</span>
+                <span className="recent-name">{p.name}</span>
+                <span className={`recent-dot ${p.status}`} />
+              </button>
+            ))}
+            {projects.length === 0 && (
+              <div className="recent-empty">Nenhum projeto ainda</div>
+            )}
+          </div>
+        </div>
 
         <div className="sidebar-footer">
           <button className={`nav-row-main nav-row-single${activeArea === 'settings' ? ' active' : ''}`} onClick={() => setActiveArea('settings')}>
             <Settings size={17} strokeWidth={1.6} />
             <span>Settings</span>
           </button>
+          <div className="sidebar-user">
+            <div className="user-avatar">GT</div>
+            <div className="user-info">
+              <span className="user-name">Gabriel T.</span>
+              <span className="user-plan">Premium</span>
+            </div>
+          </div>
         </div>
       </aside>
 
