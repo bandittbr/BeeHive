@@ -674,6 +674,33 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 }
 .attached-file button:hover { color: var(--danger); }
 
+.attached-file-chip.unsupported {
+  border: 1px solid var(--warning);
+  background: var(--warning-muted);
+}
+.unsupported-badge {
+  font-size: 8px;
+  color: var(--warning);
+  background: var(--warning-muted);
+  padding: 0 3px;
+  border-radius: var(--radius-xs);
+  margin-left: 2px;
+}
+
+.model-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--warning-muted);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.model-warning strong { color: var(--text); }
+
 .chat-input-main {
   display: flex;
   align-items: flex-end;

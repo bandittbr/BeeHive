@@ -306,12 +306,12 @@ function ChatInputArea({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const models = [
-    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode' },
-    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter' },
-    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter' },
-    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter' },
-    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama' },
-    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama' },
+    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
+    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter', supportsImages: true },
+    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter', supportsImages: true },
+    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter', supportsImages: true },
+    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama', supportsImages: false },
+    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama', supportsImages: false },
   ];
 
   const effortOptions = [
@@ -335,17 +335,30 @@ function ChatInputArea({
     }
   };
 
+  const currentModel = models.find(m => m.id === selectedModel);
+  const supportsImages = currentModel?.supportsImages ?? false;
+  const imageFiles = attachedFiles.filter(f => f.type.startsWith('image/'));
+  const nonImageFiles = attachedFiles.filter(f => !f.type.startsWith('image/'));
+  const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
+
   return (
     <div className="chat-input-area">
       {attachedFiles.length > 0 && (
         <div className="attached-files-bar">
           {attachedFiles.map((f, i) => (
-            <span key={i} className="attached-file-chip">
-              <FileText size={12} />
+            <span key={i} className={`attached-file-chip${f.type.startsWith('image/') && !supportsImages ? ' unsupported' : ''}`}>
+              {f.type.startsWith('image/') ? <Image size={12} /> : <FileText size={12} />}
               {f.name}
+              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo não suporta imagens">⚠</span>}
               <button onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}><X size={12} /></button>
             </span>
           ))}
+        </div>
+      )}
+      {hasUnsupportedImages && (
+        <div className="model-warning">
+          <AlertTriangle size={14} />
+          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
       <div className="input-row">
