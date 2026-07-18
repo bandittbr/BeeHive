@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
   BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
@@ -19,7 +19,7 @@ import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, Bi
 import './App.css';
 
 // ============================================================
-// APP SHELL — Sidebar rotulada + Topbar + Áreas
+// APP SHELL â€” Sidebar rotulada + Topbar + Ãreas
 // ============================================================
 
 type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
@@ -27,21 +27,21 @@ type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
 const AREA_LABELS: Record<MainArea, string> = {
   chat: 'Chat',
   projetos: 'Projetos',
-  negocios: 'Negócios',
+  negocios: 'NegÃ³cios',
   settings: 'Settings',
 };
 
 export default function App() {
-  const { projects } = useAppStore();
+const { projects } = useAppStore();
   const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
-  const [projectView, setProjectView] = useState<'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings'>('chat');
+  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
 
   const openProject = (project: Project) => {
     setOpenedProject(project);
-    setProjectView('chat');
+    setProjectView('cowork');
     setActiveArea('projetos');
   };
 
@@ -53,7 +53,7 @@ export default function App() {
   const handleNewProject = async () => {
     const name = prompt('Nome do novo projeto:');
     if (name) {
-      const icons = ['📁', '🚀', '💡', '🎯', '🔥'];
+      const icons = ['ðŸ“', 'ðŸš€', 'ðŸ’¡', 'ðŸŽ¯', 'ðŸ”¥'];
       const icon = icons[Math.floor(Math.random() * icons.length)];
       const project = await projectService.create({ name, icon, description: '', status: 'active' });
       openProject(project);
@@ -96,7 +96,7 @@ export default function App() {
             <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
               <button className="nav-row-main nav-row-single">
                 <Package size={17} strokeWidth={1.6} />
-                <span>Negócios</span>
+                <span>NegÃ³cios</span>
               </button>
             </div>
           </div>
@@ -135,7 +135,7 @@ export default function App() {
         </div>
       </aside>
 
-      {/* Coluna principal: topbar + conteúdo */}
+      {/* Coluna principal: topbar + conteÃºdo */}
       <div className="app-body">
         <header className="topbar">
           <div className="breadcrumb">
@@ -144,7 +144,7 @@ export default function App() {
             <span className="breadcrumb-current">{AREA_LABELS[activeArea]}</span>
           </div>
           <div className="topbar-right">
-            <button className="topbar-icon-btn" title="Notificações"><Bell size={16} /></button>
+            <button className="topbar-icon-btn" title="NotificaÃ§Ãµes"><Bell size={16} /></button>
           </div>
         </header>
 
@@ -173,7 +173,7 @@ export default function App() {
 }
 
 // ============================================================
-// HOME CHAT — centralizado, estilo Claude Desktop
+// HOME CHAT â€” centralizado, estilo Claude Desktop
 // ============================================================
 
 const QUICK_ACTIONS = [
@@ -216,7 +216,7 @@ function HomeChat() {
         {!started ? (
           <div className="chat-hero">
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
-            <h1>Olá, Gabriel! 👋</h1>
+            <h1>OlÃ¡, Gabriel! ðŸ‘‹</h1>
             <p>O que vamos criar hoje?</p>
             <div className="quick-actions-grid">
               {QUICK_ACTIONS.map((a) => {
@@ -238,7 +238,7 @@ function HomeChat() {
                 <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
                 <div className="msg-body">
                   <div className="msg-header">
-                    <span className="msg-role">{m.role === 'user' ? 'Você' : 'BeeHive'}</span>
+                    <span className="msg-role">{m.role === 'user' ? 'VocÃª' : 'BeeHive'}</span>
                     <span className="msg-time">{m.time}</span>
                   </div>
                   <div className="msg-content">{m.content}</div>
@@ -339,8 +339,8 @@ function ChatInputArea({
   }, {} as Record<string, typeof models>);
 
   const effortOptions = [
-    { value: 'default', label: 'Padrão', desc: 'Balanceado' },
-    { value: 'low', label: 'Low', desc: 'Rápido, menos tokens' },
+    { value: 'default', label: 'PadrÃ£o', desc: 'Balanceado' },
+    { value: 'low', label: 'Low', desc: 'RÃ¡pido, menos tokens' },
     { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
     { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
   ];
@@ -382,7 +382,7 @@ return (
             <span key={i} className={`attached-file-chip${f.type.startsWith('image/') && !supportsImages ? ' unsupported' : ''}`}>
               {f.type.startsWith('image/') ? <Image size={12} /> : <FileText size={12} />}
               {f.name}
-              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo não suporta imagens">⚠</span>}
+              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo nÃ£o suporta imagens">âš </span>}
               <button onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}><X size={12} /></button>
             </span>
           ))}
@@ -393,7 +393,7 @@ return (
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
+          <span>O modelo <strong>{currentModel?.name}</strong> nÃ£o suporta imagens. As {imageFiles.length} imagem(ns) serÃ£o ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
 
@@ -466,7 +466,7 @@ return (
                             onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
                           >
                             <span className="dropdown-item-name">{m.name}</span>
-                            {!m.supportsImages && <span className="dropdown-item-warning" title="Não suporta imagens">⚠</span>}
+                            {!m.supportsImages && <span className="dropdown-item-warning" title="NÃ£o suporta imagens">âš </span>}
                           </button>
                         ))}
                       </div>
@@ -478,9 +478,9 @@ return (
 
             {/* Reasoning Effort */}
             <div className="dropdown-group">
-              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
+              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="EsforÃ§o de raciocÃ­nio">
                 <SlidersHorizontal size={16} />
-                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
+                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'PadrÃ£o'}</span>
                 <ChevronDown size={12} />
               </button>
               {effortOpen && (
@@ -538,7 +538,7 @@ function FilePanel({ files, onClose }: { files: { id: string; name: string; type
 }
 
 // ============================================================
-// PROJETOS — Lista de projetos
+// PROJETOS â€” Lista de projetos
 // ============================================================
 
 function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; onOpen: (p: Project) => void; onNew: () => void }) {
@@ -560,7 +560,7 @@ function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; on
               <span className={`topbar-status ${p.status}`}>{p.status}</span>
             </div>
             <h3 className="workflow-card-name">{p.name}</h3>
-            <p className="agent-card-task">{p.description || 'Sem descrição'}</p>
+            <p className="agent-card-task">{p.description || 'Sem descriÃ§Ã£o'}</p>
             <div className="project-card-meta">
               <span><Bot size={12} /> {p.agents.length}</span>
               <span><Workflow size={12} /> {p.workflows.length}</span>
@@ -574,15 +574,15 @@ function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; on
 }
 
 // ============================================================
-// PROJECT VIEW — Context-Aware
+// PROJECT VIEW â€” Context-Aware
 // ============================================================
 
 function ProjectView({
   project, activeView, onViewChange, rightPanel, onRightPanelChange, onBack,
 }: {
   project: Project;
-  activeView: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings' | 'cowork';
-  onViewChange: (v: 'chat' | 'agents' | 'workflows' | 'artifacts' | 'settings' | 'cowork') => void;
+  activeView: 'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings';
+  onViewChange: (v: 'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings') => void;
   rightPanel: 'artifacts' | 'pipeline' | 'logs' | null;
   onRightPanelChange: (p: 'artifacts' | 'pipeline' | 'logs' | null) => void;
   onBack: () => void;
@@ -597,8 +597,9 @@ function ProjectView({
           <span className={`topbar-status ${project.status}`}>{project.status}</span>
         </div>
         <div className="topbar-tabs">
-          <button className={`tab${activeView === 'chat' ? ' active' : ''}`} onClick={() => onViewChange('chat')}>
-            <MessageSquare size={14} /> Chat
+          <button className={`tab${activeView === 'cowork' ? ' active' : ''}`} onClick={() => onViewChange('cowork')}>
+            <Terminal size={14} /> Cowork
+            <span className="tab-badge">AI</span>
           </button>
           <button className={`tab${activeView === 'agents' ? ' active' : ''}`} onClick={() => onViewChange('agents')}>
             <Bot size={14} /> Agentes
@@ -607,10 +608,6 @@ function ProjectView({
           <button className={`tab${activeView === 'workflows' ? ' active' : ''}`} onClick={() => onViewChange('workflows')}>
             <Workflow size={14} /> Workflows
             <span className="tab-badge">{project.workflows.length}</span>
-          </button>
-          <button className={`tab${activeView === 'cowork' ? ' active' : ''}`} onClick={() => onViewChange('cowork')}>
-            <Terminal size={14} /> Cowork
-            <span className="tab-badge">AI</span>
           </button>
           <button className={`tab${activeView === 'artifacts' ? ' active' : ''}`} onClick={() => onViewChange('artifacts')}>
             <Layers size={14} /> Artifacts
@@ -633,9 +630,8 @@ function ProjectView({
         </div>
       </div>
 
-      <div className="project-content">
+<div className="project-content">
         <div className="project-main">
-          {activeView === 'chat' && <ProjectChat project={project} />}
           {activeView === 'agents' && <ProjectAgents project={project} />}
           {activeView === 'workflows' && <ProjectWorkflows project={project} />}
           {activeView === 'cowork' && <ProjectCowork project={project} />}
@@ -662,8 +658,8 @@ function ProjectView({
 function ProjectChat({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string; agent?: string }[]>([
-    { id: '1', role: 'user', content: 'Analise o desempenho da última campanha.', time: '10:30' },
-    { id: '2', role: 'assistant', content: 'Análise concluída para o projeto ' + project.name + '.\n\n**Métricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- Conversões: +23%\n\n**Recomendações:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
+    { id: '1', role: 'user', content: 'Analise o desempenho da Ãºltima campanha.', time: '10:30' },
+    { id: '2', role: 'assistant', content: 'AnÃ¡lise concluÃ­da para o projeto ' + project.name + '.\n\n**MÃ©tricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- ConversÃµes: +23%\n\n**RecomendaÃ§Ãµes:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
   ]);
 
   const handleSend = async () => {
@@ -685,7 +681,7 @@ function ProjectChat({ project }: { project: Project }) {
             <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
             <div className="msg-body">
               <div className="msg-header">
-                <span className="msg-role">{m.role === 'user' ? 'Você' : m.agent || project.name}</span>
+                <span className="msg-role">{m.role === 'user' ? 'VocÃª' : m.agent || project.name}</span>
                 <span className="msg-time">{m.time}</span>
               </div>
               <div className="msg-content">{m.content}</div>
@@ -814,7 +810,7 @@ function ProjectArtifacts({ project }: { project: Project }) {
               </div>
               <div className="artifact-card-info">
                 <span className="artifact-card-name">{a.name}</span>
-                <span className="artifact-card-meta">{a.type} · {a.size}</span>
+                <span className="artifact-card-meta">{a.type} Â· {a.size}</span>
               </div>
               <button className="btn-icon-sm"><Download size={14} /></button>
             </div>
@@ -836,21 +832,21 @@ function ProjectSettings({ project }: { project: Project }) {
 
   const handleSave = async () => {
     await projectService.update(project.id, { name, description, status });
-    alert('Configurações salvas!');
+    alert('ConfiguraÃ§Ãµes salvas!');
   };
 
   return (
     <div className="project-settings">
-      <div className="section-header"><h2>Configurações do Projeto</h2></div>
+      <div className="section-header"><h2>ConfiguraÃ§Ãµes do Projeto</h2></div>
       <div className="settings-form">
         <div className="form-group"><label>Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="form-group"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
+        <div className="form-group"><label>DescriÃ§Ã£o</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
         <div className="form-group">
           <label>Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
             <option value="active">Ativo</option>
             <option value="paused">Pausado</option>
-            <option value="completed">Concluído</option>
+            <option value="completed">ConcluÃ­do</option>
           </select>
         </div>
         <button className="btn-primary" onClick={handleSave}>Salvar</button>
@@ -860,7 +856,7 @@ function ProjectSettings({ project }: { project: Project }) {
 }
 
 // ============================================================
-// PROJECT COWORK — AI Computer Control (Terminal, Bash, Files, Web)
+// PROJECT COWORK â€” AI Computer Control (Terminal, Bash, Files, Web)
 // ============================================================
 
 interface CoworkMessage {
@@ -879,7 +875,7 @@ interface CoworkMessage {
 function ProjectCowork({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<CoworkMessage[]>([
-    { id: '1', type: 'assistant', content: `🤖 **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\n• **Executar comandos bash** — digite \`$ ls\` ou \`$ npm run build\`\n• **Ler/Escrever arquivos** — use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteúdo\` para escrever\n• **Navegar na web** — \`$ browse https://site.com\`\n• **Controlar o computador** — automação via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
+    { id: '1', type: 'assistant', content: `ðŸ¤– **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\nâ€¢ **Executar comandos bash** â€” digite \`$ ls\` ou \`$ npm run build\`\nâ€¢ **Ler/Escrever arquivos** â€” use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteÃºdo\` para escrever\nâ€¢ **Navegar na web** â€” \`$ browse https://site.com\`\nâ€¢ **Controlar o computador** â€” automaÃ§Ã£o via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
   ]);
   const [cwd, setCwd] = useState('~/projects/' + project.name.toLowerCase().replace(/\s+/g, '-'));
   const [history, setHistory] = useState<string[]>([]);
@@ -918,12 +914,12 @@ function ProjectCowork({ project }: { project: Project }) {
       const file = trimmed.split(' ')[1];
       output = `// ${file}\n{\n  "name": "${project.name}",\n  "version": "1.0.0",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build"\n  }\n}`;
     } else if (trimmed.startsWith('npm ') || trimmed.startsWith('yarn ') || trimmed.startsWith('pnpm ')) {
-      output = `> ${trimmed}\n\n✔ Dependencies installed\n✔ Build completed in 2.3s\n\ndist/index.html  0.45 kB\ndist/assets/index.css  12.3 kB\ndist/assets/index.js   45.7 kB`;
+      output = `> ${trimmed}\n\nâœ” Dependencies installed\nâœ” Build completed in 2.3s\n\ndist/index.html  0.45 kB\ndist/assets/index.css  12.3 kB\ndist/assets/index.js   45.7 kB`;
     } else if (trimmed.startsWith('git ')) {
       output = `On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean`;
     } else if (trimmed.startsWith('browse ') || trimmed.startsWith('open ')) {
       const url = trimmed.split(' ')[1];
-      output = `🌐 Navegando para: ${url}\n✔ Página carregada\n📄 Título: "Exemplo de Site"\n🔗 Links encontrados: 12`;
+      output = `ðŸŒ Navegando para: ${url}\nâœ” PÃ¡gina carregada\nðŸ“„ TÃ­tulo: "Exemplo de Site"\nðŸ”— Links encontrados: 12`;
     } else if (trimmed === 'pwd') {
       output = cwd;
     } else if (trimmed.startsWith('cd ')) {
@@ -935,9 +931,9 @@ function ProjectCowork({ project }: { project: Project }) {
       } else {
         setCwd(prev => prev + '/' + dir);
       }
-      output = `Diretório alterado para: ${cwd}/${dir}`;
+      output = `DiretÃ³rio alterado para: ${cwd}/${dir}`;
     } else {
-      output = `Comando executado: ${trimmed}\n\n[Simulação] Em produção, isso executaria no shell real via backend BeeHive.`;
+      output = `Comando executado: ${trimmed}\n\n[SimulaÃ§Ã£o] Em produÃ§Ã£o, isso executaria no shell real via backend BeeHive.`;
     }
 
     setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'output', content: output, time: now(), meta: { exitCode: 0, cwd } }]);
@@ -957,13 +953,13 @@ function ProjectCowork({ project }: { project: Project }) {
     } else {
       // Natural language - AI processes
       setExecuting(true);
-      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: '🤔 Analisando sua solicitação...', time: now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: 'ðŸ¤” Analisando sua solicitaÃ§Ã£o...', time: now() }]);
       
       // Call AI
       const reply = await askBeeHive(`[Projeto: ${project.name}] ${trimmed}`);
       
       setMessages(prev => {
-        const filtered = prev.filter(m => m.content !== '🤔 Analisando sua solicitação...');
+        const filtered = prev.filter(m => m.content !== 'ðŸ¤” Analisando sua solicitaÃ§Ã£o...');
         return [...filtered, { id: String(Date.now() + 2), type: 'assistant', content: reply, time: now() }];
       });
       setExecuting(false);
@@ -1015,7 +1011,7 @@ function ProjectCowork({ project }: { project: Project }) {
             {m.type === 'output' && <pre className="cmd-output">{m.content}</pre>}
             {m.type === 'user' && <div className="user-msg">{m.content}</div>}
             {m.type === 'assistant' && <div className="assistant-msg">{m.content}</div>}
-            {m.type === 'file' && <div className="file-msg">📄 {m.meta?.path}: {m.content.slice(0, 100)}...</div>}
+            {m.type === 'file' && <div className="file-msg">ðŸ“„ {m.meta?.path}: {m.content.slice(0, 100)}...</div>}
           </div>
         ))}
         {executing && <div className="cowork-msg executing"><span className="spinner" /> Executando...</div>}
@@ -1029,7 +1025,7 @@ function ProjectCowork({ project }: { project: Project }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, ↑/↓: histórico)'}
+          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, â†‘/â†“: histÃ³rico)'}
           disabled={executing}
           autoFocus
         />
@@ -1117,7 +1113,7 @@ function LogsPanel() {
 }
 
 // ============================================================
-// NEGÓCIOS — negócios digitais autônomos (redes sociais)
+// NEGÃ“CIOS â€” negÃ³cios digitais autÃ´nomos (redes sociais)
 // ============================================================
 
 interface BizTypeConfig {
@@ -1132,19 +1128,19 @@ interface BizTypeConfig {
 
 const BIZ_TYPES: BizTypeConfig[] = [
   {
-    id: 'cortes', name: 'Cortes de Vídeos', color: '#7C3AED', icon: Scissors,
-    desc: 'Pega um vídeo inteiro, encontra os melhores momentos, corta, coloca legenda bonita e publica sozinho nas redes no horário definido.',
-    fieldLabel: 'Horário de postagem', fieldPlaceholder: 'Ex: 12:00, 18:00, 21:00',
+    id: 'cortes', name: 'Cortes de VÃ­deos', color: '#7C3AED', icon: Scissors,
+    desc: 'Pega um vÃ­deo inteiro, encontra os melhores momentos, corta, coloca legenda bonita e publica sozinho nas redes no horÃ¡rio definido.',
+    fieldLabel: 'HorÃ¡rio de postagem', fieldPlaceholder: 'Ex: 12:00, 18:00, 21:00',
   },
   {
-    id: 'conteudo', name: 'Canal Dark / Criador de Conteúdo', color: '#6366F1', icon: Clapperboard,
-    desc: 'Gera vídeos e conteúdo do zero de acordo com o nicho da conta — estética, fitness, infantil, humor, etc.',
-    fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estética...',
+    id: 'conteudo', name: 'Canal Dark / Criador de ConteÃºdo', color: '#6366F1', icon: Clapperboard,
+    desc: 'Gera vÃ­deos e conteÃºdo do zero de acordo com o nicho da conta â€” estÃ©tica, fitness, infantil, humor, etc.',
+    fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estÃ©tica...',
   },
   {
     id: 'afiliados', name: 'Afiliados', color: '#3B82F6', icon: Link2,
     desc: 'Divulga produtos com link de afiliado nas redes cadastradas para gerar vendas.',
-    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrônicos, moda, casa...',
+    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrÃ´nicos, moda, casa...',
   },
 ];
 
@@ -1161,8 +1157,8 @@ function NegociosView() {
     <div className="negocios">
       <div className="page-header">
         <div>
-          <h1>Negócios</h1>
-          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo e afiliados</p>
+          <h1>NegÃ³cios</h1>
+          <p>Seus negÃ³cios digitais autÃ´nomos â€” cortes, criaÃ§Ã£o de conteÃºdo e afiliados</p>
         </div>
       </div>
 
@@ -1209,7 +1205,7 @@ function BizTypeSection({ type }: { type: BizTypeConfig }) {
       {adding && <NewBizForm type={type} onCreate={handleCreate} onCancel={() => setAdding(false)} />}
 
       {accounts.length === 0 ? (
-        <div className="empty-state biz-empty"><p>Nenhum negócio cadastrado em {type.name} ainda.</p></div>
+        <div className="empty-state biz-empty"><p>Nenhum negÃ³cio cadastrado em {type.name} ainda.</p></div>
       ) : (
         <div className="biz-account-grid">
           {accounts.map((biz) => (
@@ -1234,7 +1230,7 @@ function NewBizForm({ type, onCreate, onCancel }: { type: BizTypeConfig; onCreat
   return (
     <div className="biz-new-form">
       <div className="form-group">
-        <label>Nome do negócio</label>
+        <label>Nome do negÃ³cio</label>
         <input type="text" placeholder="Ex: Canal Cortes Podcast" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="form-group">
@@ -1297,13 +1293,13 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
         <button className="biz-add-social-btn" onClick={() => setAddingSocial(true)}><Plus size={12} /> Rede social</button>
       )}
 
-      <button className="biz-delete-btn" onClick={onDelete}>Remover negócio</button>
+      <button className="biz-delete-btn" onClick={onDelete}>Remover negÃ³cio</button>
     </div>
   );
 }
 
 // ============================================================
-// SETTINGS — Organizado por Grupos
+// SETTINGS â€” Organizado por Grupos
 // ============================================================
 
 type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
@@ -1311,24 +1307,24 @@ type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins'
 const SETTINGS_GROUPS = [
   { label: 'Conta', items: [
     { id: 'perfil' as SettingsPage, label: 'Perfil', icon: Users },
-    { id: 'seguranca' as SettingsPage, label: 'Segurança', icon: Shield },
+    { id: 'seguranca' as SettingsPage, label: 'SeguranÃ§a', icon: Shield },
   ]},
   { label: 'Sistema', items: [
     { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
     { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
     { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
-    { id: 'integrations' as SettingsPage, label: 'Integrações', icon: Globe },
+    { id: 'integrations' as SettingsPage, label: 'IntegraÃ§Ãµes', icon: Globe },
   ]},
   { label: 'Dados', items: [
     { id: 'storage' as SettingsPage, label: 'Storage', icon: HardDrive },
-    { id: 'memoria' as SettingsPage, label: 'Memória', icon: Database },
+    { id: 'memoria' as SettingsPage, label: 'MemÃ³ria', icon: Database },
     { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
     { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
   ]},
-  { label: 'Personalização', items: [
+  { label: 'PersonalizaÃ§Ã£o', items: [
     { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
     { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
-    { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
+    { id: 'notificacoes' as SettingsPage, label: 'NotificaÃ§Ãµes', icon: Bell },
     { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
   ]},
 ];
@@ -1360,10 +1356,10 @@ function SettingsView() {
         {page === 'perfil' && (
           <div className="settings-page">
             <h2>Perfil</h2>
-            <p className="settings-desc">Suas informações pessoais</p>
+            <p className="settings-desc">Suas informaÃ§Ãµes pessoais</p>
             <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
             <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
-            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
+            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre vocÃª..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
             <button className="btn-primary">Salvar</button>
           </div>
         )}
@@ -1372,7 +1368,7 @@ function SettingsView() {
             <h2>Providers</h2>
             <p className="settings-desc">Provedores de IA conectados</p>
             {[
-              { name: 'OpenRouter', status: 'connected', desc: 'Múltiplos modelos' },
+              { name: 'OpenRouter', status: 'connected', desc: 'MÃºltiplos modelos' },
               { name: 'OpenAI', status: 'disconnected', desc: 'GPT-4, DALL-E' },
               { name: 'Anthropic', status: 'disconnected', desc: 'Claude 3.5' },
             ].map((p) => (
@@ -1390,13 +1386,13 @@ function SettingsView() {
         {page === 'tema' && (
           <div className="settings-page">
             <h2>Tema</h2>
-            <p className="settings-desc">Personalize a aparência</p>
+            <p className="settings-desc">Personalize a aparÃªncia</p>
             <div className="form-group">
               <label>Tema</label>
               <div className="theme-grid">
-                <button className="theme-card active">🌙 Dark</button>
-                <button className="theme-card">☀️ Light</button>
-                <button className="theme-card">💻 System</button>
+                <button className="theme-card active">ðŸŒ™ Dark</button>
+                <button className="theme-card">â˜€ï¸ Light</button>
+                <button className="theme-card">ðŸ’» System</button>
               </div>
             </div>
           </div>
@@ -1404,7 +1400,7 @@ function SettingsView() {
         {page === 'logs' && (
           <div className="settings-page">
             <h2>Logs</h2>
-            <p className="settings-desc">Histórico de atividades do sistema</p>
+            <p className="settings-desc">HistÃ³rico de atividades do sistema</p>
             <div className="logs-viewer">
               {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
                 <div key={i} className="log-line"><code>{l}</code></div>
@@ -1421,5 +1417,5 @@ function SettingsView() {
       </div>
     </div>
   );
-}   
- 
+} 
+
