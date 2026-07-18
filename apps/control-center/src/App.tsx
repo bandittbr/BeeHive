@@ -64,7 +64,7 @@ export default function App() {
     setActiveArea('chat');
   };
 
-return (
+  return (
     <div className="app">
       {/* Sidebar rotulada */}
       <aside className="sidebar">
@@ -137,27 +137,18 @@ return (
       {/* Coluna principal: topbar + conteúdo */}
       <div className="app-body">
         <header className="topbar">
-          <span className="topbar-title">{AREA_LABELS[activeArea]}</span>
-          <div className="topbar-search">
-            <Search size={14} />
-            <span>Buscar</span>
-            <kbd>Ctrl K</kbd>
+          <div className="breadcrumb">
+            <span className="breadcrumb-root">BeeHive</span>
+            <ChevronRight size={13} className="breadcrumb-sep" />
+            <span className="breadcrumb-current">{AREA_LABELS[activeArea]}</span>
           </div>
           <div className="topbar-right">
             <button className="topbar-icon-btn" title="Notificações"><Bell size={16} /></button>
-            <div className="topbar-user">
-              <div className="user-avatar">GT</div>
-              <div className="user-info">
-                <span className="user-name">Gabriel T.</span>
-                <span className="user-plan">Premium</span>
-              </div>
-            </div>
           </div>
         </header>
 
         <main className="main">
-          {activeArea === 'chat' && <HomeChat key={chatResetKey} projects={projects} onOpenProject={openProject} />}
-
+          {activeArea === 'chat' && <HomeChat key={chatResetKey} />}
           {activeArea === 'projetos' && (
             openedProject ? (
               <ProjectView
@@ -172,7 +163,6 @@ return (
               <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />
             )
           )}
-
           {activeArea === 'negocios' && <NegociosView />}
           {activeArea === 'settings' && <SettingsView />}
         </main>
@@ -182,7 +172,7 @@ return (
 }
 
 // ============================================================
-// HOME CHAT — tela cheia, sem balão de conversas, sem grid de negócios
+// HOME CHAT — centralizado, estilo Claude Desktop
 // ============================================================
 
 const QUICK_ACTIONS = [
@@ -214,42 +204,25 @@ function HomeChat() {
     setInput('');
     setAttachedFiles([]);
     setSending(true);
-    // Chat conectado de verdade ao backend do BeeHive (Railway) — ver services/beehiveApi.ts
     const reply = await askBeeHive(value);
     setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: reply, time: now() }]);
     setSending(false);
   };
 
-  const handleFileAttach = (files: FileList) => {
-    const newFiles = Array.from(files);
-    setAttachedFiles(prev => [...prev, ...newFiles]);
-    // Simulate file operations for the panel
-    newFiles.forEach(f => {
-      setFileOperations(prev => [...prev, { id: String(Date.now()) + Math.random(), name: f.name, type: 'read' }]);
-    });
-    setShowFilePanel(true);
-  };
-
-  const handleFileOperation = (op: { name: string; type: 'created' | 'edited'; content?: string }) => {
-    setFileOperations(prev => [...prev, { id: String(Date.now()) + Math.random(), ...op }]);
-    setShowFilePanel(true);
-  };
-
   return (
     <div className="home-chat-layout">
-      <div className="home-chat-main">
+      <main className="chat-main">
         {!started ? (
           <div className="chat-hero">
-            <div className="chat-hero-icon"><Sparkles size={26} /></div>
+            <div className="chat-hero-icon"><Sparkles size={32} /></div>
             <h1>Olá, Gabriel! 👋</h1>
             <p>O que vamos criar hoje?</p>
-
             <div className="quick-actions-grid">
               {QUICK_ACTIONS.map((a) => {
                 const Icon = a.icon;
                 return (
                   <button key={a.label} className="quick-action" onClick={() => a.label === 'Nova conversa' ? undefined : handleSend(a.label)}>
-                    <Icon size={18} />
+                    <Icon size={20} />
                     <span className="quick-action-label">{a.label}</span>
                     <span className="quick-action-desc">{a.desc}</span>
                   </button>
@@ -294,8 +267,12 @@ function HomeChat() {
           setSelectedModel={setSelectedModel}
           reasoningEffort={reasoningEffort}
           setReasoningEffort={setReasoningEffort}
+          fileOperations={fileOperations}
+          setFileOperations={setFileOperations}
+          showFilePanel={showFilePanel}
+          setShowFilePanel={setShowFilePanel}
         />
-      </div>
+      </main>
 
       {showFilePanel && (
         <aside className="home-file-panel">
@@ -306,7 +283,7 @@ function HomeChat() {
   );
 }
 
-// Chat Input Area with file attach, model selector, reasoning effort
+// Chat Input Area - textarea grande, modelo + reasoning abaixo à esquerda
 function ChatInputArea({
   input,
   setInput,
@@ -318,6 +295,10 @@ function ChatInputArea({
   setSelectedModel,
   reasoningEffort,
   setReasoningEffort,
+  fileOperations,
+  setFileOperations,
+  showFilePanel,
+  setShowFilePanel,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -329,6 +310,10 @@ function ChatInputArea({
   setSelectedModel: (v: string) => void;
   reasoningEffort: 'default' | 'low' | 'medium' | 'high';
   setReasoningEffort: (v: 'default' | 'low' | 'medium' | 'high') => void;
+  fileOperations: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[];
+  setFileOperations: (ops: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]) => void;
+  showFilePanel: boolean;
+  setShowFilePanel: (v: boolean) => void;
 }) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [modelOpen, setModelOpen] = useState(false);
@@ -358,6 +343,11 @@ function ChatInputArea({
     }
   }, [input]);
 
+  const currentModel = models.find(m => m.id === selectedModel);
+  const supportsImages = currentModel?.supportsImages ?? false;
+  const imageFiles = attachedFiles.filter(f => f.type.startsWith('image/'));
+  const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
@@ -365,11 +355,14 @@ function ChatInputArea({
     }
   };
 
-  const currentModel = models.find(m => m.id === selectedModel);
-  const supportsImages = currentModel?.supportsImages ?? false;
-  const imageFiles = attachedFiles.filter(f => f.type.startsWith('image/'));
-  const nonImageFiles = attachedFiles.filter(f => !f.type.startsWith('image/'));
-  const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
+  const handleFileAttach = (files: FileList) => {
+    const newFiles = Array.from(files);
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+    newFiles.forEach(f => {
+      setFileOperations(prev => [...prev, { id: String(Date.now()) + Math.random(), name: f.name, type: 'read' }]);
+    });
+    setShowFilePanel(true);
+  };
 
   return (
     <div className="chat-input-area">
@@ -396,7 +389,7 @@ function ChatInputArea({
           <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
             <FilePlus size={18} />
           </button>
-          <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && setAttachedFiles(Array.from(e.target.files))} style={{ display: 'none' }} />
+          <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
         </div>
         <div className="input-center">
           <textarea
@@ -411,6 +404,14 @@ function ChatInputArea({
           />
         </div>
         <div className="input-right">
+          <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)}>
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
+      <div className="input-controls-row">
+        <div className="input-left-spacer" style={{ width: '40px' }} />
+        <div className="input-controls">
           <div className="dropdown-group">
             <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
               <BrainCircuit size={16} />
@@ -445,9 +446,6 @@ function ChatInputArea({
               </div>
             )}
           </div>
-          <button className="input-send" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)}>
-            <Send size={18} />
-          </button>
         </div>
       </div>
     </div>
@@ -882,96 +880,44 @@ function LogsPanel() {
 }
 
 // ============================================================
-// NEGÓCIOS — Categorias de Módulos
+// NEGÓCIOS — negócios digitais autônomos (redes sociais)
 // ============================================================
 
-interface BizCategory {
-  id: string;
+interface BizTypeConfig {
+  id: BizType;
   name: string;
+  desc: string;
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   color: string;
-  modules: { id: string; name: string; icon: React.ComponentType<{ size?: number; strokeWidth?: number }>; desc: string }[];
+  fieldLabel: string;
+  fieldPlaceholder: string;
 }
 
-const BIZ_CATEGORIES: BizCategory[] = [
+const BIZ_TYPES: BizTypeConfig[] = [
   {
-    id: 'ia', name: 'Inteligência Artificial', icon: Brain, color: '#a855f7',
-    modules: [
-      { id: 'agents', name: 'Agentes', icon: Bot, desc: 'Assistentes de IA autônomos' },
-      { id: 'skills', name: 'Skills', icon: Sparkles, desc: 'Habilidades e capacidades' },
-      { id: 'memory', name: 'Memory', icon: Database, desc: 'Memória do sistema' },
-      { id: 'knowledge', name: 'Knowledge Base', icon: BookOpen, desc: 'Base de conhecimento' },
-    ],
+    id: 'cortes', name: 'Cortes de Vídeos', color: '#7C3AED', icon: Scissors,
+    desc: 'Pega um vídeo inteiro, encontra os melhores momentos, corta, coloca legenda bonita e publica sozinho nas redes no horário definido.',
+    fieldLabel: 'Horário de postagem', fieldPlaceholder: 'Ex: 12:00, 18:00, 21:00',
   },
   {
-    id: 'automacao', name: 'Automação', icon: Zap, color: '#3b82f6',
-    modules: [
-      { id: 'workflows', name: 'Workflows', icon: GitBranch, desc: 'Fluxos de trabalho' },
-      { id: 'scheduler', name: 'Scheduler', icon: Calendar, desc: 'Agendamentos' },
-      { id: 'triggers', name: 'Triggers', icon: Target, desc: 'Gatilhos e eventos' },
-      { id: 'queue', name: 'Queue', icon: Layers, desc: 'Fila de tarefas' },
-    ],
+    id: 'conteudo', name: 'Canal Dark / Criador de Conteúdo', color: '#6366F1', icon: Clapperboard,
+    desc: 'Gera vídeos e conteúdo do zero de acordo com o nicho da conta — estética, fitness, infantil, humor, etc.',
+    fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estética...',
   },
   {
-    id: 'conteudo', name: 'Conteúdo', icon: FileText, color: '#10b981',
-    modules: [
-      { id: 'youtube', name: 'YouTube', icon: Video, desc: 'Gestão de canal' },
-      { id: 'instagram', name: 'Instagram', icon: Instagram, desc: 'Gestão de perfil' },
-      { id: 'tiktok', name: 'TikTok', icon: Music, desc: 'Conteúdo viral' },
-      { id: 'blog', name: 'Blog', icon: FileText, desc: 'Artigos e SEO' },
-    ],
-  },
-  {
-    id: 'media', name: 'Mídia', icon: Image, color: '#ec4899',
-    modules: [
-      { id: 'image', name: 'Image', icon: Image, desc: 'Geração de imagens' },
-      { id: 'video', name: 'Video', icon: Video, desc: 'Geração de vídeos' },
-      { id: 'audio', name: 'Audio', icon: Music, desc: 'Geração de áudio' },
-    ],
-  },
-  {
-    id: 'business', name: 'Business', icon: Package, color: '#ef4444',
-    modules: [
-      { id: 'finance', name: 'Finance', icon: DollarSign, desc: 'Gestão financeira' },
-      { id: 'crm', name: 'CRM', icon: Users, desc: 'Relacionamento' },
-      { id: 'marketing', name: 'Marketing', icon: Megaphone, desc: 'Campanhas' },
-      { id: 'analytics', name: 'Analytics', icon: BarChart3, desc: 'Análises e relatórios' },
-    ],
-  },
-  {
-    id: 'dev', name: 'Desenvolvimento', icon: Code, color: '#6366f1',
-    modules: [
-      { id: 'coding', name: 'Coding', icon: Terminal, desc: 'Assistente de código' },
-      { id: 'github', name: 'GitHub', icon: GitBranch, desc: 'Repositórios' },
-      { id: 'deploy', name: 'Deploy', icon: Rocket, desc: 'Publicação' },
-      { id: 'templates', name: 'Templates', icon: FileCode, desc: 'Modelos prontos' },
-    ],
+    id: 'afiliados', name: 'Afiliados', color: '#3B82F6', icon: Link2,
+    desc: 'Divulga produtos com link de afiliado nas redes cadastradas para gerar vendas.',
+    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrônicos, moda, casa...',
   },
 ];
 
-function Instagram(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <rect width="20" height="20" x="2" y="2" rx="5" ry="5" /><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" /><line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-    </svg>
-  );
-}
-
-function BookOpen(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-    </svg>
-  );
-}
-
-function Megaphone(props: React.SVGProps<SVGSVGElement>) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      <path d="M4 11V8a1 1 0 0 1 1-1h7a1 1 0 0 1 1 1v1m-9 3a8 8 0 1 1 16 0v4" /><path d="M8 14v5" /><path d="M12 16v3" />
-    </svg>
-  );
-}
+const SOCIAL_PLATFORMS: { id: SocialAccount['platform']; label: string }[] = [
+  { id: 'youtube', label: 'YouTube' },
+  { id: 'instagram', label: 'Instagram' },
+  { id: 'tiktok', label: 'TikTok' },
+  { id: 'twitter', label: 'X / Twitter' },
+  { id: 'facebook', label: 'Facebook' },
+];
 
 function NegociosView() {
   return (
@@ -979,40 +925,142 @@ function NegociosView() {
       <div className="page-header">
         <div>
           <h1>Negócios</h1>
-          <p>Módulos e ferramentas do BeeHive</p>
+          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo e afiliados</p>
         </div>
       </div>
 
-      <div className="biz-grid">
-        {BIZ_CATEGORIES.map((cat) => {
-          const CatIcon = cat.icon;
-          return (
-            <div key={cat.id} className="biz-card" style={{ '--cat-color': cat.color } as React.CSSProperties}>
-              <div className="biz-card-header">
-                <div className="biz-icon" style={{ background: `${cat.color}18`, color: cat.color }}>
-                  <CatIcon size={20} />
-                </div>
-                <h2>{cat.name}</h2>
-              </div>
-              <div className="biz-modules">
-                {cat.modules.map((mod) => {
-                  const ModIcon = mod.icon;
-                  return (
-                    <button key={mod.id} className="biz-module">
-                      <ModIcon size={16} />
-                      <div className="biz-module-info">
-                        <span className="biz-module-name">{mod.name}</span>
-                        <span className="biz-module-desc">{mod.desc}</span>
-                      </div>
-                      <ChevronRight size={14} className="biz-module-arrow" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      <div className="biz-types">
+        {BIZ_TYPES.map((type) => <BizTypeSection key={type.id} type={type} />)}
       </div>
+    </div>
+  );
+}
+
+function BizTypeSection({ type }: { type: BizTypeConfig }) {
+  const { bizAccounts, addBizAccount, deleteBizAccount } = useAppStore();
+  const [adding, setAdding] = useState(false);
+  const accounts = bizAccounts.filter((b) => b.type === type.id);
+  const Icon = type.icon;
+
+  const handleCreate = (name: string, field: string) => {
+    const biz: BizAccount = {
+      id: String(Date.now()),
+      type: type.id,
+      name,
+      status: 'active',
+      socialAccounts: [],
+      createdAt: new Date().toISOString(),
+      ...(type.id === 'cortes' ? { postSchedule: field } : { niche: field }),
+    };
+    addBizAccount(biz);
+    setAdding(false);
+  };
+
+  return (
+    <section className="biz-type-section">
+      <div className="biz-type-header" style={{ '--biz-color': type.color } as React.CSSProperties}>
+        <div className="biz-type-icon" style={{ background: `${type.color}1f`, color: type.color }}><Icon size={20} /></div>
+        <div className="biz-type-info">
+          <h2>{type.name}</h2>
+          <p>{type.desc}</p>
+        </div>
+        <button className="btn-primary biz-type-add" onClick={() => setAdding((v) => !v)}>
+          <Plus size={14} /> Cadastrar
+        </button>
+      </div>
+
+      {adding && <NewBizForm type={type} onCreate={handleCreate} onCancel={() => setAdding(false)} />}
+
+      {accounts.length === 0 ? (
+        <div className="empty-state biz-empty"><p>Nenhum negócio cadastrado em {type.name} ainda.</p></div>
+      ) : (
+        <div className="biz-account-grid">
+          {accounts.map((biz) => (
+            <BizAccountCard key={biz.id} biz={biz} color={type.color} fieldLabel={type.fieldLabel} onDelete={() => deleteBizAccount(biz.id)} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NewBizForm({ type, onCreate, onCancel }: { type: BizTypeConfig; onCreate: (name: string, field: string) => void; onCancel: () => void }) {
+  const [name, setName] = useState('');
+  const [field, setField] = useState('');
+
+  const submit = () => {
+    if (!name.trim()) return;
+    onCreate(name.trim(), field.trim());
+    setName(''); setField('');
+  };
+
+  return (
+    <div className="biz-new-form">
+      <div className="form-group">
+        <label>Nome do negócio</label>
+        <input type="text" placeholder="Ex: Canal Cortes Podcast" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>{type.fieldLabel}</label>
+        <input type="text" placeholder={type.fieldPlaceholder} value={field} onChange={(e) => setField(e.target.value)} />
+      </div>
+      <div className="biz-new-form-actions">
+        <button className="btn-primary" onClick={submit}>Salvar</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount; color: string; fieldLabel: string; onDelete: () => void }) {
+  const { addSocialAccount, removeSocialAccount, updateBizAccount } = useAppStore();
+  const [addingSocial, setAddingSocial] = useState(false);
+  const [platform, setPlatform] = useState<SocialAccount['platform']>('instagram');
+  const [handle, setHandle] = useState('');
+
+  const submitSocial = () => {
+    if (!handle.trim()) return;
+    addSocialAccount(biz.id, { id: String(Date.now()), platform, handle: handle.trim() });
+    setHandle(''); setAddingSocial(false);
+  };
+
+  return (
+    <div className="biz-account-card" style={{ '--biz-color': color } as React.CSSProperties}>
+      <div className="biz-account-header">
+        <span className="biz-account-name">{biz.name}</span>
+        <button
+          className={`status-pill ${biz.status === 'active' ? 'connected' : 'disconnected'} biz-status-toggle`}
+          onClick={() => updateBizAccount(biz.id, { status: biz.status === 'active' ? 'paused' : 'active' })}
+        >
+          {biz.status === 'active' ? 'Ativo' : 'Pausado'}
+        </button>
+      </div>
+      {(biz.niche || biz.postSchedule) && (
+        <p className="biz-account-field"><span>{fieldLabel}:</span> {biz.niche || biz.postSchedule}</p>
+      )}
+
+      <div className="biz-social-chips">
+        {biz.socialAccounts.map((sa) => (
+          <span key={sa.id} className="biz-social-chip">
+            {SOCIAL_PLATFORMS.find((p) => p.id === sa.platform)?.label ?? sa.platform}: {sa.handle}
+            <button onClick={() => removeSocialAccount(biz.id, sa.id)}><X size={11} /></button>
+          </span>
+        ))}
+      </div>
+
+      {addingSocial ? (
+        <div className="biz-social-form">
+          <select value={platform} onChange={(e) => setPlatform(e.target.value as SocialAccount['platform'])}>
+            {SOCIAL_PLATFORMS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
+          </select>
+          <input type="text" placeholder="@usuario" value={handle} onChange={(e) => setHandle(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && submitSocial()} />
+          <button className="btn-icon-sm" onClick={submitSocial}><Plus size={14} /></button>
+        </div>
+      ) : (
+        <button className="biz-add-social-btn" onClick={() => setAddingSocial(true)}><Plus size={12} /> Rede social</button>
+      )}
+
+      <button className="biz-delete-btn" onClick={onDelete}>Remover negócio</button>
     </div>
   );
 }
