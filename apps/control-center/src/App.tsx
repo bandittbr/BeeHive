@@ -15,7 +15,6 @@ import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive } from './services/beehiveApi';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount } from './types';
-import logoUrl from '../../../LOGO.jpg';
 import './App.css';
 
 // ============================================================
@@ -70,7 +69,7 @@ return (
       {/* Sidebar rotulada */}
       <aside className="sidebar">
         <div className="sidebar-logo">
-          <div className="logo-mark"><img src={logoUrl} alt="BeeHive" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} /></div>
+          <div className="logo-mark"><img src="/logo.png" alt="BeeHive" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} /></div>
           <span className="logo-text">BeeHive</span>
         </div>
 
