@@ -1,18 +1,21 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
-  Zap, Brain, Code, BarChart3, FileText, Image, Video, Music,
-  Globe, Package, Layers, GitBranch, Clock, Users, Sparkles,
+  BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
+  Globe, Package, Layers, Clock, Users, Sparkles,
   Terminal, Database, Shield, Bell, Palette, Key, Cpu, HardDrive,
-  FileCode, CheckCircle2, AlertTriangle, XCircle, Send, Paperclip,
-  Download, ChevronRight, Loader2, Target, Rocket, Search, Plus,
-  Home, Network, Calendar, DollarSign,
+  FileCode, CheckCircle2, XCircle, Send, Paperclip,
+  Download, ChevronRight, Loader2, Plus, X,
+  Home, Network, Search, ChevronDown, FilePlus, BrainCircuit,
+  SlidersHorizontal, Paperclip as PaperclipIcon,
+  Target, AlertTriangle, Rocket, Calendar, DollarSign, Code, Zap, Brain, GitBranch, Megaphone, BookOpen, Instagram, Music as MusicIcon, Video as VideoIcon, Image as ImageIcon,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive } from './services/beehiveApi';
-import type { Project, Agent, Workflow as WorkflowType, Artifact } from './types';
+import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount } from './types';
+import logoUrl from '../../../LOGO.jpg';
 import './App.css';
 
 // ============================================================
@@ -159,25 +162,47 @@ const QUICK_ACTIONS = [
   { icon: Workflow, label: 'Executar workflow', desc: 'Automatizar tarefas' },
 ];
 
-function HomeChat({ projects, onOpenProject }: { projects: Project[]; onOpenProject: (p: Project) => void }) {
+function HomeChat() {
   const [input, setInput] = useState('');
   const [started, setStarted] = useState(false);
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string }[]>([]);
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [selectedModel, setSelectedModel] = useState('opencode:big-pickle');
+  const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
+  const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
+  const [showFilePanel, setShowFilePanel] = useState(false);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
-    if (!value || sending) return;
+    if (!value && attachedFiles.length === 0 || sending) return;
     setStarted(true);
-    setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: value, time: now() }]);
+    const userContent = value + (attachedFiles.length > 0 ? `\n\n[Arquivos anexados: ${attachedFiles.map(f => f.name).join(', ')}]` : '');
+    setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: userContent, time: now() }]);
     setInput('');
+    setAttachedFiles([]);
     setSending(true);
     // Chat conectado de verdade ao backend do BeeHive (Railway) — ver services/beehiveApi.ts
     const reply = await askBeeHive(value);
     setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: reply, time: now() }]);
     setSending(false);
+  };
+
+  const handleFileAttach = (files: FileList) => {
+    const newFiles = Array.from(files);
+    setAttachedFiles(prev => [...prev, ...newFiles]);
+    // Simulate file operations for the panel
+    newFiles.forEach(f => {
+      setFileOperations(prev => [...prev, { id: String(Date.now()) + Math.random(), name: f.name, type: 'read' }]);
+    });
+    setShowFilePanel(true);
+  };
+
+  const handleFileOperation = (op: { name: string; type: 'created' | 'edited'; content?: string }) => {
+    setFileOperations(prev => [...prev, { id: String(Date.now()) + Math.random(), ...op }]);
+    setShowFilePanel(true);
   };
 
   return (
@@ -228,103 +253,189 @@ function HomeChat({ projects, onOpenProject }: { projects: Project[]; onOpenProj
           </div>
         )}
 
-        <div className="chat-input home-chat-input">
-          <div className="input-wrapper">
-            <button className="input-action"><Paperclip size={16} /></button>
-            <input
-              type="text"
-              placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem...'}
-              value={input}
-              disabled={sending}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-            />
-            <button className="input-send" onClick={() => handleSend()} disabled={sending}><Send size={16} /></button>
-          </div>
-        </div>
+        <ChatInputArea
+          input={input}
+          setInput={setInput}
+          sending={sending}
+          handleSend={handleSend}
+          attachedFiles={attachedFiles}
+          setAttachedFiles={setAttachedFiles}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          reasoningEffort={reasoningEffort}
+          setReasoningEffort={setReasoningEffort}
+        />
       </div>
 
-      <aside className="home-right-panel">
-        <SystemSummaryPanel projects={projects} onOpenProject={onOpenProject} />
-      </aside>
+      {showFilePanel && (
+        <aside className="home-file-panel">
+          <FilePanel files={fileOperations} onClose={() => setShowFilePanel(false)} />
+        </aside>
+      )}
     </div>
   );
 }
 
-function SystemSummaryPanel({ projects, onOpenProject }: { projects: Project[]; onOpenProject: (p: Project) => void }) {
-  const { missions, events } = useAppStore();
-  const allAgents = projects.flatMap((p) => p.agents);
-  const activeAgents = allAgents.filter((a) => a.status === 'running' || a.status === 'working');
-  const totalWorkflows = projects.flatMap((p) => p.workflows).length;
-  const runningMissions = missions.filter((m) => m.status === 'running');
+// Chat Input Area with file attach, model selector, reasoning effort
+function ChatInputArea({
+  input,
+  setInput,
+  sending,
+  handleSend,
+  attachedFiles,
+  setAttachedFiles,
+  selectedModel,
+  setSelectedModel,
+  reasoningEffort,
+  setReasoningEffort,
+}: {
+  input: string;
+  setInput: (v: string) => void;
+  sending: boolean;
+  handleSend: () => void;
+  attachedFiles: File[];
+  setAttachedFiles: (files: File[]) => void;
+  selectedModel: string;
+  setSelectedModel: (v: string) => void;
+  reasoningEffort: 'default' | 'low' | 'medium' | 'high';
+  setReasoningEffort: (v: 'default' | 'low' | 'medium' | 'high') => void;
+}) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [effortOpen, setEffortOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const projectName = (projectId: string) => projects.find((p) => p.id === projectId)?.name ?? '';
+  const models = [
+    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode' },
+    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter' },
+    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter' },
+    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter' },
+    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama' },
+    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama' },
+  ];
+
+  const effortOptions = [
+    { value: 'default', label: 'Padrão', desc: 'Balanceado' },
+    { value: 'low', label: 'Low', desc: 'Rápido, menos tokens' },
+    { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
+    { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
+  ];
+
+  useEffect(() => {
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+    }
+  }, [input]);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      if (!sending && (input.trim() || attachedFiles.length > 0)) handleSend();
+    }
+  };
 
   return (
-    <div className="summary-panel">
-      <div className="mc-panel-header"><h2>Resumo do Sistema</h2></div>
-      <div className="summary-kpi-grid">
-        <div className="summary-kpi">
-          <span className="summary-kpi-label">Agentes ativos</span>
-          <span className="summary-kpi-value">{activeAgents.length}</span>
+    <div className="chat-input-area">
+      {attachedFiles.length > 0 && (
+        <div className="attached-files-bar">
+          {attachedFiles.map((f, i) => (
+            <span key={i} className="attached-file-chip">
+              <FileText size={12} />
+              {f.name}
+              <button onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}><X size={12} /></button>
+            </span>
+          ))}
         </div>
-        <div className="summary-kpi">
-          <span className="summary-kpi-label">Workflows</span>
-          <span className="summary-kpi-value">{totalWorkflows}</span>
+      )}
+      <div className="input-row">
+        <div className="input-left">
+          <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
+            <FilePlus size={18} />
+          </button>
+          <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && setAttachedFiles(Array.from(e.target.files))} style={{ display: 'none' }} />
         </div>
-        <div className="summary-kpi">
-          <span className="summary-kpi-label">Execuções (24h)</span>
-          <span className="summary-kpi-value">{missions.length * 12}</span>
+        <div className="input-center">
+          <textarea
+            ref={textareaRef}
+            placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem... (Shift+Enter para nova linha)'}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={sending}
+            rows={1}
+            spellCheck={false}
+          />
         </div>
-        <div className="summary-kpi">
-          <span className="summary-kpi-label">Tokens usados</span>
-          <span className="summary-kpi-value">2.4M</span>
-        </div>
-      </div>
-
-      <div className="mc-panel-header summary-section-header">
-        <h2><Target size={14} /> Execuções Recentes</h2>
-        <span className="mc-badge">{runningMissions.length}</span>
-      </div>
-      <div className="missions-list">
-        {missions.map((m) => (
-          <div key={m.id} className="mission-row" onClick={() => {
-            const proj = projects.find((p) => p.id === m.projectId);
-            if (proj) onOpenProject(proj);
-          }}>
-            <div className="mission-status">
-              {m.status === 'running' && <Loader2 size={14} className="spin" />}
-              {m.status === 'completed' && <CheckCircle2 size={14} />}
-              {m.status === 'error' && <XCircle size={14} />}
-              {m.status === 'scheduled' && <Clock size={14} />}
-            </div>
-            <div className="mission-info">
-              <div className="mission-top">
-                <span className="mission-name">{m.name}</span>
-                <span className="mission-project">{projectName(m.projectId)}</span>
+        <div className="input-right">
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
+              <BrainCircuit size={16} />
+              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+              <ChevronDown size={12} />
+            </button>
+            {modelOpen && (
+              <div className="dropdown-menu model-dropdown">
+                {models.map(m => (
+                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
+                    <span className="dropdown-item-name">{m.name}</span>
+                    <span className="dropdown-item-provider">{m.provider}</span>
+                  </button>
+                ))}
               </div>
-              <div className="mission-progress">
-                <div className="progress-track"><div className={`progress-fill ${m.status}`} style={{ width: `${m.progress}%` }} /></div>
-                <span className="progress-label">{m.progress}%</span>
-              </div>
-            </div>
+            )}
           </div>
-        ))}
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
+              <SlidersHorizontal size={16} />
+              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
+              <ChevronDown size={12} />
+            </button>
+            {effortOpen && (
+              <div className="dropdown-menu effort-dropdown">
+                {effortOptions.map(e => (
+                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
+                    <span className="dropdown-item-name">{e.label}</span>
+                    <span className="dropdown-item-desc">{e.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="input-send" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)}>
+            <Send size={18} />
+          </button>
+        </div>
       </div>
+    </div>
+  );
+}
 
-      <div className="mc-panel-header summary-section-header">
-        <h2>Atividade Recente</h2>
+// File Operations Panel (right side)
+function FilePanel({ files, onClose }: { files: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]; onClose: () => void }) {
+  if (files.length === 0) return null;
+
+  return (
+    <div className="file-panel">
+      <div className="file-panel-header">
+        <h3>Arquivos</h3>
+        <button className="btn-icon" onClick={onClose}><X size={16} /></button>
       </div>
-      <div className="events-list">
-        {events.map((e) => (
-          <div key={e.id} className="event-row">
-            <div className={`event-icon ${e.type}`}>
-              {e.type === 'success' && <CheckCircle2 size={12} />}
-              {e.type === 'warning' && <AlertTriangle size={12} />}
-              {e.type === 'error' && <XCircle size={12} />}
+      <div className="file-panel-body">
+        {files.map(f => (
+          <div key={f.id} className={`file-panel-item ${f.type}`}>
+            <div className="file-panel-item-icon">
+              {f.type === 'created' && <FilePlus size={14} style={{ color: '#22C55E' }} />}
+              {f.type === 'edited' && <FileCode size={14} style={{ color: '#3B82F6' }} />}
+              {f.type === 'read' && <FileText size={14} style={{ color: '#A78BFA' }} />}
             </div>
-            <span className="event-text">{e.text}</span>
-            <span className="event-time">{e.time}</span>
+            <div className="file-panel-item-info">
+              <span className="file-panel-item-name">{f.name}</span>
+              <span className="file-panel-item-type">{f.type === 'created' ? 'Criado' : f.type === 'edited' ? 'Editado' : 'Lido'}</span>
+            </div>
+            {f.content && (
+              <div className="file-panel-item-preview">{f.content.slice(0, 200)}{f.content.length > 200 ? '...' : ''}</div>
+            )}
           </div>
         ))}
       </div>

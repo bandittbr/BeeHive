@@ -102,10 +102,23 @@ export interface SettingsState {
   notifications: boolean;
 }
 
-export interface BusinessModule {
+// ===== Negócios: negócios digitais autônomos (redes sociais) =====
+
+export type BizType = 'cortes' | 'conteudo' | 'afiliados';
+
+export interface SocialAccount {
   id: string;
+  platform: 'youtube' | 'instagram' | 'tiktok' | 'twitter' | 'facebook';
+  handle: string;
+}
+
+export interface BizAccount {
+  id: string;
+  type: BizType;
   name: string;
-  icon: string;
-  description: string;
-  category: 'ia' | 'conteudo' | 'automacao' | 'marketing' | 'business' | 'dev';
+  niche?: string; // usado em "Canal Dark / Criador de Conteúdo"
+  postSchedule?: string; // usado em "Cortes de Vídeos" — horário de postagem
+  socialAccounts: SocialAccount[];
+  status: 'active' | 'paused';
+  createdAt: string;
 }

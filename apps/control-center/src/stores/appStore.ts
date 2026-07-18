@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { Project, Conversation, Message, Provider, Model, SettingsState, Mission, ActivityEvent, Workflow, Artifact, Agent } from '../types';
+import type { Project, Conversation, Message, Provider, Model, SettingsState, Mission, ActivityEvent, Workflow, Artifact, Agent, BizAccount, SocialAccount } from '../types';
 
 interface AppState {
   // Projects
@@ -43,6 +43,14 @@ interface AppState {
 
   // Events
   events: ActivityEvent[];
+
+  // Negócios (redes sociais autônomas)
+  bizAccounts: BizAccount[];
+  addBizAccount: (biz: BizAccount) => void;
+  updateBizAccount: (id: string, updates: Partial<BizAccount>) => void;
+  deleteBizAccount: (id: string) => void;
+  addSocialAccount: (bizId: string, social: SocialAccount) => void;
+  removeSocialAccount: (bizId: string, socialId: string) => void;
 }
 
 const INITIAL_PROJECTS: Project[] = [
@@ -190,4 +198,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     { id: 'e4', type: 'success', text: 'Browser scraping finalizado', time: '1h', projectId: '1' },
     { id: 'e5', type: 'error', text: 'Trade BTC — conexão perdida', time: '2h', projectId: '2' },
   ],
+
+  // Negócios (redes sociais autônomas)
+  bizAccounts: [],
+  addBizAccount: (biz) => set((s) => ({ bizAccounts: [...s.bizAccounts, biz] })),
+  updateBizAccount: (id, updates) => set((s) => ({
+    bizAccounts: s.bizAccounts.map(b => b.id === id ? { ...b, ...updates } : b),
+  })),
+  deleteBizAccount: (id) => set((s) => ({ bizAccounts: s.bizAccounts.filter(b => b.id !== id) })),
+  addSocialAccount: (bizId, social) => set((s) => ({
+    bizAccounts: s.bizAccounts.map(b => b.id === bizId ? { ...b, socialAccounts: [...b.socialAccounts, social] } : b),
+  })),
+  removeSocialAccount: (bizId, socialId) => set((s) => ({
+    bizAccounts: s.bizAccounts.map(b => b.id === bizId ? { ...b, socialAccounts: b.socialAccounts.filter(sa => sa.id !== socialId) } : b),
+  })),
 }));
