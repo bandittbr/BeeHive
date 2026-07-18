@@ -1,4 +1,4 @@
-import { create } from 'zustand';
+﻿import { create } from 'zustand';
 import type { Project, Conversation, Message, Provider, Model, SettingsState, Mission, ActivityEvent, Workflow, Artifact, Agent, BizAccount, SocialAccount } from '../types';
 
 interface AppState {
@@ -111,7 +111,7 @@ const INITIAL_PROJECTS: Project[] = [
 const INITIAL_CONVERSATIONS: Conversation[] = [
   { id: '1', title: 'Análise de Mercado Q4', preview: 'Dados compilados com sucesso...', projectId: '1', starred: true, createdAt: '2024-01-15', updatedAt: '2024-01-15' },
   { id: '2', title: 'Campanha Instagram', preview: '5 posts criados para...', projectId: '3', starred: false, createdAt: '2024-01-14', updatedAt: '2024-01-14' },
-  { id: '3', title: 'Code Review Módulo', preview: 'Refatoração sugerida...', projectId: '1', starred: false, createdAt: '2024-01-13', updatedAt: '2024-01-13' },
+  { id: '3', title: 'Code Review Módulo', preview: 'Refatoraçào sugerida...', projectId: '1', starred: false, createdAt: '2024-01-13', updatedAt: '2024-01-13' },
   { id: '4', title: 'Trade Analysis', preview: 'Sinal de compra detectado...', projectId: '2', starred: true, createdAt: '2024-01-12', updatedAt: '2024-01-12' },
 ];
 
@@ -192,11 +192,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // Events
   events: [
-    { id: 'e1', type: 'success', text: 'Publicação YouTube concluída', time: '2 min', projectId: '3' },
+    { id: 'e1', type: 'success', text: 'Publicaçào YouTube concluída', time: '2 min', projectId: '3' },
     { id: 'e2', type: 'success', text: 'Workflow "Marketing Diário" atualizado', time: '15 min', projectId: '3' },
     { id: 'e3', type: 'warning', text: 'OpenRouter com latência alta', time: '30 min', projectId: '1' },
     { id: 'e4', type: 'success', text: 'Browser scraping finalizado', time: '1h', projectId: '1' },
-    { id: 'e5', type: 'error', text: 'Trade BTC — conexão perdida', time: '2h', projectId: '2' },
+    { id: 'e5', type: 'error', text: 'Trade BTC — conexào perdida', time: '2h', projectId: '2' },
   ],
 
   // Negócios (redes sociais autônomas)
@@ -213,3 +213,4 @@ export const useAppStore = create<AppState>((set, get) => ({
     bizAccounts: s.bizAccounts.map(b => b.id === bizId ? { ...b, socialAccounts: b.socialAccounts.filter(sa => sa.id !== socialId) } : b),
   })),
 }));
+

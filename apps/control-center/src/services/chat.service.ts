@@ -1,4 +1,4 @@
-import type { Conversation, Message } from '../types';
+﻿import type { Conversation, Message } from '../types';
 import { useAppStore } from '../stores/appStore';
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -58,7 +58,7 @@ export const chatService = {
       id: crypto.randomUUID(),
       conversationId,
       role: 'assistant',
-      content: `Recebido: "${content.substring(0, 50)}..."\n\nProcessando sua solicitação com sucesso.`,
+      content: `Recebido: "${content.substring(0, 50)}..."\n\nProcessando sua solicitaçào com sucesso.`,
       agent: 'AI Agent',
       createdAt: new Date().toISOString(),
     };
@@ -66,3 +66,4 @@ export const chatService = {
     return reply;
   },
 };
+

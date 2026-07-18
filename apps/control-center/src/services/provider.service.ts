@@ -1,4 +1,4 @@
-import type { Provider, Model, SettingsState } from '../types';
+﻿import type { Provider, Model, SettingsState } from '../types';
 import { useAppStore } from '../stores/appStore';
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -48,3 +48,4 @@ export const settingsService = {
     useAppStore.getState().updateSettings(updates);
   },
 };
+

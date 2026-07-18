@@ -19,7 +19,7 @@ import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, Bi
 import './App.css';
 
 // ============================================================
-// APP SHELL â€” Sidebar rotulada + Topbar + Ãreas
+// APP SHELL â€” Sidebar rotulada + Topbar + àreas
 // ============================================================
 
 type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
@@ -27,7 +27,7 @@ type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
 const AREA_LABELS: Record<MainArea, string> = {
   chat: 'Chat',
   projetos: 'Projetos',
-  negocios: 'NegÃ³cios',
+  negocios: 'Negócios',
   settings: 'Settings',
 };
 
@@ -96,7 +96,7 @@ const { projects } = useAppStore();
             <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
               <button className="nav-row-main nav-row-single">
                 <Package size={17} strokeWidth={1.6} />
-                <span>NegÃ³cios</span>
+                <span>Negócios</span>
               </button>
             </div>
           </div>
@@ -135,7 +135,7 @@ const { projects } = useAppStore();
         </div>
       </aside>
 
-      {/* Coluna principal: topbar + conteÃºdo */}
+      {/* Coluna principal: topbar + conteúdo */}
       <div className="app-body">
         <header className="topbar">
           <div className="breadcrumb">
@@ -144,7 +144,7 @@ const { projects } = useAppStore();
             <span className="breadcrumb-current">{AREA_LABELS[activeArea]}</span>
           </div>
           <div className="topbar-right">
-            <button className="topbar-icon-btn" title="NotificaÃ§Ãµes"><Bell size={16} /></button>
+            <button className="topbar-icon-btn" title="Notificações"><Bell size={16} /></button>
           </div>
         </header>
 
@@ -216,7 +216,7 @@ function HomeChat() {
         {!started ? (
           <div className="chat-hero">
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
-            <h1>OlÃ¡, Gabriel! ðŸ‘‹</h1>
+            <h1>Olá, Gabriel! ðŸ‘‹</h1>
             <p>O que vamos criar hoje?</p>
             <div className="quick-actions-grid">
               {QUICK_ACTIONS.map((a) => {
@@ -238,7 +238,7 @@ function HomeChat() {
                 <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
                 <div className="msg-body">
                   <div className="msg-header">
-                    <span className="msg-role">{m.role === 'user' ? 'VocÃª' : 'BeeHive'}</span>
+                    <span className="msg-role">{m.role === 'user' ? 'Você' : 'BeeHive'}</span>
                     <span className="msg-time">{m.time}</span>
                   </div>
                   <div className="msg-content">{m.content}</div>
@@ -339,8 +339,8 @@ function ChatInputArea({
   }, {} as Record<string, typeof models>);
 
   const effortOptions = [
-    { value: 'default', label: 'PadrÃ£o', desc: 'Balanceado' },
-    { value: 'low', label: 'Low', desc: 'RÃ¡pido, menos tokens' },
+    { value: 'default', label: 'Padrào', desc: 'Balanceado' },
+    { value: 'low', label: 'Low', desc: 'Rápido, menos tokens' },
     { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
     { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
   ];
@@ -382,7 +382,7 @@ return (
             <span key={i} className={`attached-file-chip${f.type.startsWith('image/') && !supportsImages ? ' unsupported' : ''}`}>
               {f.type.startsWith('image/') ? <Image size={12} /> : <FileText size={12} />}
               {f.name}
-              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo nÃ£o suporta imagens">âš </span>}
+              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo nào suporta imagens">âš </span>}
               <button onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}><X size={12} /></button>
             </span>
           ))}
@@ -393,7 +393,7 @@ return (
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> nÃ£o suporta imagens. As {imageFiles.length} imagem(ns) serÃ£o ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
+          <span>O modelo <strong>{currentModel?.name}</strong> nào suporta imagens. As {imageFiles.length} imagem(ns) serào ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
 
@@ -466,7 +466,7 @@ return (
                             onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
                           >
                             <span className="dropdown-item-name">{m.name}</span>
-                            {!m.supportsImages && <span className="dropdown-item-warning" title="NÃ£o suporta imagens">âš </span>}
+                            {!m.supportsImages && <span className="dropdown-item-warning" title="Nào suporta imagens">âš </span>}
                           </button>
                         ))}
                       </div>
@@ -478,9 +478,9 @@ return (
 
             {/* Reasoning Effort */}
             <div className="dropdown-group">
-              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="EsforÃ§o de raciocÃ­nio">
+              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
                 <SlidersHorizontal size={16} />
-                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'PadrÃ£o'}</span>
+                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrào'}</span>
                 <ChevronDown size={12} />
               </button>
               {effortOpen && (
@@ -560,7 +560,7 @@ function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; on
               <span className={`topbar-status ${p.status}`}>{p.status}</span>
             </div>
             <h3 className="workflow-card-name">{p.name}</h3>
-            <p className="agent-card-task">{p.description || 'Sem descriÃ§Ã£o'}</p>
+            <p className="agent-card-task">{p.description || 'Sem descriçào'}</p>
             <div className="project-card-meta">
               <span><Bot size={12} /> {p.agents.length}</span>
               <span><Workflow size={12} /> {p.workflows.length}</span>
@@ -658,8 +658,8 @@ function ProjectView({
 function ProjectChat({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string; agent?: string }[]>([
-    { id: '1', role: 'user', content: 'Analise o desempenho da Ãºltima campanha.', time: '10:30' },
-    { id: '2', role: 'assistant', content: 'AnÃ¡lise concluÃ­da para o projeto ' + project.name + '.\n\n**MÃ©tricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- ConversÃµes: +23%\n\n**RecomendaÃ§Ãµes:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
+    { id: '1', role: 'user', content: 'Analise o desempenho da última campanha.', time: '10:30' },
+    { id: '2', role: 'assistant', content: 'Análise concluída para o projeto ' + project.name + '.\n\n**Métricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- Conversões: +23%\n\n**Recomendações:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
   ]);
 
   const handleSend = async () => {
@@ -681,7 +681,7 @@ function ProjectChat({ project }: { project: Project }) {
             <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
             <div className="msg-body">
               <div className="msg-header">
-                <span className="msg-role">{m.role === 'user' ? 'VocÃª' : m.agent || project.name}</span>
+                <span className="msg-role">{m.role === 'user' ? 'Você' : m.agent || project.name}</span>
                 <span className="msg-time">{m.time}</span>
               </div>
               <div className="msg-content">{m.content}</div>
@@ -832,21 +832,21 @@ function ProjectSettings({ project }: { project: Project }) {
 
   const handleSave = async () => {
     await projectService.update(project.id, { name, description, status });
-    alert('ConfiguraÃ§Ãµes salvas!');
+    alert('Configurações salvas!');
   };
 
   return (
     <div className="project-settings">
-      <div className="section-header"><h2>ConfiguraÃ§Ãµes do Projeto</h2></div>
+      <div className="section-header"><h2>Configurações do Projeto</h2></div>
       <div className="settings-form">
         <div className="form-group"><label>Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="form-group"><label>DescriÃ§Ã£o</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
+        <div className="form-group"><label>Descriçào</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
         <div className="form-group">
           <label>Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
             <option value="active">Ativo</option>
             <option value="paused">Pausado</option>
-            <option value="completed">ConcluÃ­do</option>
+            <option value="completed">Concluído</option>
           </select>
         </div>
         <button className="btn-primary" onClick={handleSave}>Salvar</button>
@@ -875,7 +875,7 @@ interface CoworkMessage {
 function ProjectCowork({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<CoworkMessage[]>([
-    { id: '1', type: 'assistant', content: `ðŸ¤– **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\nâ€¢ **Executar comandos bash** â€” digite \`$ ls\` ou \`$ npm run build\`\nâ€¢ **Ler/Escrever arquivos** â€” use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteÃºdo\` para escrever\nâ€¢ **Navegar na web** â€” \`$ browse https://site.com\`\nâ€¢ **Controlar o computador** â€” automaÃ§Ã£o via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
+    { id: '1', type: 'assistant', content: `ðŸ¤– **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\nâ€¢ **Executar comandos bash** â€” digite \`$ ls\` ou \`$ npm run build\`\nâ€¢ **Ler/Escrever arquivos** â€” use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteúdo\` para escrever\nâ€¢ **Navegar na web** â€” \`$ browse https://site.com\`\nâ€¢ **Controlar o computador** â€” automaçào via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
   ]);
   const [cwd, setCwd] = useState('~/projects/' + project.name.toLowerCase().replace(/\s+/g, '-'));
   const [history, setHistory] = useState<string[]>([]);
@@ -919,7 +919,7 @@ function ProjectCowork({ project }: { project: Project }) {
       output = `On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean`;
     } else if (trimmed.startsWith('browse ') || trimmed.startsWith('open ')) {
       const url = trimmed.split(' ')[1];
-      output = `ðŸŒ Navegando para: ${url}\nâœ” PÃ¡gina carregada\nðŸ“„ TÃ­tulo: "Exemplo de Site"\nðŸ”— Links encontrados: 12`;
+      output = `ðŸŒ Navegando para: ${url}\nâœ” Página carregada\nðŸ“„ Título: "Exemplo de Site"\nðŸ”— Links encontrados: 12`;
     } else if (trimmed === 'pwd') {
       output = cwd;
     } else if (trimmed.startsWith('cd ')) {
@@ -931,9 +931,9 @@ function ProjectCowork({ project }: { project: Project }) {
       } else {
         setCwd(prev => prev + '/' + dir);
       }
-      output = `DiretÃ³rio alterado para: ${cwd}/${dir}`;
+      output = `Diretório alterado para: ${cwd}/${dir}`;
     } else {
-      output = `Comando executado: ${trimmed}\n\n[SimulaÃ§Ã£o] Em produÃ§Ã£o, isso executaria no shell real via backend BeeHive.`;
+      output = `Comando executado: ${trimmed}\n\n[Simulaçào] Em produçào, isso executaria no shell real via backend BeeHive.`;
     }
 
     setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'output', content: output, time: now(), meta: { exitCode: 0, cwd } }]);
@@ -953,13 +953,13 @@ function ProjectCowork({ project }: { project: Project }) {
     } else {
       // Natural language - AI processes
       setExecuting(true);
-      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: 'ðŸ¤” Analisando sua solicitaÃ§Ã£o...', time: now() }]);
+      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: 'ðŸ¤” Analisando sua solicitaçào...', time: now() }]);
       
       // Call AI
       const reply = await askBeeHive(`[Projeto: ${project.name}] ${trimmed}`);
       
       setMessages(prev => {
-        const filtered = prev.filter(m => m.content !== 'ðŸ¤” Analisando sua solicitaÃ§Ã£o...');
+        const filtered = prev.filter(m => m.content !== 'ðŸ¤” Analisando sua solicitaçào...');
         return [...filtered, { id: String(Date.now() + 2), type: 'assistant', content: reply, time: now() }];
       });
       setExecuting(false);
@@ -1025,7 +1025,7 @@ function ProjectCowork({ project }: { project: Project }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, â†‘/â†“: histÃ³rico)'}
+          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, â†‘/â†“: histórico)'}
           disabled={executing}
           autoFocus
         />
@@ -1113,7 +1113,7 @@ function LogsPanel() {
 }
 
 // ============================================================
-// NEGÃ“CIOS â€” negÃ³cios digitais autÃ´nomos (redes sociais)
+// NEGà“CIOS â€” negócios digitais autà´nomos (redes sociais)
 // ============================================================
 
 interface BizTypeConfig {
@@ -1128,19 +1128,19 @@ interface BizTypeConfig {
 
 const BIZ_TYPES: BizTypeConfig[] = [
   {
-    id: 'cortes', name: 'Cortes de VÃ­deos', color: '#7C3AED', icon: Scissors,
-    desc: 'Pega um vÃ­deo inteiro, encontra os melhores momentos, corta, coloca legenda bonita e publica sozinho nas redes no horÃ¡rio definido.',
-    fieldLabel: 'HorÃ¡rio de postagem', fieldPlaceholder: 'Ex: 12:00, 18:00, 21:00',
+    id: 'cortes', name: 'Cortes de Vídeos', color: '#7C3AED', icon: Scissors,
+    desc: 'Pega um vídeo inteiro, encontra os melhores momentos, corta, coloca legenda bonita e publica sozinho nas redes no horário definido.',
+    fieldLabel: 'Horário de postagem', fieldPlaceholder: 'Ex: 12:00, 18:00, 21:00',
   },
   {
-    id: 'conteudo', name: 'Canal Dark / Criador de ConteÃºdo', color: '#6366F1', icon: Clapperboard,
-    desc: 'Gera vÃ­deos e conteÃºdo do zero de acordo com o nicho da conta â€” estÃ©tica, fitness, infantil, humor, etc.',
-    fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estÃ©tica...',
+    id: 'conteudo', name: 'Canal Dark / Criador de Conteúdo', color: '#6366F1', icon: Clapperboard,
+    desc: 'Gera vídeos e conteúdo do zero de acordo com o nicho da conta â€” estética, fitness, infantil, humor, etc.',
+    fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estética...',
   },
   {
     id: 'afiliados', name: 'Afiliados', color: '#3B82F6', icon: Link2,
     desc: 'Divulga produtos com link de afiliado nas redes cadastradas para gerar vendas.',
-    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrÃ´nicos, moda, casa...',
+    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrà´nicos, moda, casa...',
   },
 ];
 
@@ -1157,8 +1157,8 @@ function NegociosView() {
     <div className="negocios">
       <div className="page-header">
         <div>
-          <h1>NegÃ³cios</h1>
-          <p>Seus negÃ³cios digitais autÃ´nomos â€” cortes, criaÃ§Ã£o de conteÃºdo e afiliados</p>
+          <h1>Negócios</h1>
+          <p>Seus negócios digitais autà´nomos â€” cortes, criaçào de conteúdo e afiliados</p>
         </div>
       </div>
 
@@ -1205,7 +1205,7 @@ function BizTypeSection({ type }: { type: BizTypeConfig }) {
       {adding && <NewBizForm type={type} onCreate={handleCreate} onCancel={() => setAdding(false)} />}
 
       {accounts.length === 0 ? (
-        <div className="empty-state biz-empty"><p>Nenhum negÃ³cio cadastrado em {type.name} ainda.</p></div>
+        <div className="empty-state biz-empty"><p>Nenhum negócio cadastrado em {type.name} ainda.</p></div>
       ) : (
         <div className="biz-account-grid">
           {accounts.map((biz) => (
@@ -1230,7 +1230,7 @@ function NewBizForm({ type, onCreate, onCancel }: { type: BizTypeConfig; onCreat
   return (
     <div className="biz-new-form">
       <div className="form-group">
-        <label>Nome do negÃ³cio</label>
+        <label>Nome do negócio</label>
         <input type="text" placeholder="Ex: Canal Cortes Podcast" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="form-group">
@@ -1293,7 +1293,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
         <button className="biz-add-social-btn" onClick={() => setAddingSocial(true)}><Plus size={12} /> Rede social</button>
       )}
 
-      <button className="biz-delete-btn" onClick={onDelete}>Remover negÃ³cio</button>
+      <button className="biz-delete-btn" onClick={onDelete}>Remover negócio</button>
     </div>
   );
 }
@@ -1307,24 +1307,24 @@ type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins'
 const SETTINGS_GROUPS = [
   { label: 'Conta', items: [
     { id: 'perfil' as SettingsPage, label: 'Perfil', icon: Users },
-    { id: 'seguranca' as SettingsPage, label: 'SeguranÃ§a', icon: Shield },
+    { id: 'seguranca' as SettingsPage, label: 'Segurança', icon: Shield },
   ]},
   { label: 'Sistema', items: [
     { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
     { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
     { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
-    { id: 'integrations' as SettingsPage, label: 'IntegraÃ§Ãµes', icon: Globe },
+    { id: 'integrations' as SettingsPage, label: 'Integrações', icon: Globe },
   ]},
   { label: 'Dados', items: [
     { id: 'storage' as SettingsPage, label: 'Storage', icon: HardDrive },
-    { id: 'memoria' as SettingsPage, label: 'MemÃ³ria', icon: Database },
+    { id: 'memoria' as SettingsPage, label: 'Memória', icon: Database },
     { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
     { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
   ]},
-  { label: 'PersonalizaÃ§Ã£o', items: [
+  { label: 'Personalizaçào', items: [
     { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
     { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
-    { id: 'notificacoes' as SettingsPage, label: 'NotificaÃ§Ãµes', icon: Bell },
+    { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
     { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
   ]},
 ];
@@ -1356,10 +1356,10 @@ function SettingsView() {
         {page === 'perfil' && (
           <div className="settings-page">
             <h2>Perfil</h2>
-            <p className="settings-desc">Suas informaÃ§Ãµes pessoais</p>
+            <p className="settings-desc">Suas informações pessoais</p>
             <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
             <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
-            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre vocÃª..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
+            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
             <button className="btn-primary">Salvar</button>
           </div>
         )}
@@ -1368,7 +1368,7 @@ function SettingsView() {
             <h2>Providers</h2>
             <p className="settings-desc">Provedores de IA conectados</p>
             {[
-              { name: 'OpenRouter', status: 'connected', desc: 'MÃºltiplos modelos' },
+              { name: 'OpenRouter', status: 'connected', desc: 'Múltiplos modelos' },
               { name: 'OpenAI', status: 'disconnected', desc: 'GPT-4, DALL-E' },
               { name: 'Anthropic', status: 'disconnected', desc: 'Claude 3.5' },
             ].map((p) => (
@@ -1386,7 +1386,7 @@ function SettingsView() {
         {page === 'tema' && (
           <div className="settings-page">
             <h2>Tema</h2>
-            <p className="settings-desc">Personalize a aparÃªncia</p>
+            <p className="settings-desc">Personalize a aparência</p>
             <div className="form-group">
               <label>Tema</label>
               <div className="theme-grid">
@@ -1400,7 +1400,7 @@ function SettingsView() {
         {page === 'logs' && (
           <div className="settings-page">
             <h2>Logs</h2>
-            <p className="settings-desc">HistÃ³rico de atividades do sistema</p>
+            <p className="settings-desc">Histórico de atividades do sistema</p>
             <div className="logs-viewer">
               {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
                 <div key={i} className="log-line"><code>{l}</code></div>
@@ -1418,4 +1418,5 @@ function SettingsView() {
     </div>
   );
 } 
+
 

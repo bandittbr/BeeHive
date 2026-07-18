@@ -1,4 +1,4 @@
-import type { Project, Agent, Workflow, Artifact } from '../types';
+﻿import type { Project, Agent, Workflow, Artifact } from '../types';
 import { useAppStore } from '../stores/appStore';
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -57,3 +57,4 @@ export const projectService = {
     return project?.artifacts || [];
   },
 };
+

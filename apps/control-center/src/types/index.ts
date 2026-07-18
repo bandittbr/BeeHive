@@ -1,4 +1,4 @@
-export interface Project {
+﻿export interface Project {
   id: string;
   name: string;
   icon: string;
@@ -122,3 +122,4 @@ export interface BizAccount {
   status: 'active' | 'paused';
   createdAt: string;
 }
+

@@ -1,4 +1,4 @@
-import type { Workflow } from '../types';
+﻿import type { Workflow } from '../types';
 import { useAppStore } from '../stores/appStore';
 
 const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
@@ -24,3 +24,4 @@ export const workflowService = {
     return workflow;
   },
 };
+
