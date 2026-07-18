@@ -34,6 +34,22 @@
 - [x] **FIX CRÍTICO — roteamento de API/WS (commit `99a6656`)**: era a CAUSA RAIZ de todos os erros "Unexpected token '<', '<!doctype'... is not valid JSON" e da conversa quebrada. O frontend usava caminhos relativos `/api` fixos em vários services (settingsService, projectService, useShorts, AgentDetailView, ProviderSelector, CreateAgentModal, MyProductsView, ContentCreatorView, AffiliatesView) que no Vercel caíam na página HTML do SPA em vez do backend. Também o WebSocket da conversa montava URL errada (`wss://vercel-host + URL_ABSOLUTA`). Criado `apps/web/src/lib/api.ts` exportando `API_BASE` (usa `VITE_API_URL` já setado no Vercel) e `wsUrl()`; todos os fetches e o WS agora apontam pro Railway. Verificado: `/api/providers`, `/api/shorts/free-models`, `/api/affiliates/products` e `/api/conversation/respond` retornam JSON válido/funcionam. Removido botão duplicado de criar agent na aba Cortes.
 - [ ] **Passo 2 (domínio)**: adiado pelo usuário ("espera terminar o app"); quando quiser, add o domínio no Vercel + DNS.
 
+## 2026-07-18 — Auditoria vs. checklist de "BeeHive OS" + achado crítico
+
+- Usuário pediu para verificar o checklist completo do BeeHive OS (Kernel, Plugins, Providers, Agentes, Chat, Dashboard etc.) e implementar o que faltasse.
+- **Achado**: boa parte do que o checklist marca como "✅ pronto" está de fato em `kernel/NotImplemented/` (AgentRuntime, KnowledgeGraph, MemoryRegistry, Metrics, PermissionManager, ResourceManager, Scheduler, Secrets) — pastas vazias, só `.gitkeep`. `Kernel.ts` lança `throw new Error('NotImplemented: ...')` para todos esses getters. `providers/ai/openrouter/` também está vazio — Sprint 6 do próprio `ROADMAP.md` (Real Capability Providers) está `⏳`, não feita.
+- O que É real: Kernel/EventBus/Container/CapabilityRegistry/PluginRegistry/ConfigManager, Workflow Runtime (14/14 testes), Plugin Browser (Playwright), Plugin Foundation, Plugin Weather (externo), SDK, testes de arquitetura, docs.
+- **Este `ANCHORED_SUMMARY.md`/backend Railway/frontend `bee-hive-web-six.vercel.app` descrevem um app diferente que nunca foi commitado neste repositório** — conferido até o primeiro commit (`ab6ab52`) e `apps/` sempre teve só `control-center`. `bee-hive-web-six.vercel.app` hoje redireciona pro mesmo deploy do `beehiveos.vercel.app` (o control-center atual) — ou seja o domínio antigo foi reaproveitado, o frontend antigo não existe mais.
+- **O backend do Railway continua NO AR e funcionando** (confirmado ao vivo): `GET /api/runtime/status` → `Running`, `GET /api/providers` → catálogo de 10 providers, `GET /api/health` → `{"status":"ok","provider":"opencode:big-pickle"}`. O código-fonte dele não está neste repo (usuário vai verificar no painel do Railway/GitHub de onde ele foi deployado).
+- **Ação tomada agora**: descoberto por tentativa (via Playwright, testando POST direto no domínio do Railway a partir da origem `beehiveos.vercel.app` — sem erro de CORS) o contrato real do endpoint de conversa:
+  ```
+  POST https://beehive-production-d934.up.railway.app/api/conversation/respond
+  body: { message: { role: "user", content: string } }
+  resp: { messages: [{ role: "assistant", content: string }] }
+  ```
+  Criado `apps/control-center/src/services/beehiveApi.ts` com `askBeeHive()` chamando esse endpoint direto (com try/catch e mensagem de erro amigável se o Railway cair). `HomeChat` (Chat principal do control-center) agora usa isso em vez de simular resposta com `setTimeout` — Chat responde com IA de verdade (modelo grátis `opencode:big-pickle`), sem custo.
+- **Pendente**: usuário vai confirmar se acha o repositório/código original do backend Railway + frontend antigo. Se achar, dá pra recuperar as capabilities reais (Scheduler, Memory vetorial, Agent Runtime etc.) em vez de reimplementar do zero.
+
 ## Relevant Files
 - `apps/web/src/features/dashboard/DashboardView.tsx` / `.css` — vitrine premium (tela inicial)
 - `apps/web/src/styles/tokens.css` — tokens mel/âmbar + `--danger`/`--success`/`--warning`

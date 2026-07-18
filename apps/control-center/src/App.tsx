@@ -11,6 +11,7 @@ import {
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
+import { askBeeHive } from './services/beehiveApi';
 import type { Project, Agent, Workflow as WorkflowType, Artifact } from './types';
 import './App.css';
 
@@ -161,19 +162,22 @@ const QUICK_ACTIONS = [
 function HomeChat({ projects, onOpenProject }: { projects: Project[]; onOpenProject: (p: Project) => void }) {
   const [input, setInput] = useState('');
   const [started, setStarted] = useState(false);
+  const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string }[]>([]);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const handleSend = (text?: string) => {
+  const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
-    if (!value) return;
+    if (!value || sending) return;
     setStarted(true);
     setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: value, time: now() }]);
     setInput('');
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: `Certo! Trabalhando em "${value}"...`, time: now() }]);
-    }, 700);
+    setSending(true);
+    // Chat conectado de verdade ao backend do BeeHive (Railway) — ver services/beehiveApi.ts
+    const reply = await askBeeHive(value);
+    setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: reply, time: now() }]);
+    setSending(false);
   };
 
   return (
@@ -212,6 +216,15 @@ function HomeChat({ projects, onOpenProject }: { projects: Project[]; onOpenProj
                 </div>
               </div>
             ))}
+            {sending && (
+              <div className="msg assistant">
+                <div className="msg-avatar"><Bot size={16} /></div>
+                <div className="msg-body">
+                  <div className="msg-header"><span className="msg-role">BeeHive</span></div>
+                  <div className="msg-content msg-typing">digitando...</div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -220,12 +233,13 @@ function HomeChat({ projects, onOpenProject }: { projects: Project[]; onOpenProj
             <button className="input-action"><Paperclip size={16} /></button>
             <input
               type="text"
-              placeholder="Digite sua mensagem..."
+              placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem...'}
               value={input}
+              disabled={sending}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && handleSend()}
             />
-            <button className="input-send" onClick={() => handleSend()}><Send size={16} /></button>
+            <button className="input-send" onClick={() => handleSend()} disabled={sending}><Send size={16} /></button>
           </div>
         </div>
       </div>
