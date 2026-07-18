@@ -283,7 +283,7 @@ function HomeChat() {
   );
 }
 
-// Chat Input Area - textarea grande, modelo + reasoning abaixo à esquerda
+// Chat Input Area - OpenWork style: textarea grande, model picker agrupado por provider, reasoning effort, file attachments
 function ChatInputArea({
   input,
   setInput,
@@ -319,6 +319,7 @@ function ChatInputArea({
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [searchModel, setSearchModel] = useState('');
 
   const models = [
     { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
@@ -328,6 +329,13 @@ function ChatInputArea({
     { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama', supportsImages: false },
     { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama', supportsImages: false },
   ];
+
+  // Group models by provider like OpenWork
+  const modelsByProvider = models.reduce((acc, model) => {
+    if (!acc[model.provider]) acc[model.provider] = [];
+    acc[model.provider].push(model);
+    return acc;
+  }, {} as Record<string, typeof models>);
 
   const effortOptions = [
     { value: 'default', label: 'Padrão', desc: 'Balanceado' },
@@ -339,7 +347,7 @@ function ChatInputArea({
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 220) + 'px';
     }
   }, [input]);
 
@@ -366,6 +374,7 @@ function ChatInputArea({
 
   return (
     <div className="chat-input-area">
+      {/* Attached files chips */}
       {attachedFiles.length > 0 && (
         <div className="attached-files-bar">
           {attachedFiles.map((f, i) => (
@@ -378,12 +387,16 @@ function ChatInputArea({
           ))}
         </div>
       )}
+      
+      {/* Unsupported images warning */}
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
           <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
+
+      {/* Main input row: attach + textarea + send */}
       <div className="input-row">
         <div className="input-left">
           <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo">
@@ -409,26 +422,55 @@ function ChatInputArea({
           </button>
         </div>
       </div>
+
+      {/* Controls row: Model picker + Reasoning effort - aligned left after attach button */}
       <div className="input-controls-row">
-        <div className="input-left-spacer" style={{ width: '40px' }} />
+        <div className="input-left-spacer" style={{ width: '44px' }} />
         <div className="input-controls">
+          {/* Model Picker - OpenWork style grouped by provider */}
           <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
+            <button className="dropdown-btn" onClick={() => { setSearchModel(''); setModelOpen(!modelOpen); }} title="Selecionar modelo">
               <BrainCircuit size={16} />
               <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
               <ChevronDown size={12} />
             </button>
             {modelOpen && (
               <div className="dropdown-menu model-dropdown">
-                {models.map(m => (
-                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
-                    <span className="dropdown-item-name">{m.name}</span>
-                    <span className="dropdown-item-provider">{m.provider}</span>
-                  </button>
-                ))}
+                <input
+                  type="text"
+                  placeholder="Buscar modelo..."
+                  value={searchModel}
+                  onChange={e => setSearchModel(e.target.value)}
+                  className="dropdown-search"
+                  autoFocus
+                />
+                {Object.entries(modelsByProvider).map(([provider, providerModels]) => {
+                  const filtered = providerModels.filter(m => 
+                    m.name.toLowerCase().includes(searchModel.toLowerCase()) ||
+                    m.provider.toLowerCase().includes(searchModel.toLowerCase())
+                  );
+                  if (filtered.length === 0) return null;
+                  return (
+                    <div key={provider} className="model-provider-group">
+                      <div className="model-provider-label">{provider}</div>
+                      {filtered.map(m => (
+                        <button
+                          key={m.id}
+                          className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`}
+                          onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
+                        >
+                          <span className="dropdown-item-name">{m.name}</span>
+                          {!m.supportsImages && <span className="dropdown-item-warning" title="Não suporta imagens">⚠</span>}
+                        </button>
+                      ))}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
+
+          {/* Reasoning Effort - OpenWork style */}
           <div className="dropdown-group">
             <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
               <SlidersHorizontal size={16} />
@@ -438,7 +480,11 @@ function ChatInputArea({
             {effortOpen && (
               <div className="dropdown-menu effort-dropdown">
                 {effortOptions.map(e => (
-                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
+                  <button
+                    key={e.value}
+                    className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`}
+                    onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}
+                  >
                     <span className="dropdown-item-name">{e.label}</span>
                     <span className="dropdown-item-desc">{e.desc}</span>
                   </button>
