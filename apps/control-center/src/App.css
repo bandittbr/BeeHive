@@ -301,18 +301,18 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
   min-height: 56px;
   max-height: 200px;
   padding: 12px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  background: transparent;
+  border: none;
+  border-radius: 0;
   color: var(--text);
   font-size: 15px;
   font-family: var(--font);
   line-height: 1.55;
   resize: vertical;
   outline: none;
-  transition: all var(--transition-fast);
+  transition: none;
 }
-.chat-textarea:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-muted); }
+.chat-textarea:focus { box-shadow: none; }
 .chat-textarea::placeholder { color: var(--text-muted); }
 .chat-textarea:disabled { opacity: 0.6; cursor: not-allowed; }
 .input-right { flex-shrink: 0; }
