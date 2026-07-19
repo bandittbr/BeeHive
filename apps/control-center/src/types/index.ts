@@ -7,18 +7,39 @@
   agents: Agent[];
   workflows: Workflow[];
   artifacts: Artifact[];
+  pipelines: Pipeline[]; // Added pipeline support
   createdAt: string;
   updatedAt: string;
 }
 
-export interface Agent {
+export interface Pipeline {
   id: string;
   name: string;
-  status: 'running' | 'idle' | 'working' | 'waiting' | 'error';
-  task: string;
-  color: string;
-  projectId: string;
-  pipeline?: PipelineStep[];
+  description: string;
+  nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PipelineNode {
+  id: string;
+  type: string;
+  label: string;
+  position: { x: number; y: number };
+  config: Record<string, any>;
+  inputs: string[];
+  outputs: string[];
+  disabled?: boolean;
+}
+
+export interface PipelineEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  style?: React.CSSProperties;
 }
 
 export interface PipelineStep {
