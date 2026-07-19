@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npx prisma generate && cd apps/control-center && npm run build",
+  "buildCommand": "npm install && npx prisma generate && cd apps/control-center && npm run build",
   "outputDirectory": "apps/control-center/dist",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
@@ -12,5 +12,5 @@
       ]
     }
   ],
-  "installCommand": "cd apps/control-center && npm install"
+  "installCommand": "npm install"
 }
