@@ -390,6 +390,12 @@ function ChatInputArea({
     setShowFilePanel(true);
   };
 
+  const handleFileOperationInput = (op: { type: 'read' | 'write'; path: string; content?: string }) => {
+    // File operations are handled by the FileOperationInput component internally
+    // This is a placeholder - the component calls onFileOperation with parsed result
+    console.log('File operation:', op);
+  };
+
 return (
     <div className="chat-input-area">
       {/* Attached files chips */}
