@@ -133,6 +133,79 @@ export interface SocialAccount {
   handle: string;
 }
 
+// ===== Evaluation Framework =====
+
+export type EvaluationRunStatus = 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED';
+export type TestCaseRunStatus = 'PENDING' | 'RUNNING' | 'PASSED' | 'FAILED' | 'ERROR' | 'SKIPPED';
+
+export interface Assertion {
+  type: string;
+  path: string;
+  expected: unknown;
+  operator: string;
+}
+
+export interface AssertionResult {
+  assertion: Assertion;
+  passed: boolean;
+  actual: unknown;
+  expected: unknown;
+}
+
+export interface EvaluationSuite {
+  id: string;
+  projectId: string;
+  pipelineId?: string;
+  name: string;
+  description?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  testCases: EvaluationTestCase[];
+  runs: EvaluationRun[];
+}
+
+export interface EvaluationTestCase {
+  id: string;
+  suiteId: string;
+  name: string;
+  description?: string;
+  input: Record<string, unknown>;
+  expectedOutput?: unknown;
+  assertions: Assertion[];
+  metadata?: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EvaluationRun {
+  id: string;
+  suiteId: string;
+  pipelineId: string;
+  status: EvaluationRunStatus;
+  startedAt: string;
+  completedAt?: string;
+  totalCases: number;
+  passedCases: number;
+  failedCases: number;
+  error?: string;
+  results: Array<{ testCaseId: string; passed: boolean; output: unknown; error?: string; duration: number }>;
+  createdAt: string;
+}
+
+export interface EvaluationTestCaseRun {
+  id: string;
+  runId: string;
+  testCaseId: string;
+  status: TestCaseRunStatus;
+  output?: unknown;
+  error?: string;
+  durationMs?: number;
+  assertionResults: AssertionResult[];
+  startedAt: string;
+  completedAt?: string;
+}
+
 export interface BizAccount {
   id: string;
   type: BizType;

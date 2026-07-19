@@ -26,6 +26,7 @@ import {
   Zap,
   Terminal,
   Calendar as CalendarIcon,
+  Key as KeyIcon,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
@@ -35,6 +36,8 @@ import { createExecutionService, UnifiedExecutionService, ExecutionConfig, Execu
 import { MessageList } from './components/chat/MessageList';
 import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
 import { PipelineRunner } from './components/pipeline/PipelineRunner';
+import { CostDashboard } from './components/cost/CostDashboard';
+import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
@@ -42,12 +45,13 @@ import './App.css';
 // APP SHELL â€” Sidebar rotulada + Topbar + àreas
 // ============================================================
 
-type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
+type MainArea = 'chat' | 'projetos' | 'negocios' | 'evaluations' | 'settings';
 
 const AREA_LABELS: Record<MainArea, string> = {
   chat: 'Chat',
   projetos: 'Projetos',
   negocios: 'Negócios',
+  evaluations: 'Avaliações',
   settings: 'Settings',
 };
 
@@ -55,7 +59,7 @@ export default function App() {
 const { projects } = useAppStore();
   const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
-  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler'>('cowork');
+  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'costs'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
 
@@ -117,6 +121,13 @@ const { projects } = useAppStore();
               <button className="nav-row-main nav-row-single">
                 <Package size={17} strokeWidth={1.6} />
                 <span>Negócios</span>
+              </button>
+            </div>
+
+            <div className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`} onClick={() => setActiveArea('evaluations')}>
+              <button className="nav-row-main nav-row-single">
+                <Target size={17} strokeWidth={1.6} />
+                <span>Avaliações</span>
               </button>
             </div>
           </div>
@@ -185,6 +196,7 @@ const { projects } = useAppStore();
             )
           )}
           {activeArea === 'negocios' && <NegociosView />}
+          {activeArea === 'evaluations' && <EvaluationRunner project={{ id: "default" }} />}
           {activeArea === 'settings' && <SettingsView />}
         </main>
       </div>
@@ -620,8 +632,8 @@ function ProjectView({
   project, activeView, onViewChange, rightPanel, onRightPanelChange, onBack,
 }: {
   project: Project;
-  activeView: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings';
-  onViewChange: (v: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings') => void;
+  activeView: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'secrets' | 'costs';
+  onViewChange: (v: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'secrets' | 'costs') => void;
   rightPanel: 'artifacts' | 'pipeline' | 'logs' | null;
   onRightPanelChange: (p: 'artifacts' | 'pipeline' | 'logs' | null) => void;
   onBack: () => void;
@@ -660,6 +672,13 @@ function ProjectView({
             <Calendar size={14} /> Agendador
             <span className="tab-badge">{project.pipelines?.length || 0}</span>
           </button>
+          <button className={`tab${activeView === 'secrets' ? ' active' : ''}`} onClick={() => onViewChange('secrets')}>
+            <Key size={14} /> Secrets
+            <span className="tab-badge">{project.secrets?.length || 0}</span>
+          </button>
+          <button className={`tab${activeView === 'costs' ? ' active' : ''}`} onClick={() => onViewChange('costs')}>
+            <DollarSign size={14} /> Custos
+          </button>
           <button className={`tab${activeView === 'settings' ? ' active' : ''}`} onClick={() => onViewChange('settings')}>
             <Settings size={14} /> Config
           </button>
@@ -697,7 +716,9 @@ function ProjectView({
               />
             </div>
           )}
-          {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
+{activeView === 'artifacts' && <ProjectArtifacts project={project} />}
+          {activeView === 'secrets' && <SecretVault project={project} />}
+          {activeView === 'costs' && <CostDashboard project={project} />}
           {activeView === 'settings' && <ProjectSettings project={project} />}
         </div>
 
@@ -995,48 +1016,18 @@ function ProjectCowork({ project }: { project: Project }) {
       }
       output = `Diretório alterado para: ${cwd}/${dir}`;
     } else {
-      output = `Comando executado: ${trimmed}\n\n[Simulaçào] Em produçào, isso executaria no shell real via backend BeeHive.`;
+      output = `Comando executado: ${trimmed}\n\n[Simulação] Em produção, isso executaria no shell real via backend BeeHive.`;
     }
 
     setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'output', content: output, time: now(), meta: { exitCode: 0, cwd } }]);
     setExecuting(false);
   };
 
-  const handleSend = async () => {
-    const trimmed = input.trim();
-    if (!trimmed || executing) return;
-    
-    setMessages(prev => [...prev, { id: String(Date.now()), type: 'user', content: trimmed, time: now() }]);
-    setInput('');
-    
-    // Check if it's a command (starts with $ or is a known command)
-    if (trimmed.startsWith('$ ') || trimmed.match(/^(ls|cd|cat|npm|git|pwd|browse|open|mkdir|rm|cp|mv|touch|echo|grep|find)/)) {
-      executeCommand(trimmed.replace(/^\$\s*/, ''));
-    } else {
-      // Natural language - AI processes
-      setExecuting(true);
-      setMessages(prev => [...prev, { id: String(Date.now() + 1), type: 'assistant', content: 'ðŸ¤” Analisando sua solicitaçào...', time: now() }]);
-      
-      // Call AI
-      const reply = await askBeeHive(`[Projeto: ${project.name}] ${trimmed}`);
-      
-      setMessages(prev => {
-        const filtered = prev.filter(m => m.content !== 'ðŸ¤” Analisando sua solicitaçào...');
-        return [...filtered, { id: String(Date.now() + 2), type: 'assistant', content: reply, time: now() }];
-      });
-      setExecuting(false);
-    }
-  };
-
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (e.key === 'ArrowUp' && historyIndex < history.length - 1) {
       e.preventDefault();
-      if (!executing) handleSend();
-    }
-    if (e.key === 'ArrowUp' && history.length > 0) {
-      e.preventDefault();
-      setHistoryIndex(i => Math.min(i + 1, history.length - 1));
-      setInput(history[Math.min(historyIndex + 1, history.length - 1)] || '');
+      setHistoryIndex(i => i + 1);
+      setInput(history[historyIndex + 1]);
     }
     if (e.key === 'ArrowDown' && historyIndex > -1) {
       e.preventDefault();
@@ -1045,7 +1036,6 @@ function ProjectCowork({ project }: { project: Project }) {
     }
     if (e.key === 'Tab') {
       e.preventDefault();
-      // Auto-complete for commands
       const cmds = ['ls', 'cd', 'cat', 'npm', 'git', 'pwd', 'browse', 'mkdir', 'rm', 'cp', 'mv', 'touch', 'echo'];
       const match = cmds.find(c => c.startsWith(input.split(' ').pop() || ''));
       if (match) setInput(input.split(' ').slice(0, -1).join(' ') + (input.includes(' ') ? ' ' : '') + match + ' ');
@@ -1073,7 +1063,7 @@ function ProjectCowork({ project }: { project: Project }) {
             {m.type === 'output' && <pre className="cmd-output">{m.content}</pre>}
             {m.type === 'user' && <div className="user-msg">{m.content}</div>}
             {m.type === 'assistant' && <div className="assistant-msg">{m.content}</div>}
-            {m.type === 'file' && <div className="file-msg">ðŸ“„ {m.meta?.path}: {m.content.slice(0, 100)}...</div>}
+            {m.type === 'file' && <div className="file-msg">{m.meta?.path}: {m.content.slice(0, 100)}...</div>}
           </div>
         ))}
         {executing && <div className="cowork-msg executing"><span className="spinner" /> Executando...</div>}
@@ -1087,7 +1077,7 @@ function ProjectCowork({ project }: { project: Project }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, â†‘/â†“: histórico)'}
+          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, /: histrico)'}
           disabled={executing}
           autoFocus
         />
@@ -1095,7 +1085,231 @@ function ProjectCowork({ project }: { project: Project }) {
     </div>
   );
 }
-
+ 
+// ============================================================
+// SECRET VAULT COMPONENT
+// ============================================================
+ 
+const secretTypes = [
+  { value: "STRING", label: "Texto", icon: "📝" },
+  { value: "API_KEY", label: "API Key", icon: "🔑" },
+  { value: "DATABASE_URL", label: "Database URL", icon: "🗄️" },
+  { value: "OAUTH_TOKEN", label: "OAuth Token", icon: "🎫" },
+  { value: "SSH_KEY", label: "SSH Key", icon: "🔐" },
+  { value: "CERTIFICATE", label: "Certificado", icon: "📜" },
+];
+ 
+function SecretVault({ project }: { project: any }) {
+  const [secrets, setSecrets] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [editingSecret, setEditingSecret] = useState<any | null>(null);
+  const [formData, setFormData] = useState({ key: "", value: "", type: "STRING", description: "" });
+ 
+  useEffect(() => {
+    if (!project?.id) return;
+    loadSecrets();
+  }, [project?.id]);
+ 
+  const loadSecrets = async () => {
+    if (!project?.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/secrets?projectId=${project.id}`);
+      const data = await res.json();
+      setSecrets(data.secrets || []);
+    } catch (error) {
+      console.error("Failed to load secrets:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+ 
+  const handleCreate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!project?.id) return;
+    try {
+      await fetch("/api/secrets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, ...formData, createdBy: "current-user" }),
+      });
+      setShowForm(false);
+      setFormData({ key: "", value: "", type: "STRING", description: "" });
+      loadSecrets();
+    } catch (error) {
+      console.error("Failed to create secret:", error);
+    }
+  };
+ 
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSecret?.id) return;
+    try {
+      await fetch(`/api/secrets/${editingSecret.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ value: formData.value, description: formData.description }),
+      });
+      setShowForm(false);
+      setEditingSecret(null);
+      setFormData({ key: "", value: "", type: "STRING", description: "" });
+      loadSecrets();
+    } catch (error) {
+      console.error("Failed to update secret:", error);
+    }
+  };
+ 
+  const handleSubmit = (e: React.FormEvent) => {
+    if (editingSecret) handleUpdate(e);
+    else handleCreate(e);
+  };
+ 
+  const handleEdit = (secret: any) => {
+    setEditingSecret(secret);
+    setFormData({ key: secret.key, value: secret.value, type: secret.type, description: secret.description });
+    setShowForm(true);
+  };
+ 
+  const handleDelete = async (secret: any) => {
+    if (!confirm(`Excluir secret "${secret.key}"?`)) return;
+    try {
+      await fetch(`/api/secrets/${secret.id}`, { method: "DELETE" });
+      loadSecrets();
+    } catch (error) {
+      console.error("Failed to delete secret:", error);
+    }
+  };
+ 
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    alert("Copiado!");
+  };
+ 
+  if (showForm) {
+    return (
+      <div className="secret-form-overlay" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
+        <div className="secret-form-modal" onClick={(e) => e.stopPropagation()}>
+          <h3>{editingSecret ? "Editar Secret" : "Novo Secret"}</h3>
+          <form onSubmit={handleSubmit}>
+            <div className="form-group">
+              <label>Chave</label>
+              <input
+                type="text"
+                value={formData.key}
+                onChange={(e) => setFormData({ ...formData, key: e.target.value.toUpperCase() })}
+                placeholder="OPENAI_API_KEY"
+                required={!editingSecret}
+                disabled={editingSecret}
+              />
+            </div>
+            <div className="form-group">
+              <label>Valor</label>
+              <input
+                type="text"
+                value={formData.value}
+                onChange={(e) => setFormData({ ...formData, value: e.target.value })}
+                placeholder="sk-..."
+                required
+              />
+            </div>
+            <div className="form-group">
+              <label>Tipo</label>
+              <select
+                value={formData.type}
+                onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+              >
+                {secretTypes.map(t => <option key={t.value} value={t.value}>{t.icon} {t.label}</option>)}
+              </select>
+            </div>
+            <div className="form-group">
+              <label>Descrição (opcional)</label>
+              <textarea
+                value={formData.description}
+                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                placeholder="Para que serve este secret?"
+                rows={2}
+              />
+            </div>
+            <div className="form-actions">
+              <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setEditingSecret(null); setFormData({ key: "", value: "", type: "STRING", description: "" }); }}>
+                Cancelar
+              </button>
+              <button type="submit" className="btn-primary" disabled={loading}>
+                {loading ? <Loader2 size={16} className="spin" /> : (editingSecret ? "Atualizar" : "Criar")}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+ 
+  return (
+    <div className="secret-vault">
+      <div className="vault-header">
+        <h3>🔐 Secret Vault</h3>
+        <button className="btn-primary" onClick={() => { setFormData({ key: "", value: "", type: "STRING", description: "" }); setShowForm(true); }}>
+          <Plus size={16} /> Novo Secret
+        </button>
+      </div>
+ 
+      <div className="vault-usage">
+        <h4>Como usar nos pipelines</h4>
+        <p>Referencie secrets nas configurações dos nós com <span style={{fontFamily: "monospace", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4}}>{"{{secrets.SUA_CHAVE}}"}</span></p>
+        <div className="usage-example">
+          <pre>{`// Exemplo no config de um nó:
+{
+  "apiKey": "{{secrets.OPENAI_API_KEY}}",
+  "databaseUrl": "{{secrets.DATABASE_URL}}"
+}`}</pre>
+        </div>
+      </div>
+ 
+      {loading ? (
+        <div className="vault-loading"><Loader2 size={24} className="spin" /> Carregando...</div>
+      ) : secrets.length === 0 ? (
+        <div className="vault-empty">
+          <Key size={48} />
+          <p>Nenhum secret configurado</p>
+          <button className="btn-primary" onClick={() => setShowForm(true)}>
+            <Plus size={16} /> Criar Primeiro Secret
+          </button>
+        </div>
+      ) : (
+        <div className="secrets-grid">
+          {secrets.map(secret => (
+            <div key={secret.id} className="secret-card">
+              <div className="secret-header">
+                <div className="secret-info">
+                  <span className="secret-key">{secret.key}</span>
+                  <span className="secret-type-badge">{secret.type}</span>
+                </div>
+                <div className="secret-actions">
+                  <button className="btn-icon" onClick={() => copyToClipboard(secret.value)} title="Copiar valor">
+                    <Copy size={14} />
+                  </button>
+                  <button className="btn-icon" onClick={() => handleEdit(secret)} title="Editar">
+                    <Edit2 size={14} />
+                  </button>
+                  <button className="btn-icon danger" onClick={() => handleDelete(secret)} title="Excluir">
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              </div>
+              <div className="secret-meta">
+                <span>Criado por: {secret.createdBy}</span>
+                <span>{new Date(secret.createdAt).toLocaleString("pt-BR")}</span>
+              </div>
+              {secret.description && <div className="secret-desc">{secret.description}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+ 
 // ============================================================
 // RIGHT PANELS (dentro de um Projeto)
 // ============================================================

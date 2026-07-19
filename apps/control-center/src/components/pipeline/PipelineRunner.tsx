@@ -410,7 +410,7 @@ function ChatInputArea({
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</          </div>
+          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {attachedFiles.filter(f => f.type.startsWith('image/')).length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         )}
       </div>
       <div className="input-row">
