@@ -166,10 +166,4 @@ export const projectService = {
     const project = useAppStore.getState().projects.find(p => p.id === projectId);
     return project?.artifacts || [];
   },
-
-  async getPipelines(projectId: string): Promise<Pipeline[]> {
-    await delay(100);
-    const project = useAppStore.getState().projects.find(p => p.id === projectId);
-    return project?.pipelines || [];
-  },
 };

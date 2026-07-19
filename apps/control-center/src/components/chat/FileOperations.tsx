@@ -3,6 +3,7 @@
 import { useState, useCallback } from "react";
 import { FileText, Save, Loader2, X, AlertCircle, CheckCircle, Download, FolderOpen } from "lucide-react";
 import { cn } from "@/lib/utils";
+import "./FileOperations.css";
 
 interface FileOperation {
   id: string;
@@ -222,106 +223,6 @@ export function FileOperationInput({ onFileOperation, disabled }: FileOperationI
             </div>
           </div>
         )}
-
-        <style jsx>{`
-          .file-op-form {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-          }
-          .file-op-input-wrapper {
-            position: relative;
-          }
-          .file-op-label {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: 8px 12px;
-            transition: all var(--transition-fast);
-          }
-          .file-op-label:focus-within {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px var(--primary-muted);
-          }
-          .file-op-prefix {
-            color: var(--text-muted);
-            font-family: var(--font-mono);
-            font-size: 13px;
-          }
-          .file-op-label input {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text);
-            font-size: 13px;
-            font-family: inherit;
-            outline: none;
-            min-width: 0;
-          }
-          .file-op-label input:disabled {
-            opacity: 0.5;
-          }
-          .file-op-submit {
-            width: 32px;
-            height: 32px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background: var(--primary);
-            border: none;
-            border-radius: var(--radius-sm);
-            color: white;
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            flex-shrink: 0;
-          }
-          .file-op-submit:hover:not(:disabled) {
-            background: var(--primary-hover);
-            transform: scale(1.05);
-          }
-          .file-op-submit:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-          }
-          .file-op-help {
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-            padding: 8px 12px;
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-sm);
-            font-size: 12px;
-            animation: fadeIn 0.15s ease-out;
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(-4px); }
-            to { opacity: 1; transform: translateY(0); }
-          }
-          .help-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-          }
-          .help-item kbd {
-            background: var(--surface-2);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-xs);
-            padding: 2px 6px;
-            font-family: var(--font-mono);
-            font-size: 11px;
-            color: var(--text-secondary);
-            min-width: 120px;
-            text-align: left;
-          }
-          .help-item span {
-            color: var(--text-muted);
-            font-size: 11px;
-          }
-        `}
       </form>
     </div>
   );

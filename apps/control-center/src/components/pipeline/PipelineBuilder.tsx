@@ -263,6 +263,7 @@ export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, read
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
+  const [showScheduler, setShowScheduler] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -428,6 +429,9 @@ export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, read
           </button>
           <button onClick={onRun} className="btn-success">
             <Play size={16} /> Executar
+          </button>
+          <button onClick={() => setShowScheduler(!showScheduler)} className="btn-secondary">
+            <Calendar size={16} /> Agendador
           </button>
         </div>
       </div>
@@ -640,8 +644,32 @@ export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, read
               <p>Selecione um nó para editar suas propriedades</p>
             </div>
           )}
+        <div className="pipeline-builder">
+      {/* Scheduler Panel */}
+      {showScheduler && (
+        <div className="scheduler-panel">
+          <div className="scheduler-header">
+            <h3>Agendador de Pipelines</h3>
+            <button onClick={() => setShowScheduler(false)} className="btn-icon">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="scheduler-content">
+            <div className="scheduler-header">
+              <h3>Agendador de Pipelines</h3>
+              <button className="btn-primary" onClick={() => setShowScheduler(true)}>
+                <Plus size={16} /> Novo Agendamento
+              </button>
+            </div>
+            <div className="scheduler-list">
+              <p className="scheduler-empty">Nenhum agendamento configurado</p>
+              <button className="btn-primary" onClick={() => setShowScheduler(true)}>
+                <Plus size={16} /> Novo Agendamento
+              </button>
+            </div>
+          </div>
         </div>
-      </aside>
+      )}
     </div>
   );
 }

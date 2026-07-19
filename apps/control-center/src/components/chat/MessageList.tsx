@@ -73,7 +73,7 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
       return (
         <CodeBlock key={index} language={language || "text"} code={code} />
       );
-    };
+    });
   };
 
   if (!message) return null;
@@ -323,7 +323,6 @@ export function StreamingInput({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const models = [
     { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
@@ -380,11 +379,14 @@ export function StreamingInput({
           ))}
         </div>
       )}
-      {hasUnsupportedImages && (
+{hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</          </div>
-        )}
+          <span>
+            O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.
+          </span>
+        </div>
+      )}
       
       {/* Main input row */}
       <div className="input-row">
