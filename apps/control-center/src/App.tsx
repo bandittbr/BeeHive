@@ -685,7 +685,7 @@ function ProjectView({
             <PipelineBuilder
               pipeline={project.pipelines?.[0]}
               project={project}
-              onSave={(p) => useAppStore.getState().updateProject(openedProject.id, { pipelines: [p] })}
+              onSave={(p) => useAppStore.getState().updateProject(project.id, { pipelines: [p] })}
             />
           )}
           {activeView === 'scheduler' && (
@@ -693,7 +693,7 @@ function ProjectView({
               <PipelineBuilder
                 pipeline={project.pipelines?.[0]}
                 project={project}
-                onSave={(p) => useAppStore.getState().updateProject(openedProject.id, { pipelines: [p] })}
+                onSave={(p) => useAppStore.getState().updateProject(project.id, { pipelines: [p] })}
               />
             </div>
           )}
