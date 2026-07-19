@@ -385,15 +385,30 @@ return (
             </span>
           ))}
         </div>
-      )}
-      
+)}
+
       {/* Unsupported images warning */}
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> nào suporta imagens. As {imageFiles.length} imagem(ns) serào ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
+          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
+
+      {/* File Operations Input - OpenWork style: @file.txt to read, @file.txt:content to write */}
+      <FileOperationInput
+        value={input}
+        onChange={setInput}
+        onSubmit={handleFileOperationInput}
+        placeholder="Digite sua mensagem... (Shift+Enter para nova linha, @arquivo.txt para ler, @arquivo.txt:conteúdo para escrever)"
+        attachedFiles={attachedFiles}
+        onFileAttach={handleFileAttach}
+        onRemoveFile={(i) => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
+        fileOperations={fileOperations}
+        onFileOperation={handleFileOperationInput}
+        onRemoveOperation={(id) => setFileOperations(prev => prev.filter(op => op.id !== id))}
+        disabled={sending}
+      />
 
       {/* Single unified input bubble - OpenWork style */}
       <div className="input-bubble">
