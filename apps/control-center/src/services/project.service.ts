@@ -147,7 +147,7 @@ export const projectService = {
       pipelines: updatedPipelines,
       updatedAt: new Date().toISOString()
     });
-  },
+},
 
   async getAgents(projectId: string): Promise<Agent[]> {
     await delay(100);
@@ -167,7 +167,7 @@ export const projectService = {
     return project?.artifacts || [];
   },
 
-  async getPipelines(projectId: string): Promise<any[]> {
+  async getPipelines(projectId: string): Promise<Pipeline[]> {
     await delay(100);
     const project = useAppStore.getState().projects.find(p => p.id === projectId);
     return project?.pipelines || [];

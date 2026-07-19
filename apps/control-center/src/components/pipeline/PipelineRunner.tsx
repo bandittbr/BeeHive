@@ -26,15 +26,15 @@ import {
   Zap,
   Terminal,
 } from 'lucide-react';
-import { useAppStore } from './stores/appStore';
-import { chatService } from './services/chat.service';
-import { projectService } from './services/project.service';
-import { askBeeHive } from './services/beehiveApi';
-import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
-import { MessageList } from './components/chat/MessageList';
-import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
-import { PipelineRunner } from './components/pipeline/PipelineRunner';
-import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
+import { useAppStore } from '@/stores/appStore';
+import { chatService } from '@/services/chat.service';
+import { projectService } from '@/services/project.service';
+import { askBeeHive } from '@/services/beehiveApi';
+import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult, ExecutionOptions } from '@/services/execution.service';
+import { MessageList } from '@/components/chat/MessageList';
+import { FileOperationInput, useFileOperations } from '@/components/chat/FileOperations';
+import { PipelineRunner } from '@/components/pipeline/PipelineRunner';
+import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline, PipelineNode, PipelineEdge } from './types';
 import './App.css';
 
 // ============================================================
@@ -438,6 +438,8 @@ function ChatInputArea({
           </button>
         </div>
       </div>
+
+      {/* Controls row below: Model + Reasoning */}
       <div className="input-controls-row">
         <div className="input-left-spacer" style={{ width: '40px' }} />
         <div className="input-controls">
@@ -460,7 +462,7 @@ function ChatInputArea({
                 {Object.entries(modelsByProvider).map(([provider, providerModels]) => (
                   <div key={provider} className="model-provider-group">
                     <div className="model-provider-label">{provider}</div>
-                    {providerModels.filter(m => m.name.toLowerCase().includes(searchModel.toLowerCase())).map(m => (
+                    {providerModels.map(m => (
                       <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
                         <span className="dropdown-item-name">{m.name}</span>
                         <span className="dropdown-item-provider">{m.provider}</span>
@@ -493,161 +495,3 @@ function ChatInputArea({
     </div>
   );
 }
-
-// File Operations Panel (right side)
-function FilePanel({ files, onClose }: { files: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]; onClose: () => void }) {
-  if (files.length === 0) return null;
-
-  return (
-    <div className="file-panel">
-      <div className="file-panel-header">
-        <h3>Arquivos</h3>
-        <button className="btn-icon" onClick={onClose}><X size={16} /></button>
-      </div>
-      <div className="file-panel-body">
-        {files.map(f => (
-          <div key={f.id} className={`file-panel-item ${f.type}`}>
-            <div className="file-panel-item-icon">
-              {f.type === 'created' && <FilePlus size={14} style={{ color: '#22C55E' }} />}
-              {f.type === 'edited' && <FileCode size={14} style={{ color: '#3B82F6' }} />}
-              {f.type === 'read' && <FileText size={14} style={{ color: '#A78BFA' }} />}
-            </div>
-            <div className="file-panel-item-info">
-              <span className="file-panel-item-name">{f.name}</span>
-              <span className="file-panel-item-type">{f.type === 'created' ? 'Criado' : f.type === 'edited' ? 'Editado' : 'Lido'}</span>
-            </div>
-            {f.content && (
-              <details className="file-panel-item-preview">
-                <summary>Ver conteúdo</summary>
-                <pre>{f.content.slice(0, 200)}{f.content.length > 200 ? '...' : ''}</pre>
-              </details>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ============================================================
-// PIPELINE RUNNER - Executa pipelines visuais
-// ============================================================
-
-import { Pipeline } from './types';
-import { UnifiedExecutionService, createExecutionService } from '@/services/execution.service';
-
-interface PipelineRunnerProps {
-  pipeline: any;
-  onComplete?: (results: any[]) => void;
-  onError?: (error: Error) => void;
-  onProgress?: (nodeId: string, status: string, output?: string) => void;
-}
-
-export function PipelineRunner({ pipeline, onComplete, onError, onProgress }: PipelineRunnerProps) {
-  const [executing, setExecuting] = useState(false);
-  const [results, setResults] = useState<Record<string, any>>({});
-  const [currentNode, setCurrentNode] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const executionServiceRef = useRef<any>(null);
-
-  const addLog = useCallback((message: string) => {
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-  }, []);
-
-  const executePipeline = useCallback(async () => {
-    if (!pipeline || pipeline.nodes.length === 0) return;
-
-    setExecuting(true);
-    addLog("🚀 Iniciando execução do pipeline...");
-
-    try {
-      const nodes = [...pipeline.nodes].sort((a, b) => {
-        const aDeps = pipeline.edges.filter(e => e.target === a.id).map(e => e.source);
-        const bDeps = pipeline.edges.filter(e => e.target === b.id).map(e => e.source);
-        return aDeps.length - bDeps.length;
-      };
-
-      for (const node of nodes) {
-        addLog(`▶ Executando nó: ${node.label} (${node.type})`);
-        setCurrentNode(node.id);
-        
-        try {
-          await new Promise(r => setTimeout(r, 800 + Math.random() * 1200));
-          
-          let output = '';
-          switch (node.type) {
-            case 'agent':
-              output = `🤖 Agente ${pipeline.nodes.find(n => n.id === node.id)?.label || node.id} executado com sucesso`;
-              break;
-            case 'tool':
-              output = `🔧 Ferramenta ${node.config?.toolName || 'desconhecida'} executada`;
-              break;
-            case 'code':
-              output = `💻 Código executado: ${node.config?.code?.slice(0, 50)}...`;
-              break;
-            case 'http':
-              output = `🌐 HTTP ${node.config?.method || 'GET'} ${node.config?.url || 'url'} - 200 OK`;
-              break;
-            case 'condition':
-              output = `❓ Condição avaliada: ${node.config?.condition || 'true'}`;
-              break;
-            case 'loop':
-              output = `🔄 Loop executado ${node.config?.maxIterations || 10} vezes`;
-              break;
-            case 'parallel':
-              output = `⚡ Execução paralela (${node.config?.branches || 2} branches)`;
-              break;
-            case 'delay':
-              output = `⏱️ Atraso de ${node.config?.ms || 1000}ms`;
-              break;
-            case 'input':
-              output = '📥 Entrada do pipeline';
-              break;
-            case 'output':
-              output = '📤 Saída do pipeline';
-              break;
-            default:
-              output = `Nó ${node.label} processado`;
-          }
-          
-          setResults(prev => ({ ...prev, [node.id]: { output, timestamp: new Date().toISOString() } }));
-          onProgress?.(node.id, 'completed', output);
-          
-        } catch (error) {
-          addLog(`❌ Erro no nó ${node.label}: ${error}`);
-        }
-      }
-      
-      addLog("✅ Pipeline executado com sucesso!");
-      onComplete?.([]);
-      
-    } catch (error) {
-      addLog(`❌ Erro no pipeline: ${error}`);
-      onError?.(error as Error);
-    } finally {
-      setExecuting(false);
-    }
-  }, [pipeline]);
-
-  const addLog = useCallback((message: string) => {
-    setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${message}`]);
-  }, []);
-
-  return (
-    <div className="pipeline-runner">
-      <div className="runner-header">
-        <h3>Pipeline Runner</h3>
-        <button className="btn-primary" onClick={executePipeline} disabled={executing}>
-          {executing ? '⏳ Executando...' : '▶ Executar Pipeline'}
-        </button>
-      </div>
-      <div className="runner-logs">
-        {logs.map((log, i) => (
-          <div key={i} className="log-line">{log}</div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-export default PipelineRunner;
