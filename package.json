@@ -1,70 +1,72 @@
 {
-    "name":  "beehive",
-    "version":  "0.1.0",
-    "private":  true,
-    "description":  "BeeHive — Sistema Operacional de Inteligência Artificial",
-    "workspaces":  [
-                       "kernel/*",
-                       "application/*",
-                       "plugins/*",
-                       "providers/*",
-                    "apps/api",
-                    "apps/web",
-                    "packages/*"
-                   ],
-    "scripts":  {
-                    "dev":  "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
-                    "dev:web":  "npm run dev --workspace apps/web",
-                    "dev:api":  "npm run dev --workspace apps/api",
-                    "build":  "npm run build --workspace apps/web",
-                    "lint":  "npm run lint --workspaces --if-present",
-                    "typecheck":  "npm run typecheck --workspaces --if-present",
-                    "test":  "npm run test --workspaces --if-present",
-                    "format":  "prettier --write \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
-                    "format:check":  "prettier --check \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
-                    "test:architecture":  "npx tsx tests/architecture/architecture.test.ts",
-"test:kernel-boundaries":  "npx tsx tests/architecture/kernel-boundaries.test.ts",
-"test:provider-swap":  "npx tsx tests/architecture/provider-swap.test.ts",
-                    "inspect:capabilities":  "npx tsx tools/capability-inspector.ts",
-                    "inspect:events":  "npx tsx tools/event-inspector.ts",
-                    "inspect:deps":  "npx tsx tools/dependency-graph.ts",
-                    "create:plugin":  "npx tsx scripts/create-plugin.ts",
-                    "validate:plugin":  "npx tsx scripts/validate-plugin.ts",
-                    "test:browser":  "npx tsx plugins/browser/tests/browser.test.ts",
-"workflow:studio":  "npx tsx tools/workflow-studio.ts",
-"test:workflows":  "npx tsx tests/workflows/workflows.test.ts",
-"test:swap":  "npx tsx tests/architecture/provider-swap.test.ts",
-"example:hello":  "npx tsx examples/generic/hello-workflow/run.ts",
-"example:summarize":  "npx tsx examples/generic/summarize-website/run.ts",
-"example:youtube-script":  "npx tsx examples/generic/youtube-script/run.ts",
-"example:daily-news":  "npx tsx examples/generic/daily-news/run.ts",
-"example:research":  "npx tsx examples/generic/research-company/run.ts",
-"example:ai-chat":  "npx tsx examples/generic/ai-chat/run.ts",
-"example:hello-app":  "npx tsx examples/integrations/hello-world-app/index.ts",
-"example:weather":  "npx tsx examples/integrations/external-weather-plugin/run.ts",
-"benchmark":  "npx tsx tools/benchmark.ts",
-"benchmark:dx":  "npx tsx tools/measure-dx.ts",
-"health":  "npx tsx tools/health.ts",
-"browser:setup":  "npx tsx scripts/browser-setup.ts",
-"plugin:doctor":  "npx tsx tools/plugin-doctor.ts",
-"providers:list":  "npx tsx tools/providers-list.ts",
-"doctor":  "npx tsx tools/doctor.ts"
-                },
-    "devDependencies":  {
-                            "concurrently":  "^8.2.2",
-                            "prettier":  "^3.3.3"
-                        },
-    "engines":  {
-                    "node":  "\u003e=18.18.0"
-                },
-    "dependencies":  {
-                         "playwright":  "^1.61.1",
-                         "typescript":  "^7.0.2"
-                     },
-    "pnpm":  {
-                 "onlyBuiltDependencies":  [
-                                               "better-sqlite3",
-                                               "esbuild"
-                                           ]
-             }
+    "name": "beehive",
+    "version": "0.1.0",
+    "private": true,
+    "description": "BeeHive — Sistema Operacional de Inteligência Artificial",
+    "workspaces": [
+        "kernel/*",
+        "application/*",
+        "plugins/*",
+        "providers/*",
+        "apps/api",
+        "apps/web",
+        "packages/*"
+    ],
+    "scripts": {
+        "dev": "concurrently -k -n web,api -c cyan,magenta \"npm:dev:web\" \"npm:dev:api\"",
+        "dev:web": "npm run dev --workspace apps/web",
+        "dev:api": "npm run dev --workspace apps/api",
+        "build": "npm run build --workspace apps/web",
+        "lint": "npm run lint --workspaces --if-present",
+        "typecheck": "npm run typecheck --workspaces --if-present",
+        "test": "npm run test --workspaces --if-present",
+        "format": "prettier --write \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
+        "format:check": "prettier --check \"{apps,packages}/**/src/**/*.{ts,tsx,css}\"",
+        "test:architecture": "npx tsx tests/architecture/architecture.test.ts",
+        "test:kernel-boundaries": "npx tsx tests/architecture/kernel-boundaries.test.ts",
+        "test:provider-swap": "npx tsx tests/architecture/provider-swap.test.ts",
+        "inspect:capabilities": "npx tsx tools/capability-inspector.ts",
+        "inspect:events": "npx tsx tools/event-inspector.ts",
+        "inspect:deps": "npx tsx tools/dependency-graph.ts",
+        "create:plugin": "npx tsx scripts/create-plugin.ts",
+        "validate:plugin": "npx tsx scripts/validate-plugin.ts",
+        "test:browser": "npx tsx plugins/browser/tests/browser.test.ts",
+        "workflow:studio": "npx tsx tools/workflow-studio.ts",
+        "test:workflows": "npx tsx tests/workflows/workflows.test.ts",
+        "test:swap": "npx tsx tests/architecture/provider-swap.test.ts",
+        "example:hello": "npx tsx examples/generic/hello-workflow/run.ts",
+        "example:summarize": "npx tsx examples/generic/summarize-website/run.ts",
+        "example:youtube-script": "npx tsx examples/generic/youtube-script/run.ts",
+        "example:daily-news": "npx tsx examples/generic/daily-news/run.ts",
+        "example:research": "npx tsx examples/generic/research-company/run.ts",
+        "example:ai-chat": "npx tsx examples/generic/ai-chat/run.ts",
+        "example:hello-app": "npx tsx examples/integrations/hello-world-app/index.ts",
+        "example:weather": "npx tsx examples/integrations/external-weather-plugin/run.ts",
+        "benchmark": "npx tsx tools/benchmark.ts",
+        "benchmark:dx": "npx tsx tools/measure-dx.ts",
+        "health": "npx tsx tools/health.ts",
+        "browser:setup": "npx tsx scripts/browser-setup.ts",
+        "plugin:doctor": "npx tsx tools/plugin-doctor.ts",
+        "providers:list": "npx tsx tools/providers-list.ts",
+        "doctor": "npx tsx tools/doctor.ts"
+    },
+    "devDependencies": {
+        "concurrently": "^8.2.2",
+        "prettier": "^3.3.3"
+    },
+    "engines": {
+        "node": ">=18.18.0"
+    },
+    "dependencies": {
+        "@prisma/client": "^7.8.0",
+        "playwright": "^1.61.1",
+        "prisma": "^7.8.0",
+        "typescript": "^7.0.2"
+    },
+    "pnpm": {
+        "onlyBuiltDependencies": [
+            "better-sqlite3",
+            "esbuild"
+        ]
+    }
 }

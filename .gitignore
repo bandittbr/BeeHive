@@ -44,3 +44,5 @@ apps/api/data/
 __pycache__/
 *.pyc
 
+
+/generated/prisma

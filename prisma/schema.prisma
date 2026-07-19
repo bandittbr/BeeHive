@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  icon        String
+  description String
+  status      ProjectStatus @default(ACTIVE)
+  agents      Agent[]
+  workflows   Workflow[]
+  artifacts   Artifact[]
+  pipelines   Pipeline[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  name      String
+  status    AgentStatus @default(IDLE)
+  task      String
+  color     String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pipeline  Pipeline? @relation(fields: [pipelineId], references: [id])
+  pipelineId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agents")
+}
+
+model Workflow {
+  id        String   @id @default(cuid())
+  name      String
+  status    WorkflowStatus @default(SCHEDULED)
+  progress  Int      @default(0)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("workflows")
+}
+
+model Artifact {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  size      String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artifacts")
+}
+
+model Pipeline {
+  id          String         @id @default(cuid())
+  name        String
+  description String?
+  nodes       PipelineNode[]
+  edges       PipelineEdge[]
+  projectId   String
+  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agents      Agent[]
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  @@map("pipelines")
+}
+
+model PipelineNode {
+  id        String         @id @default(cuid())
+  type      String
+  label     String
+  positionX Float
+  positionY Float
+  config    Json
+  inputs    String         @default("[]")
+  outputs   String         @default("[]")
+  disabled  Boolean        @default(false)
+  pipelineId String
+  pipeline  Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("pipeline_nodes")
+}
+
+model PipelineEdge {
+  id           String  @id @default(cuid())
+  source       String
+  target       String
+  sourceHandle String?
+  targetHandle String?
+  pipelineId   String
+  pipeline     Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("pipeline_edges")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AgentStatus {
+  RUNNING
+  IDLE
+  WORKING
+  WAITING
+  ERROR
+}
+
+enum WorkflowStatus {
+  RUNNING
+  COMPLETED
+  ERROR
+  SCHEDULED
+}
+
+enum PipelineStepType {
+  AGENT
+  PROVIDER
+  TOOL
+  ARTIFACT
+}
+
+enum PipelineStepStatus {
+  PENDING
+  ACTIVE
+  DONE
+  ERROR
+}
