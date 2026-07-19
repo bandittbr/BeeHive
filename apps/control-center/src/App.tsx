@@ -15,7 +15,7 @@ import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive } from './services/beehiveApi';
-import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount } from './types';
+import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
 // ============================================================
@@ -35,7 +35,7 @@ export default function App() {
 const { projects } = useAppStore();
   const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
-  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings'>('cowork');
+  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
 
@@ -594,8 +594,8 @@ function ProjectView({
   project, activeView, onViewChange, rightPanel, onRightPanelChange, onBack,
 }: {
   project: Project;
-  activeView: 'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings';
-  onViewChange: (v: 'cowork' | 'agents' | 'workflows' | 'artifacts' | 'settings') => void;
+  activeView: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings';
+  onViewChange: (v: 'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings') => void;
   rightPanel: 'artifacts' | 'pipeline' | 'logs' | null;
   onRightPanelChange: (p: 'artifacts' | 'pipeline' | 'logs' | null) => void;
   onBack: () => void;
@@ -622,6 +622,10 @@ function ProjectView({
             <Workflow size={14} /> Workflows
             <span className="tab-badge">{project.workflows.length}</span>
           </button>
+          <button className={`tab${activeView === 'pipelines' ? ' active' : ''}`} onClick={() => onViewChange('pipelines')}>
+            <GitBranch size={14} /> Pipelines
+            <span className="tab-badge">{project.pipelines?.length || 0}</span>
+          </button>
           <button className={`tab${activeView === 'artifacts' ? ' active' : ''}`} onClick={() => onViewChange('artifacts')}>
             <Layers size={14} /> Artifacts
             <span className="tab-badge">{project.artifacts.length}</span>
@@ -643,11 +647,16 @@ function ProjectView({
         </div>
       </div>
 
-<div className="project-content">
+      <div className="project-content">
         <div className="project-main">
           {activeView === 'agents' && <ProjectAgents project={project} />}
           {activeView === 'workflows' && <ProjectWorkflows project={project} />}
-          {activeView === 'cowork' && <ProjectCowork project={project} />}
+{activeView === 'pipelines' && (
+            <PipelineBuilder
+              pipeline={project.pipelines?.[0]}
+              onSave={(p) => useAppStore.getState().updateProject(openedProject.id, { pipelines: [p] })}
+            />
+          )}
           {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
           {activeView === 'settings' && <ProjectSettings project={project} />}
         </div>
