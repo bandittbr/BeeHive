@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
-import { Copy, CopyCheck, Loader2, RotateCcw, Code, MessageSquare, Bot, Users } from "lucide-react";
+import { useState, useRef, useEffect, useCallback } from "react";
+import { 
+  Copy, CopyCheck, Loader2, RotateCcw, Code, MessageSquare, Bot, Users,
+  FileText, FilePlus, Download, X, AlertCircle
+} from "lucide-react";
 import { cn } from "@/lib/utils";
+import { StreamingMessage, CodeBlock, RegenerateButton, CopyButton } from "./StreamingComponents";
 
 interface Message {
   id: string;
@@ -11,10 +15,20 @@ interface Message {
   time: string;
   agent?: string;
   streaming?: boolean;
+  attachedFiles?: FileOperation[];
+}
+
+interface FileOperation {
+  id: string;
+  type: "read" | "write";
+  path: string;
+  content?: string;
+  status: "pending" | "completed" | "error";
+  error?: string;
 }
 
 interface MessageBubbleProps {
-  message: Message;
+  message: any;
   onCopy?: (content: string) => void;
   onRegenerate?: (messageId: string) => void;
   isLast?: boolean;
@@ -57,24 +71,7 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
       const language = parts[index - 1];
       const code = part;
       return (
-        <div key={index} className="code-block">
-          <div className="code-block-header">
-            <span className="code-language">{language || "text"}</span>
-            <div className="code-actions">
-              <button
-                className="code-action-btn"
-                onClick={() => {
-                  navigator.clipboard.writeText(code);
-                  // Show copied toast
-                }}
-                title="Copiar"
-              >
-                <Copy size={14} />
-              </button>
-            </div>
-          </div>
-          <pre><code className={`language-${language || "text"}`}>{code}</code></pre>
-        </div>
+        <CodeBlock key={index} language={language || "text"} code={code} />
       );
     };
   };
@@ -96,24 +93,40 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
         <div className="message-content">
           {renderContent(message.content)}
         </div>
+        
+        {/* File operations display */}
+        {message.attachedFiles && message.attachedFiles.length > 0 && (
+          <div className="file-operations">
+            {message.attachedFiles.map((op) => (
+              <div key={op.id} className={`file-op ${op.type} ${op.status}`}>
+                <div className="file-op-header">
+                  <FileText size={12} />
+                  <span className="file-op-type">
+                    {op.type === "read" ? "Lendo" : "Escrevendo"}
+                  </span>
+                  <span className="file-op-path">{op.path}</span>
+                  <span className={`file-op-status ${op.status}`}>
+                    {op.status === "pending" && <Loader2 size={12} />}
+                    {op.status === "completed" && <CheckCircle size={12} />}
+                    {op.status === "error" && <AlertCircle size={12} />}
+                  </span>
+                </div>
+                {op.error && <div className="file-op-error">{op.error}</div>}
+                {op.status === "completed" && op.content && (
+                  <details className="file-op-content">
+                    <summary>Ver conteúdo</summary>
+                    <pre>{op.content}</pre>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="message-actions">
-          <button
-            className="message-action-btn"
-            onClick={() => navigator.clipboard.writeText(message.content)}
-            title="Copiar"
-            aria-label="Copiar mensagem"
-          >
-            {copied ? <CopyCheck size={14} className="copied" /> : <Copy size={14} />}
-          </button>
+          <CopyButton content={message.content} />
           {message.role === "assistant" && (
-            <button
-              className="message-action-btn"
-              onClick={() => {} /* handleRegenerate(message.id) */}
-              title="Regenerar"
-              aria-label="Regenerar resposta"
-            >
-              <RotateCcw size={14} />
-            </button>
+            <RegenerateButton onClick={() => {}} disabled={false} loading={false} />
           )}
         </div>
       </div>
@@ -122,7 +135,7 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
 }
 
 interface MessageListProps {
-  messages: Message[];
+  messages: any[];
   onRegenerate?: (messageId: string) => void;
   onCopy?: (content: string) => void;
   streaming?: boolean;
@@ -134,7 +147,6 @@ export function MessageList({ messages, onRegenerate, onCopy, streaming, onScrol
   const listRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Auto-scroll to bottom when new messages arrive
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -155,27 +167,11 @@ export function MessageList({ messages, onRegenerate, onCopy, streaming, onScrol
           key={message.id}
           message={message}
           onRegenerate={onRegenerate}
-          onCopy={(content) => navigator.clipboard.writeText(content)}
+          onCopy={onCopy}
           isLast={index === messages.length - 1}
         />
       ))}
       <div ref={messagesEndRef} />
-    </div>
-  );
-}
-
-// Typing indicator component
-export function TypingIndicator() {
-  return (
-    <div className="message-bubble assistant typing">
-      <div className="message-avatar"><Bot size={16} /></div>
-      <div className="message-content-wrapper">
-        <div className="message-content typing">
-          <span className="typing-dot"></span>
-          <span className="typing-dot"></span>
-          <span className="typing-dot"></span>
-        </div>
-      </div>
     </div>
   );
 }
@@ -203,7 +199,7 @@ export function StreamingMessage({ content, onComplete }: StreamingMessageProps)
         setIsComplete(true);
         onComplete?.();
       }
-    }, 15); // Adjust speed as needed
+    }, 15);
 
     return () => clearInterval(interval);
   }, [content, onComplete]);
@@ -225,8 +221,8 @@ export function StreamingMessage({ content, onComplete }: StreamingMessageProps)
 export function CodeBlock({ language, code, onCopy }: { language: string; code: string; onCopy?: () => void }) {
   const [copied, setCopied] = useState(false);
 
-  const handleCopy = () => {
-    navigator.clipboard.writeText(code);
+  const handleCopy = async () => {
+    await navigator.clipboard.writeText(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
     onCopy?.();
@@ -237,11 +233,11 @@ export function CodeBlock({ language, code, onCopy }: { language: string; code: 
       <div className="code-header">
         <span className="code-lang">{language || "text"}</span>
         <button 
-          className={`copy-btn ${copied ? "copied" : ""}`}
+          className={`code-action-btn ${copied ? "copied" : ""}`}
           onClick={handleCopy}
-          aria-label="Copiar código"
+          title="Copiar"
         >
-          {copied ? "✓ Copiado" : "Copiar"}
+          {copied ? <CopyCheck size={14} /> : <Copy size={14} />}
         </button>
       </div>
       <pre><code className={`language-${language}`}>{code}</code></pre>
@@ -297,7 +293,7 @@ export function CopyButton({ content, onCopied }: CopyButtonProps) {
   );
 }
 
-// Message input with streaming support
+// Streaming input with file operations support
 interface StreamingInputProps {
   value: string;
   onChange: (value: string) => void;
@@ -306,6 +302,9 @@ interface StreamingInputProps {
   placeholder?: string;
   streaming?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
+  onFileAttach?: (files: FileList) => void;
+  attachedFiles?: File[];
+  onRemoveFile?: (index: number) => void;
 }
 
 export function StreamingInput({ 
@@ -315,39 +314,179 @@ export function StreamingInput({
   disabled, 
   placeholder = "Digite sua mensagem... (Shift+Enter para nova linha)",
   streaming,
-  onKeyDown
+  onKeyDown,
+  onFileAttach,
+  attachedFiles,
+  onRemoveFile
 }: StreamingInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [modelOpen, setModelOpen] = useState(false);
+  const [effortOpen, setEffortOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const models = [
+    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
+    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter', supportsImages: true },
+    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter', supportsImages: true },
+    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter', supportsImages: true },
+    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama', supportsImages: false },
+    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama', supportsImages: false },
+  ];
+
+  const effortOptions = [
+    { value: 'default', label: 'Padrão', desc: 'Balanceado' },
+    { value: 'low', label: 'Low', desc: 'Rápido, menos tokens' },
+    { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
+    { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
+  ];
 
   useEffect(() => {
     if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + "px";
+      textareaRef.current.style.height = 'auto';
+      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 200) + 'px';
     }
   }, [value]);
 
-  const handleSubmit = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === "Enter" && !e.shiftKey) {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!disabled && value.trim()) onSubmit();
+      if (!streaming && (value.trim() || attachedFiles.length > 0)) onSubmit();
     }
   };
 
+  const handleFileAttach = (files: FileList) => {
+    const newFiles = Array.from(files);
+    // Process file operations (@file.txt or @file.txt:content)
+    newFiles.forEach(f => {
+      // Could add file operation parsing here
+    });
+  };
+
   return (
-    <div className="streaming-input-wrapper">
-      <textarea
-        ref={textareaRef}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={(e) => { handleKeyDown(e); onKeyDown?.(e); }}
-        placeholder={placeholder}
-        disabled={disabled}
-        rows={1}
-        className="streaming-textarea"
-        aria-label="Mensagem"
-      />
+    <div className="chat-input-area">
+      {/* Attached files chips */}
+      {attachedFiles && attachedFiles.length > 0 && (
+        <div className="attached-files-bar">
+          {attachedFiles.map((f, i) => (
+            <span key={i} className={`attached-file-chip ${f.type.startsWith('image/') ? 'unsupported' : ''}`}>
+              {f.type.startsWith('image/') ? <Image size={12} /> : <FileText size={12} />}
+              {f.name}
+              {f.type.startsWith('image/') && !f.supportsImages && (
+                <span className="unsupported-badge">⚠</span>
+              )}
+              <button onClick={() => onRemoveFile?.(i)}><X size={12} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+      {hasUnsupportedImages && (
+        <div className="model-warning">
+          <AlertTriangle size={14} />
+          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</          </div>
+        )}
+      
+      {/* Main input row */}
+      <div className="input-row">
+        <div className="input-left">
+          <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo" aria-label="Anexar arquivo">
+            <FilePlus size={18} />
+          </button>
+          <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
+        </div>
+        <div className="input-center">
+          <textarea
+            ref={textareaRef}
+            placeholder={streaming ? 'Aguardando resposta...' : 'Digite sua mensagem... (Shift+Enter para nova linha)'}
+            value={value}
+            onChange={e => onChange(e.target.value)}
+            onKeyDown={handleKeyDown}
+            disabled={streaming}
+            rows={1}
+            spellCheck={false}
+          />
+        </div>
+        <div className="input-right">
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
+              <BrainCircuit size={16} />
+              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+              <ChevronDown size={12} />
+            </button>
+            {modelOpen && (
+              <div className="dropdown-menu model-dropdown">
+                {models.map(m => (
+                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
+                    <span className="dropdown-item-name">{m.name}</span>
+                    <span className="dropdown-item-provider">{m.provider}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
+              <SlidersHorizontal size={16} />
+              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
+              <ChevronDown size={12} />
+            </button>
+            {effortOpen && (
+              <div className="dropdown-menu effort-dropdown">
+                {effortOptions.map(e => (
+                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
+                    <span className="dropdown-item-name">{e.label}</span>
+                    <span className="dropdown-item-desc">{e.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button className="chat-send-btn" onClick={onSubmit} disabled={streaming || (!value.trim() && !attachedFiles?.length)}>
+            <Send size={18} />
+          </button>
+        </div>
+      </div>
+
+      {/* Controls row: Model + Reasoning below textarea */}
+      <div className="input-controls-row">
+        <div className="input-left-spacer" style={{ width: '40px' }} />
+        <div className="input-controls">
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
+              <BrainCircuit size={16} />
+              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
+              <ChevronDown size={12} />
+            </button>
+            {modelOpen && (
+              <div className="dropdown-menu model-dropdown">
+                {models.map(m => (
+                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
+                    <span className="dropdown-item-name">{m.name}</span>
+                    <span className="dropdown-item-provider">{m.provider}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="dropdown-group">
+            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
+              <SlidersHorizontal size={16} />
+              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
+              <ChevronDown size={12} />
+            </button>
+            {effortOpen && (
+              <div className="dropdown-menu effort-dropdown">
+                {effortOptions.map(e => (
+                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
+                    <span className="dropdown-item-name">{e.label}</span>
+                    <span className="dropdown-item-desc">{e.desc}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
-
-export type { Message };
