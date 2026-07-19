@@ -1,0 +1,853 @@
+"use client";
+
+import React, { 
+  useState, 
+  useCallback, 
+  useRef, 
+  useEffect, 
+  useMemo,
+  DragEvent,
+  MouseEvent,
+  KeyboardEvent
+} from "react";
+import { 
+  Plus, Trash2, GripVertical, Settings, X, ChevronDown, ChevronRight, MoreHorizontal,
+  Save, Play, ZoomIn, ZoomOut, Home, Grid, Minimize2, Maximize2, 
+  Bot, Zap, Loader2, GitBranch, Terminal, Code2, Globe, Database,
+  RotateCcw, Copy, CopyCheck, Minimize2, Maximize2,
+  Search, Filter, ChevronDown, ChevronUp
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+
+import "./PipelineBuilder.css";
+
+// ============================================
+// TYPES
+// ============================================
+
+export type NodeType = 
+  | "agent"      
+  | "tool"       
+  | "condition"  
+  | "loop"       
+  | "input"      
+  | "output"     
+  | "parallel"   
+  | "delay"      
+  | "code"       
+  | "http"       
+  | "db";
+
+export interface PipelineNode {
+  id: string;
+  type: string;
+  label: string;
+  position: { x: number; y: number };
+  config: Record<string, any>;
+  inputs: string[];
+  outputs: string[];
+  disabled?: boolean;
+}
+
+export interface PipelineEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  style?: React.CSSProperties;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  description: string;
+  nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Node type configurations
+export const NODE_TYPES: Record<string, { 
+  label: string; 
+  icon: string; 
+  color: string;
+  description: string;
+  defaultConfig: Record<string, any>;
+  inputs: number;
+  outputs: number;
+}> = {
+  agent: {
+    label: "Agente LLM",
+    icon: "🤖",
+    color: "#8B5CF6",
+    description: "Agente de IA com modelo LLM",
+    defaultConfig: { model: "gpt-4", temperature: 0.7, systemPrompt: "" },
+    inputs: 1,
+    outputs: 1,
+  },
+  tool: {
+    label: "Ferramenta",
+    icon: "🔧",
+    color: "#10B981",
+    description: "Chamada de função/ferramenta",
+    defaultConfig: { toolName: "", parameters: {} },
+    inputs: 1,
+    outputs: 1,
+  },
+  condition: {
+    label: "Condição",
+    icon: "❓",
+    color: "#F59E0B",
+    description: "Branching if/else",
+    defaultConfig: { condition: "", trueLabel: "Sim", falseLabel: "Não" },
+    inputs: 1,
+    outputs: 2,
+  },
+  loop: {
+    label: "Loop",
+    icon: "🔄",
+    color: "#3B82F6",
+    description: "Repetição while/for",
+    defaultConfig: { type: "while", condition: "", maxIterations: 10 },
+    inputs: 1,
+    outputs: 1,
+  },
+  input: {
+    label: "Entrada",
+    icon: "📥",
+    color: "#6366F1",
+    description: "Entrada inicial do workflow",
+    defaultConfig: { schema: {} },
+    inputs: 0,
+    outputs: 1,
+  },
+  output: {
+    label: "Saída",
+    icon: "📤",
+    color: "#EC4899",
+    description: "Resultado final",
+    defaultConfig: { format: "text" },
+    inputs: 1,
+    outputs: 0,
+  },
+  parallel: {
+    label: "Paralelo",
+    icon: "⚡",
+    color: "#14B8A6",
+    description: "Execução paralela",
+    defaultConfig: { branches: 2 },
+    inputs: 1,
+    outputs: 2,
+  },
+  delay: {
+    label: "Atraso",
+    icon: "⏱️",
+    color: "#64748B",
+    description: "Espera/pausa",
+    defaultConfig: { ms: 1000 },
+    inputs: 1,
+    outputs: 1,
+  },
+  code: {
+    label: "Código",
+    icon: "💻",
+    color: "#7C3AED",
+    description: "Código customizado",
+    defaultConfig: { language: "javascript", code: "" },
+    inputs: 1,
+    outputs: 1,
+  },
+  http: {
+    label: "HTTP",
+    icon: "🌐",
+    color: "#06B6D4",
+    description: "Requisição HTTP",
+    defaultConfig: { method: "GET", url: "", headers: {}, body: "" },
+    inputs: 1,
+    outputs: 1,
+  },
+  db: {
+    label: "Banco de Dados",
+    icon: "🗄️",
+    color: "#84CC16",
+    description: "Query no banco",
+    defaultConfig: { query: "", params: [] },
+    inputs: 1,
+    outputs: 1,
+  },
+};
+
+export interface PipelineNode {
+  id: string;
+  type: string;
+  label: string;
+  position: { x: number; y: number };
+  config: Record<string, any>;
+  inputs: string[];
+  outputs: string[];
+  disabled?: boolean;
+}
+
+export interface PipelineEdge {
+  id: string;
+  source: string;
+  target: string;
+  sourceHandle?: string;
+  targetHandle?: string;
+  style?: React.CSSProperties;
+}
+
+export interface Pipeline {
+  id: string;
+  name: string;
+  description: string;
+  nodes: PipelineNode[];
+  edges: PipelineEdge[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PipelineBuilderProps {
+  pipeline?: Pipeline;
+  onSave?: (pipeline: Pipeline) => void;
+  onRun?: (pipeline: Pipeline) => void;
+  readOnly?: boolean;
+  className?: string;
+}
+
+const NODE_TYPES = {
+  agent: { label: "Agente LLM", icon: "🤖", color: "#8B5CF6", description: "Agente de IA com modelo LLM", defaultConfig: { model: "gpt-4", temperature: 0.7, systemPrompt: "" }, inputs: 1, outputs: 1 },
+  tool: { label: "Ferramenta", icon: "🔧", color: "#10B981", description: "Chamada de função/ferramenta", defaultConfig: { toolName: "", parameters: {} }, inputs: 1, outputs: 1 },
+  condition: { label: "Condição", icon: "❓", color: "#F59E0B", description: "Branching if/else", defaultConfig: { condition: "", trueLabel: "Sim", falseLabel: "Não" }, inputs: 1, outputs: 2 },
+  loop: { label: "Loop", icon: "🔄", color: "#3B82F6", description: "Repetição while/for", defaultConfig: { type: "while", condition: "", maxIterations: 10 }, inputs: 1, outputs: 1 },
+  input: { label: "Entrada", icon: "📥", color: "#6366F1", description: "Entrada inicial do workflow", defaultConfig: { schema: {} }, inputs: 0, outputs: 1 },
+  output: { label: "Saída", icon: "📤", color: "#EC4899", description: "Resultado final", defaultConfig: { format: "text" }, inputs: 1, outputs: 0 },
+  parallel: { label: "Paralelo", icon: "⚡", color: "#14B8A6", description: "Execução paralela", defaultConfig: { branches: 2 }, inputs: 1, outputs: 2 },
+  delay: { label: "Atraso", icon: "⏱️", color: "#64748B", description: "Espera/pausa", defaultConfig: { ms: 1000 }, inputs: 1, outputs: 1 },
+  code: { label: "Código", icon: "💻", color: "#7C3AED", description: "Código customizado", defaultConfig: { language: "javascript", code: "" }, inputs: 1, outputs: 1 },
+  http: { label: "HTTP", icon: "🌐", color: "#06B6D4", description: "Requisição HTTP", defaultConfig: { method: "GET", url: "", headers: {}, body: "" }, inputs: 1, outputs: 1 },
+  db: { label: "Banco de Dados", icon: "🗄️", color: "#84CC16", description: "Query no banco", defaultConfig: { query: "", params: [] }, inputs: 1, outputs: 1 },
+};
+
+const NODE_WIDTH = 180;
+const NODE_HEADER_HEIGHT = 36;
+const NODE_HANDLE_SIZE = 12;
+
+interface PipelineBuilderProps {
+  pipeline?: any;
+  onSave?: (pipeline: any) => void;
+  onRun?: (pipeline: any) => void;
+  readOnly?: boolean;
+  className?: string;
+}
+
+export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, readOnly = false, className }: any) {
+  const [pipeline, setPipeline] = useState<any>(initialPipeline || {
+    id: crypto.randomUUID(),
+    name: "Novo Workflow",
+    description: "",
+    nodes: [],
+    edges: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  });
+  
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
+  const [draggingNode, setDraggingNode] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<{ sourceId: string; startX: number; startY: number } | null>(null);
+  const [viewport, setViewport] = useState({ x: 0, y: 0, zoom: 1 });
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  const [showGrid, setShowGrid] = useState(true);
+  const [snapToGrid, setSnapToGrid] = useState(true);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
+
+  const [history, setHistory] = useState<any[]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+
+  const saveToHistory = useCallback((newPipeline: any) => {
+    setHistory(prev => [...prev.slice(0, historyIndex + 1), newPipeline]);
+    setHistoryIndex(prev => prev + 1);
+  }, [historyIndex]);
+
+  const updatePipeline = useCallback((updater: (prev: any) => any) => {
+    setPipeline(prev => {
+      const newPipeline = updater({ ...prev });
+      newPipeline.updatedAt = new Date().toISOString();
+      // saveToHistory(newPipeline); // Avoid circular updates during drag
+      return newPipeline;
+    });
+  }, []);
+
+  const addNode = useCallback((type: string, position: { x: number; y: number }) => {
+    const nodeType = NODE_TYPES[type];
+    const newNode = {
+      id: crypto.randomUUID(),
+      type,
+      label: NODE_TYPES[type].label,
+      position,
+      config: { ...NODE_TYPES[type].defaultConfig },
+      inputs: [],
+      outputs: [],
+    };
+    setPipeline(prev => {
+      const next = { ...pipeline, nodes: [...pipeline.nodes, newNode] };
+      next.updatedAt = new Date().toISOString();
+      return next;
+    });
+  }, []);
+
+  const updateNode = useCallback((id: string, updates: any) => {
+    setPipeline(prev => ({
+      ...pipeline,
+      nodes: pipeline.nodes.map(n => n.id === id ? { ...n, ...updates } : n),
+      updatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const deleteNode = useCallback((id: string) => {
+    setPipeline(prev => ({
+      ...pipeline,
+      nodes: pipeline.nodes.filter(n => n.id !== id),
+      edges: pipeline.edges.filter(e => e.source !== id && e.target !== id),
+      updatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const duplicateNode = useCallback((id: string) => {
+    const node = pipeline.nodes.find(n => n.id === id);
+    if (!node) return;
+    
+    const newNode = {
+      ...node,
+      id: crypto.randomUUID(),
+      position: { x: node.position.x + 30, y: node.position.y + 30 },
+      label: node.label + " (cópia)",
+    });
+    setPipeline(prev => ({
+      ...pipeline,
+      nodes: [...pipeline.nodes, newNode],
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [pipeline]);
+
+  const addEdge = useCallback((edge: any) => {
+    setPipeline(prev => ({
+      ...prev,
+      edges: [...prev.edges, edge],
+      updatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const deleteEdge = useCallback((id: string) => {
+    setPipeline(prev => ({
+      ...prev,
+      edges: prev.edges.filter(e => e.id !== id),
+      updatedAt: new Date().toISOString(),
+    }));
+  }, []);
+
+  const handleConnect = useCallback((params: any) => {
+    const edge = {
+      id: crypto.randomUUID(),
+      ...params,
+    };
+    setPipeline(prev => ({
+      ...pipeline,
+      edges: [...pipeline.edges, edge],
+      updatedAt: new Date().toISOString(),
+    }));
+  }, [pipeline]);
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      setViewport(prev => {
+        const zoom = Math.min(Math.max(prev.zoom * (e.deltaY > 0 ? 0.9 : 1.1), 0.1), 3);
+        return { ...prev, zoom };
+      });
+    }
+  }, []);
+
+  const handlePan = useCallback((e: React.MouseEvent) => {
+    if (e.button === 1 || (e.button === 0 && e.altKey)) {
+      e.preventDefault();
+      const handleMove = (moveEvent: MouseEvent) => {
+        setViewport(prev => ({
+          ...prev,
+          x: prev.x + moveEvent.movementX,
+          y: prev.y + moveEvent.movementY,
+        }));
+      };
+      const handleUp = () => {
+        window.removeEventListener("mousemove", handleMove);
+        window.removeEventListener("mouseup", handleUp);
+      };
+      window.addEventListener("mousemove", handleMove);
+      window.addEventListener("mouseup", handleUp);
+    }
+  }, []);
+
+  const snapToGrid = useCallback((pos: { x: number; y: number }) => {
+    if (!snapToGrid) return pos;
+    const gridSize = 20;
+    return {
+      x: Math.round(pos.x / gridSize) * gridSize,
+      y: Math.round(pos.y / gridSize) * gridSize,
+    };
+  }, [snapToGrid]);
+
+  return (
+    <div className={cn("pipeline-builder", className)} ref={containerRef} onWheel={handleWheel} onMouseDown={handlePan}>
+      {/* Toolbar */}
+      <div className="pipeline-toolbar">
+        <div className="toolbar-left">
+          <h2 className="pipeline-title">Pipeline Builder</h2>
+          <span className="pipeline-status">{pipeline.nodes.length} nós, {pipeline.edges.length} conexões</span>
+        </div>
+        <div className="toolbar-center">
+          <div className="zoom-controls">
+            <button onClick={() => setViewport(p => ({ ...p, zoom: Math.max(0.1, p.zoom - 0.1) }))} title="Zoom out">−</button>
+            <span>{Math.round(viewport.zoom * 100)}%</span>
+            <button onClick={() => setViewport(p => ({ ...p, zoom: Math.min(3, p.zoom + 0.1) }))} title="Zoom in">+</button>
+            <button onClick={() => setViewport({ x: 0, y: 0, zoom: 1 })} title="Reset zoom">⌂</button>
+          </div>
+          <div className="view-options">
+            <label><input type="checkbox" checked={showGrid} onChange={e => setShowGrid(e.target.checked)} /> Grid</label>
+            <label><input type="checkbox" checked={snapToGrid} onChange={e => setSnapToGrid(e.target.checked)} /> Snap</label>
+          </div>
+        </div>
+        <div className="toolbar-right">
+          <button onClick={() => onSave?.(pipeline)} disabled={false} className="btn-primary">
+            <Save size={16} /> Salvar
+          </button>
+          <button onClick={onRun} className="btn-success">
+            <Play size={16} /> Executar
+          </button>
+        </div>
+      </div>
+
+      {/* Node Palette */}
+      <div className="node-palette">
+        <div className="palette-header">
+          <span>Componentes</span>
+          <input type="text" placeholder="Buscar componentes..." className="palette-search" />
+        </div>
+        <div className="palette-items">
+          {Object.entries(NODE_TYPES).map(([type, config]) => (
+            <div
+              key={type}
+              className="palette-item"
+              draggable={!readOnly}
+              onDragStart={e => {
+                e.dataTransfer.setData("node-type", type);
+                e.dataTransfer.effectAllowed = "copy";
+              }}
+            >
+              <span className="palette-icon" style={{ backgroundColor: config.color }}>{config.icon}</span>
+              <div className="palette-info">
+                <span className="palette-label">{config.label}</span>
+                <span className="palette-desc">{config.description}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Canvas */}
+      <div className="pipeline-canvas-wrapper" onDrop={handleDrop} onDragOver={e => e.preventDefault()}>
+        <div className="pipeline-canvas" style={{ transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})` }}>
+          {/* Grid background */}
+          {showGrid && (
+            <div className="grid-background" style={{ backgroundSize: `${20 * viewport.zoom}px ${20 * viewport.zoom}px` }} />
+          )}
+          
+          {/* Edges */}
+          <svg ref={svgRef} className="edges-layer">
+            {pipeline.edges.map(edge => {
+              const sourceNode = pipeline.nodes.find(n => n.id === edge.source);
+              const targetNode = pipeline.nodes.find(n => n.id === edge.target);
+              if (!sourceNode || !targetNode) return null;
+              
+              const sourcePos = {
+                x: sourceNode.position.x + NODE_WIDTH,
+                y: sourceNode.position.y + NODE_HEADER_HEIGHT / 2,
+              };
+              const targetPos = {
+                x: targetNode.position.x,
+                y: targetNode.position.y + NODE_HEADER_HEIGHT / 2,
+              };
+              
+              const path = `M ${sourcePos.x} ${sourcePos.y} 
+                C ${sourcePos.x + 100} ${sourcePos.y} 
+                  ${targetPos.x - 100} ${targetPos.y} 
+                  ${targetPos.x} ${targetPos.y}`;
+              
+              return (
+                <path
+                  key={edge.id}
+                  d={path}
+                  stroke={selectedEdge === edge.id ? "#8B5CF6" : "#4B5563"}
+                  strokeWidth={selectedEdge === edge.id ? 3 : 2}
+                  fill="none"
+                  strokeDasharray={selectedEdge === edge.id ? "5,5" : "none"}
+                  markerEnd="url(#arrowhead)"
+                  onClick={e => { e.stopPropagation(); setSelectedEdge(edge.id); }}
+                />
+              );
+            })}
+            <defs>
+              <marker id="arrowhead" markerWidth={10} markerHeight={7} refX={9} refY={3.5} orient="auto">
+                <polygon points="0 0, 10 3.5, 0 7" fill="#4B5563" />
+              </marker>
+            </defs>
+          </svg>
+
+          {/* Nodes */}
+          {pipeline.nodes.map(node => (
+            <PipelineNode
+              key={node.id}
+              node={node}
+              selected={selectedNode === node.id}
+              onSelect={setSelectedNode}
+              onDragStart={handleNodeDragStart}
+              onDragEnd={handleNodeDragEnd}
+              onConnect={handleConnect}
+              readOnly={readOnly}
+              position={node.position}
+              onPositionChange={pos => updateNode(node.id, { position: pos })}
+              config={node.config}
+              onConfigChange={config => updateNode(node.id, { config })}
+            ))}
+          {/* Connection preview */}
+          {connecting && (
+            <svg className="connection-preview">
+              <path
+                d={`M ${connecting.startX} ${connecting.startY} C ${connecting.startX + 100} ${connecting.startY} ${connecting.currentX - 100} ${connecting.currentY} ${connecting.currentX} ${connecting.currentY}`}
+                stroke="#8B5CF6"
+                strokeWidth={2}
+                fill="none"
+                strokeDasharray="5,5"
+              />
+              <defs>
+                <marker id="preview-arrowhead" markerWidth={10} markerHeight={7} refX={9} refY={3.5} orient="auto">
+                  <polygon points="0 0, 10 3.5, 0 7" fill="#8B5CF6" />
+                </marker>
+              </defs>
+            </svg>
+          )}
+        </div>
+
+        {/* Mini-map */}
+        <div className="minimap">
+          <div className="minimap-content" style={{ transform: `scale(${0.1 * viewport.zoom}) translate(${viewport.x * 0.1}px, ${viewport.y * 0.1}px)` }}>
+            {pipeline.nodes.map(node => (
+              <div key={node.id} className={`minimap-node ${selectedNode === node.id ? "selected" : ""}`} style={{
+                left: node.position.x * 0.1,
+                top: node.position.y * 0.1,
+                backgroundColor: NODE_TYPES[node.type]?.color || "#6B7280",
+              }} />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Properties Panel */}
+      <aside className="properties-panel">
+        <div className="panel-header">
+          <h3>Propriedades</h3>
+        </div>
+        <div className="panel-content">
+          {selectedNode ? (
+            <div>
+              <h4>{pipeline.nodes.find(n => n.id === selectedNode)?.label}</h4>
+              <div className="config-field">
+                <label>ID</label>
+                <input type="text" value={selectedNode} readOnly className="config-field-input" />
+              </div>
+              <div className="config-field">
+                <label>Tipo</label>
+                <input type="text" value={NODE_TYPES[pipeline.nodes.find(n => n.id === selectedNode)?.type || ""]?.label || "Desconhecido"} readOnly className="config-field-input" />
+              </div>
+              <div className="config-field">
+                <label>Label</label>
+                <input 
+                  type="text" 
+                  value={pipeline.nodes.find(n => n.id === selectedNode)?.label || ""} 
+                  onChange={e => updateNode(selectedNode, { label: e.target.value })}
+                  className="config-field-input"
+                />
+              </div>
+              <div className="config-field">
+                <label>Posição</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input 
+                    type="number" 
+                    value={Math.round(pipeline.nodes.find(n => n.id === selectedNode)?.position.x || 0)} 
+                    onChange={e => updateNode(selectedNode, { position: { x: parseInt(e.target.value), y: pipeline.nodes.find(n => n.id === selectedNode)?.position.y || 0 } })}
+                    className="config-field-input"
+                    style={{ width: "60px" }}
+                  />
+                  <input 
+                    type="number" 
+                    value={Math.round(pipeline.nodes.find(n => n.id === selectedNode)?.position.y || 0)} 
+                    onChange={e => updateNode(selectedNode, { position: { x: pipeline.nodes.find(n => n.id === selectedNode)?.position.x || 0, y: parseInt(e.target.value) } })}
+                    className="config-field-input"
+                    style={{ width: "60px" }}
+                  />
+                </div>
+              </div>
+              <hr style={{ margin: "16px 0", borderColor: "var(--border)" }} />
+              <h5 style={{ marginBottom: 12, fontSize: 13, fontWeight: 600 }}>Configuração</h5>
+              {pipeline.nodes.find(n => n.id === selectedNode) && Object.entries(pipeline.nodes.find(n => n.id === selectedNode)!.config).map(([key, value]) => (
+                <div key={key} className="config-field">
+                  <label>{key.charAt(0).toUpperCase() + key.slice(1)}</label>
+                  {typeof value === "boolean" ? (
+                    <label style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <input 
+                        type="checkbox" 
+                        checked={value} 
+                        onChange={e => updateNode(selectedNode, { config: { ...pipeline.nodes.find(n => n.id === selectedNode)!.config, [key]: e.target.checked } })}
+                      />
+                      <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>{value ? "Sim" : "Não"}</span>
+                    </label>
+                  ) : typeof value === "number" ? (
+                    <input 
+                      type="number" 
+                      value={value} 
+                      onChange={e => updateNode(selectedNode, { config: { ...pipeline.nodes.find(n => n.id === selectedNode)!.config, [key]: parseFloat(e.target.value) } })}
+                      className="config-field-input"
+                    />
+                  ) : (
+                    <textarea 
+                      value={value} 
+                      onChange={e => updateNode(selectedNode, { config: { ...pipeline.nodes.find(n => n.id === selectedNode)!.config, [key]: e.target.value } })}
+                      className="config-field-input"
+                      style={{ minHeight: "60px", fontFamily: "var(--font-mono)", fontSize: 12 }}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", padding: 32, color: "var(--text-muted)" }}>
+              <Bot size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
+              <p>Selecione um nó para editar suas propriedades</p>
+            </div>
+          )}
+        </div>
+      </aside>
+    </div>
+  );
+}
+
+// Pipeline Node Component
+interface PipelineNodeProps {
+  node: PipelineNode;
+  selected: boolean;
+  onSelect: (id: string) => void;
+  onDragStart: (e: DragEvent, nodeId: string) => void;
+  onDragEnd: (e: DragEvent, nodeId: string) => void;
+  onConnect: (params: { source: string; target: string; sourceHandle?: string; targetHandle?: string }) => void;
+  readOnly: boolean;
+  position: { x: number; y: number };
+  onPositionChange: (pos: { x: number; y: number }) => void;
+  config: Record<string, any>;
+  onConfigChange: (config: Record<string, any>) => void;
+}
+
+function PipelineNode({ 
+  node, 
+  selected, 
+  onSelect, 
+  onDragStart, 
+  onDragEnd, 
+  onConnect, 
+  readOnly, 
+  position, 
+  onPositionChange,
+  config,
+  onConfigChange
+}: PipelineNodeProps) {
+  const nodeType = NODE_TYPES[node.type];
+  const isDragging = useRef(false);
+  const dragStartRef = useRef({ x: 0, y: 0 });
+  const nodeRef = useRef<HTMLDivElement>(null);
+
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (readOnly) return;
+    if (e.target !== e.currentTarget) return;
+    
+    isDragging.current = true;
+    dragStartRef.current = { x: e.clientX, y: 0 };
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleMouseMove = (e: MouseEvent) => {
+    if (!isDragging.current) return;
+    
+    const newX = e.clientX - dragStartRef.current.x;
+    const newY = e.clientY - dragStartRef.current.y;
+    
+    const newPos = { x: newX, y: newY };
+    const snapped = NODE_TYPES[node.type]?.inputs === 0 && NODE_TYPES[node.type]?.outputs === 0 
+      ? newPos 
+      : snapToGrid(newPos);
+    
+    onPositionChange(snapped);
+  };
+
+  const handleMouseUp = () => {
+    isDragging.current = false;
+    document.removeEventListener("mousemove", handleMouseMove);
+    document.removeEventListener("mouseup", handleMouseUp);
+  };
+
+  const handleDragStart = (e: React.DragEvent) => {
+    e.dataTransfer.setData("node-id", node.id);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const nodeId = e.dataTransfer.getData("node-id");
+    // Handle drop on node for connection
+  };
+
+  const handleConnectStart = (e: React.MouseEvent, handle: "input" | "output") => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  return (
+    <div
+      ref={nodeRef}
+      className={`pipeline-node ${node.type} ${selected ? "selected" : ""}`}
+      style={{ 
+        left: position.x, 
+        top: position.y,
+        width: NODE_WIDTH,
+        transform: `translate(${position.x}px, ${position.y}px)`
+      } as React.CSSProperties}
+      onMouseDown={handleMouseDown}
+      onDragStart={handleDragStart}
+      onDragOver={e => e.preventDefault()}
+      onDrop={handleDrop}
+      onClick={e => { e.stopPropagation(); onSelect(node.id); }}
+      draggable={!readOnly}
+      onDragStart={handleDragStart}
+      onDragOver={e => e.preventDefault()}
+      onDrop={handleDrop}
+      data-node-id={node.id}
+    >
+      {/* Node Header */}
+      <div className="node-header">
+        <span className="node-icon" style={{ backgroundColor: NODE_TYPES[node.type]?.color }}>
+          {NODE_TYPES[node.type]?.icon}
+        </span>
+        <span className="node-label">{node.label}</span>
+        {node.disabled && <span className="node-badge disabled">Desativado</span>}
+        <div className="node-actions">
+          <button 
+            className="node-action-btn" 
+            onClick={e => { e.stopPropagation(); }}
+            title="Configurar"
+          ><Settings size={12} /></button>
+          <button 
+            className="node-action-btn danger" 
+            onClick={e => { e.stopPropagation(); /* deleteNode(node.id) */ }}
+            title="Excluir"
+          ><Trash2 size={12} /></button>
+        </div>
+      </div>
+
+      {/* Input Handles */}
+      {NODE_TYPES[node.type]?.inputs > 0 && (
+        <div className="node-handles inputs">
+          {Array.from({ length: NODE_TYPES[node.type]?.inputs || 0 }, (_, i) => (
+            <div 
+              key={`in-${i}`}
+              className="node-handle input"
+              onMouseDown={e => handleConnectStart(e, "input")}
+              data-handle="input"
+              data-index={i}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Node Config Preview */}
+      {!readOnly && Object.keys(config).length > 0 && (
+        <div className="node-config-preview">
+          {Object.entries(config).slice(0, 2).map(([key, value]) => (
+            <div key={key} className="config-preview-item">
+              <span className="config-key">{key}:</span>
+              <span className="config-value">{typeof value === "object" ? JSON.stringify(value) : String(value)}</span>
+            </div>
+          ))}
+          {Object.keys(config).length > 2 && (
+            <div className="config-more">+{Object.keys(config).length - 2} mais</div>
+          )}
+        </div>
+      )}
+
+      {/* Output Handles */}
+      {NODE_TYPES[node.type]?.outputs > 0 && (
+        <div className="node-handles outputs">
+          {Array.from({ length: NODE_TYPES[node.type]?.outputs || 0 }, (_, i) => (
+            <div 
+              key={`out-${i}`}
+              className="node-handle output"
+              onMouseDown={e => /* handleConnectStart */ null}
+              data-handle="output"
+              data-index={i}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Selection indicator */}
+      {selected && <div className="node-selection-ring" />}
+    </div>
+  );
+}
+
+function handleNodeDragStart(e: React.DragEvent, nodeId: string) {
+  e.dataTransfer.setData("node-id", nodeId);
+  e.dataTransfer.effectAllowed = "move";
+}
+
+function handleNodeDragEnd(e: React.DragEvent) {
+  e.preventDefault();
+}
+
+function handleDrop(e: React.DragEvent) {
+  e.preventDefault();
+  const nodeId = e.dataTransfer.getData("node-id");
+  // Handle drop for connections
+}
+
+function handleConnectStart(e: React.MouseEvent, handle: "input" | "output") {
+  e.preventDefault();
+  e.stopPropagation();
+  // Start connection
+}
+
+function handleConnect(params: { source: string; target: string; sourceHandle?: string; targetHandle?: string }) {
+  // Add edge
+}
+
+export default PipelineBuilder;
