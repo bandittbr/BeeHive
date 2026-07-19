@@ -233,18 +233,16 @@ function HomeChat() {
           </div>
         ) : (
           <div className="chat-messages">
-            {messages.map((m) => (
-              <div key={m.id} className={`msg ${m.role}`}>
-                <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
-                <div className="msg-body">
-                  <div className="msg-header">
-                    <span className="msg-role">{m.role === 'user' ? 'Você' : 'BeeHive'}</span>
-                    <span className="msg-time">{m.time}</span>
-                  </div>
-                  <div className="msg-content">{m.content}</div>
-                </div>
-              </div>
-            ))}
+            <MessageList
+              messages={messages.map(m => ({
+                id: m.id,
+                role: m.role,
+                content: m.content,
+                timestamp: new Date(m.time).getTime(),
+                isStreaming: sending && m.id === messages[messages.length - 1]?.id,
+              }))}
+              streaming={sending}
+            />
             {sending && (
               <div className="msg assistant">
                 <div className="msg-avatar"><Bot size={16} /></div>
