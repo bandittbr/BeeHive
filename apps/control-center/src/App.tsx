@@ -25,6 +25,7 @@ import {
   Settings,
   Zap,
   Terminal,
+  Calendar as CalendarIcon,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
@@ -54,7 +55,7 @@ export default function App() {
 const { projects } = useAppStore();
   const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
-  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings'>('cowork');
+  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
 
@@ -655,6 +656,10 @@ function ProjectView({
             <Layers size={14} /> Artifacts
             <span className="tab-badge">{project.artifacts.length}</span>
           </button>
+          <button className={`tab${activeView === 'scheduler' ? ' active' : ''}`} onClick={() => onViewChange('scheduler')}>
+            <Calendar size={14} /> Agendador
+            <span className="tab-badge">{project.pipelines?.length || 0}</span>
+          </button>
           <button className={`tab${activeView === 'settings' ? ' active' : ''}`} onClick={() => onViewChange('settings')}>
             <Settings size={14} /> Config
           </button>
@@ -679,8 +684,18 @@ function ProjectView({
 {activeView === 'pipelines' && (
             <PipelineBuilder
               pipeline={project.pipelines?.[0]}
+              project={project}
               onSave={(p) => useAppStore.getState().updateProject(openedProject.id, { pipelines: [p] })}
             />
+          )}
+          {activeView === 'scheduler' && (
+            <div className="scheduler-view">
+              <PipelineBuilder
+                pipeline={project.pipelines?.[0]}
+                project={project}
+                onSave={(p) => useAppStore.getState().updateProject(openedProject.id, { pipelines: [p] })}
+              />
+            </div>
           )}
           {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
           {activeView === 'settings' && <ProjectSettings project={project} />}

@@ -15,7 +15,9 @@ import {
   Save, Play, ZoomIn, ZoomOut, Home, Grid, Minimize2, Maximize2, 
   Bot, Zap, Loader2, GitBranch, Terminal, Code2, Globe, Database,
   RotateCcw, Copy, CopyCheck, Minimize2, Maximize2,
-  Search, Filter, ChevronDown, ChevronUp
+  Search, Filter, ChevronDown, ChevronUp,
+  Clock, ToggleLeft, ToggleRight, RefreshCw, Eye, Edit2, Trash2,
+  Calendar, Zap as ZapIcon, CheckCircle, AlertCircle, Loader2 as LoaderIcon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -237,13 +239,14 @@ const NODE_HANDLE_SIZE = 12;
 
 interface PipelineBuilderProps {
   pipeline?: any;
+  project?: any;
   onSave?: (pipeline: any) => void;
   onRun?: (pipeline: any) => void;
   readOnly?: boolean;
   className?: string;
 }
 
-export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, readOnly = false, className }: any) {
+export function PipelineBuilder({ pipeline: initialPipeline, project, onSave, onRun, readOnly = false, className }: any) {
   const [pipeline, setPipeline] = useState<any>(initialPipeline || {
     id: crypto.randomUUID(),
     name: "Novo Workflow",
@@ -643,36 +646,399 @@ export function PipelineBuilder({ pipeline: initialPipeline, onSave, onRun, read
               <Bot size={48} style={{ marginBottom: 16, opacity: 0.5 }} />
               <p>Selecione um nó para editar suas propriedades</p>
             </div>
-          )}
+)}
         <div className="pipeline-builder">
-      {/* Scheduler Panel */}
       {showScheduler && (
-        <div className="scheduler-panel">
-          <div className="scheduler-header">
-            <h3>Agendador de Pipelines</h3>
-            <button onClick={() => setShowScheduler(false)} className="btn-icon">
-              <X size={16} />
-            </button>
-          </div>
-          <div className="scheduler-content">
-            <div className="scheduler-header">
-              <h3>Agendador de Pipelines</h3>
-              <button className="btn-primary" onClick={() => setShowScheduler(true)}>
-                <Plus size={16} /> Novo Agendamento
-              </button>
-            </div>
-            <div className="scheduler-list">
-              <p className="scheduler-empty">Nenhum agendamento configurado</p>
-              <button className="btn-primary" onClick={() => setShowScheduler(true)}>
-                <Plus size={16} /> Novo Agendamento
-              </button>
-            </div>
-          </div>
-        </div>
+        <SchedulerPanel 
+          pipeline={pipeline} 
+          project={project}
+          onClose={() => setShowScheduler(false)}
+        />
       )}
+      </aside>
     </div>
   );
 }
+
+// ============================================
+// SCHEDULER PANEL COMPONENT
+// ============================================
+
+interface SchedulerPanelProps {
+  pipeline: any;
+  project: any;
+  onClose: () => void;
+}
+
+function SchedulerPanel({ pipeline, project, onClose }: SchedulerPanelProps) {
+  const [jobs, setJobs] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [editingJob, setEditingJob] = useState<any | null>(null);
+  const [formData, setFormData] = useState({
+    name: "",
+    cronExpression: "0 2 * * *",
+    timezone: "America/Sao_Paulo",
+    webhookSecret: "",
+  });
+  const [cronError, setCronError] = useState<string | null>(null);
+
+  const fetchJobs = useCallback(async () => {
+    if (!pipeline?.id || !project?.id) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/scheduler/jobs?projectId=${project.id}&pipelineId=${pipeline.id}`);
+      const data = await res.json();
+      if (data.jobs) setJobs(data.jobs);
+    } catch (error) {
+      console.error("Failed to fetch jobs:", error);
+    } finally {
+      setLoading(false);
+    }
+  }, [pipeline?.id, project?.id]);
+
+  useEffect(() => {
+    fetchJobs();
+  }, [fetchJobs]);
+
+  const validateCron = (expression: string) => {
+    try {
+      const parts = expression.trim().split(/\s+/);
+      if (parts.length < 5 || parts.length > 6) {
+        setCronError("Expressão cron inválida (use 5 ou 6 campos)");
+        return false;
+      }
+      setCronError(null);
+      return true;
+    } catch {
+      setCronError("Expressão cron inválida");
+      return false;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!validateCron(formData.cronExpression)) return;
+    if (!formData.name.trim()) return;
+
+    setLoading(true);
+    try {
+      const url = editingJob ? `/api/scheduler/jobs/${editingJob.id}` : "/api/scheduler/jobs";
+      const method = editingJob ? "PUT" : "POST";
+      
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          pipelineId: pipeline.id,
+          projectId: project.id,
+          ...formData,
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.error || "Failed to save job");
+      }
+
+      setShowForm(false);
+      setEditingJob(null);
+      setFormData({ name: "", cronExpression: "0 2 * * *", timezone: "America/Sao_Paulo", webhookSecret: "" });
+      fetchJobs();
+    } catch (error) {
+      console.error("Failed to save job:", error);
+      alert(error instanceof Error ? error.message : "Failed to save job");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (jobId: string) => {
+    if (!confirm("Tem certeza que deseja excluir este agendamento?")) return;
+    try {
+      await fetch(`/api/scheduler/jobs/${jobId}`, { method: "DELETE" });
+      fetchJobs();
+    } catch (error) {
+      console.error("Failed to delete job:", error);
+    }
+  };
+
+  const handleToggle = async (job: any) => {
+    try {
+      await fetch(`/api/scheduler/jobs/${job.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !job.enabled }),
+      });
+      fetchJobs();
+    } catch (error) {
+      console.error("Failed to toggle job:", error);
+    }
+  };
+
+  const handleEdit = (job: any) => {
+    setEditingJob(job);
+    setFormData({
+      name: job.name,
+      cronExpression: job.cronExpression,
+      timezone: job.timezone,
+      webhookSecret: job.webhookSecret || "",
+    });
+    setShowForm(true);
+  };
+
+  const handleRunNow = async (job: any) => {
+    try {
+      await fetch(`/api/scheduler/trigger-manual/${job.pipelineId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ triggeredBy: "manual" }),
+      });
+      fetchJobs();
+    } catch (error) {
+      console.error("Failed to run job:", error);
+    }
+  };
+
+  const cronExamples = [
+    { label: "A cada minuto", value: "* * * * *" },
+    { label: "A cada hora", value: "0 * * * *" },
+    { label: "Diariamente à meia-noite", value: "0 0 * * *" },
+    { label: "Diariamente às 2h", value: "0 2 * * *" },
+    { label: "Segunda a sexta às 9h", value: "0 9 * * 1-5" },
+    { label: "Todo domingo às 3h", value: "0 3 * * 0" },
+    { label: "Primeiro dia do mês", value: "0 0 1 * *" },
+  ];
+
+  const getStatusBadge = (job: any) => {
+    if (!job.enabled) return <span className="status-badge disabled">Desativado</span>;
+    if (job.lastRunStatus === "running") return <span className="status-badge running"><LoaderIcon size={12} className="spin" /> Executando</span>;
+    if (job.lastRunStatus === "success") return <span className="status-badge success"><CheckCircle size={12} /> Sucesso</span>;
+    if (job.lastRunStatus === "error") return <span className="status-badge error"><AlertCircle size={12} /> Erro</span>;
+    return <span className="status-badge pending">Pendente</span>;
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return "Nunca";
+    return new Date(dateStr).toLocaleString("pt-BR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  return (
+    <div className="scheduler-panel">
+      <div className="scheduler-header">
+        <h3>Agendador de Pipelines</h3>
+        <button className="btn-icon" onClick={onClose} title="Fechar">
+          <X size={16} />
+        </button>
+      </div>
+
+      <div className="scheduler-content">
+        {showForm ? (
+          <div className="scheduler-form-container">
+            <form onSubmit={handleSubmit} className="scheduler-form">
+              <h4>{editingJob ? "Editar Agendamento" : "Novo Agendamento"}</h4>
+              
+              <div className="form-group">
+                <label>Nome do Agendamento</label>
+                <input
+                  type="text"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  placeholder="Ex: Build diário, Deploy noturno"
+                  required
+                />
+              </div>
+
+              <div className="form-group">
+                <label>Expressão Cron</label>
+                <div className="cron-input-wrapper">
+                  <input
+                    type="text"
+                    value={formData.cronExpression}
+                    onChange={(e) => {
+                      setFormData({ ...formData, cronExpression: e.target.value });
+                      validateCron(e.target.value);
+                    }}
+                    placeholder="0 2 * * *"
+                    required
+                    className={cronError ? "error" : ""}
+                  />
+                  <span className="cron-hint">min hora dia mês dia_semana</span>
+                </div>
+                {cronError && <span className="error-message">{cronError}</span>}
+                
+                <div className="cron-examples">
+                  {cronExamples.map((ex) => (
+                    <button
+                      key={ex.value}
+                      type="button"
+                      className="cron-example"
+                      onClick={() => {
+                        setFormData({ ...formData, cronExpression: ex.value });
+                        validateCron(ex.value);
+                      }}
+                    >
+                      {ex.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Timezone</label>
+                <select
+                  value={formData.timezone}
+                  onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
+                >
+                  <option value="America/Sao_Paulo">America/Sao_Paulo (UTC-3)</option>
+                  <option value="UTC">UTC</option>
+                  <option value="America/New_York">America/New_York (UTC-5)</option>
+                  <option value="Europe/London">Europe/London (UTC+0)</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Webhook Secret (opcional)</label>
+                <input
+                  type="text"
+                  value={formData.webhookSecret}
+                  onChange={(e) => setFormData({ ...formData, webhookSecret: e.target.value })}
+                  placeholder="Secret para validação de webhook externo"
+                />
+              </div>
+
+              <div className="form-actions">
+                <button type="button" className="btn-secondary" onClick={() => { setShowForm(false); setEditingJob(null); }}>
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? <LoaderIcon size={16} className="spin" /> : (editingJob ? "Atualizar" : "Criar")}
+                </button>
+              </div>
+            </form>
+          </div>
+        ) : (
+          <>
+            <div className="scheduler-toolbar">
+              <h4>Agendamentos Configurados</h4>
+              <button className="btn-primary" onClick={() => setShowForm(true)}>
+                <Plus size={16} /> Novo Agendamento
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="scheduler-loading">
+                <LoaderIcon size={24} className="spin" />
+                <span>Carregando agendamentos...</span>
+              </div>
+            ) : jobs.length === 0 ? (
+              <div className="scheduler-empty-state">
+                <Calendar size={48} />
+                <p>Nenhum agendamento configurado</p>
+                <span>Crie seu primeiro agendamento para executar esta pipeline automaticamente</span>
+                <button className="btn-primary" onClick={() => setShowForm(true)}>
+                  <Plus size={16} /> Criar Primeiro Agendamento
+                </button>
+              </div>
+            ) : (
+              <div className="scheduler-jobs-list">
+                {jobs.map((job) => (
+                  <div key={job.id} className="job-card">
+                    <div className="job-header">
+                      <div className="job-info">
+                        <h5>{job.name}</h5>
+                        <div className="job-meta">
+                          <span className="cron-expression">{job.cronExpression}</span>
+                          <span className="timezone">{job.timezone}</span>
+                        </div>
+                      </div>
+                      {getStatusBadge(job)}
+                    </div>
+
+                    <div className="job-stats">
+                      <div className="stat">
+                        <span className="stat-label">Execuções</span>
+                        <span className="stat-value">{job.runCount || 0}</span>
+                      </div>
+                      <div className="stat">
+                        <span className="stat-label">Última execução</span>
+                        <span className="stat-value">{formatDate(job.lastRunAt)}</span>
+                      </div>
+                      <div className="stat">
+                        <span className="stat-label">Próxima execução</span>
+                        <span className="stat-value">{formatDate(job.nextRunAt)}</span>
+                      </div>
+                    </div>
+
+                    <div className="job-actions">
+                      <button 
+                        className="btn-icon" 
+                        onClick={() => handleRunNow(job)}
+                        title="Executar agora"
+                        disabled={job.lastRunStatus === "running"}
+                      >
+                        <Play size={16} />
+                      </button>
+                      <button 
+                        className="btn-icon" 
+                        onClick={() => handleToggle(job)}
+                        title={job.enabled ? "Desativar" : "Ativar"}
+                      >
+                        {job.enabled ? <ToggleLeft size={16} /> : <ToggleRight size={16} />}
+                      </button>
+                      <button 
+                        className="btn-icon" 
+                        onClick={() => handleEdit(job)}
+                        title="Editar"
+                      >
+                        <Edit2 size={16} />
+                      </button>
+                      <button 
+                        className="btn-icon danger" 
+                        onClick={() => handleDelete(job.id)}
+                        title="Excluir"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+
+                    {job.executions && job.executions.length > 0 && (
+                      <div className="job-executions">
+                        <h6>Últimas execuções:</h6>
+                        <div className="executions-list">
+                          {job.executions.slice(0, 5).map((exec: any) => (
+                            <div key={exec.id} className={`execution-item ${exec.status}`}>
+                              <span className="exec-status">
+                                {exec.status === "success" && <CheckCircle size={12} />}
+                                {exec.status === "error" && <AlertCircle size={12} />}
+                                {exec.status === "running" && <LoaderIcon size={12} className="spin" />}
+                              </span>
+                              <span className="exec-time">{formatDate(exec.startedAt)}</span>
+                              <span className="exec-trigger">{exec.triggeredBy}</span>
+                              {exec.error && <span className="exec-error" title={exec.error}>Erro: {exec.error.substring(0, 50)}...</span>}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default SchedulerPanel;
 
 // Pipeline Node Component
 interface PipelineNodeProps {

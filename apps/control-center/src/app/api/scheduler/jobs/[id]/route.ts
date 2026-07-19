@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { schedulerService } from "@/services/scheduler.service";
+import { PrismaClient } from "@prisma/client";
+
+const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
@@ -7,26 +11,26 @@ export async function GET(
   try {
     const { id } = await params;
     
-    // In a real implementation, this would fetch from database
-    const job = {
-      id,
-      pipelineId: "pipeline-1",
-      projectId: "project-1",
-      name: "Daily Build",
-      cronExpression: "0 2 * * *",
-      enabled: true,
-      timezone: "America/Sao_Paulo",
-      fieldLabel: "Horário de execução",
-      fieldPlaceholder: "Ex: 0 2 * * *",
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      runCount: 0,
-      status: "active",
-      lastRun: null,
-      nextRun: "2024-01-15T02:00:00Z",
-    };
+    const job = await prisma.scheduledJob.findUnique({
+      where: { id },
+      include: {
+        pipeline: true,
+        project: true,
+      },
+    });
 
-    return NextResponse.json({ job });
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const nextRunAt = schedulerService.calculateNextRun(job.cronExpression);
+    
+    return NextResponse.json({ 
+      job: {
+        ...job,
+        nextRunAt,
+      }
+    });
   } catch (error) {
     console.error("Error fetching scheduled job:", error);
     return NextResponse.json({ error: "Failed to fetch scheduled job" }, { status: 500 });
@@ -40,20 +44,28 @@ export async function PUT(
   try {
     const { id } = await params;
     const body = await request.json();
+    const { enabled, cronExpression, name, timezone, webhookSecret } = body;
     
-    const { enabled, cronExpression, name, timezone } = await request.json();
-    
-    // In a real implementation, update the job in database
-    const updatedJob = {
-      id,
-      ...body,
-      updatedAt: new Date().toISOString(),
-    };
+    const updates: any = {};
+    if (enabled !== undefined) updates.enabled = enabled;
+    if (cronExpression) updates.cronExpression = cronExpression;
+    if (name) updates.name = name;
+    if (timezone) updates.timezone = timezone;
+    if (webhookSecret !== undefined) updates.webhookSecret = webhookSecret;
 
-    return NextResponse.json({ job: updatedJob });
+    const job = await schedulerService.updateJob(id, updates);
+    
+    if (!job) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
+    const nextRunAt = schedulerService.calculateNextRun(job.cronExpression);
+    return NextResponse.json({ 
+      job: { ...job, nextRunAt }
+    });
   } catch (error) {
     console.error("Error updating scheduled job:", error);
-    return NextResponse.json({ error: "Failed to update scheduled job" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to update scheduled job" }, { status: 500 });
   }
 }
 
@@ -64,7 +76,12 @@ export async function DELETE(
   try {
     const { id } = await params;
     
-    // In a real implementation, delete from database
+    const success = await schedulerService.deleteJob(id);
+    
+    if (!success) {
+      return NextResponse.json({ error: "Job not found" }, { status: 404 });
+    }
+
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Error deleting scheduled job:", error);

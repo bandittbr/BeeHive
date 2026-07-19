@@ -8,9 +8,9 @@ export async function POST(
   try {
     const { pipelineId } = await params;
     const body = await request.json();
-    const { triggeredBy } = await request.json();
+    const { triggeredBy } = body;
 
-    const result = await schedulerService.triggerManually(pipelineId, body.triggeredBy || "manual");
+    const result = await schedulerService.triggerManually(pipelineId, triggeredBy || "manual");
     
     return NextResponse.json({ 
       success: result.success, 
@@ -19,6 +19,6 @@ export async function POST(
     }, { status: result.success ? 200 : 400 });
   } catch (error) {
     console.error("Error manually triggering pipeline:", error);
-    return NextResponse.json({ error: "Failed to trigger pipeline" }, { status: 500 });
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Failed to trigger pipeline" }, { status: 500 });
   }
 }

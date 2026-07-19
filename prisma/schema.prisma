@@ -3,21 +3,22 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  icon        String
-  description String
-  status      ProjectStatus @default(ACTIVE)
-  agents      Agent[]
-  workflows   Workflow[]
-  artifacts   Artifact[]
-  pipelines   Pipeline[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id           String   @id @default(cuid())
+  name         String
+  icon         String
+  description  String
+  status       ProjectStatus @default(ACTIVE)
+  agents       Agent[]
+  workflows    Workflow[]
+  artifacts    Artifact[]
+  pipelines    Pipeline[]
+  scheduledJobs ScheduledJob[]
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@map("projects")
 }
@@ -65,16 +66,17 @@ model Artifact {
 }
 
 model Pipeline {
-  id          String         @id @default(cuid())
-  name        String
-  description String?
-  nodes       PipelineNode[]
-  edges       PipelineEdge[]
-  projectId   String
-  project     Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  agents      Agent[]
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id            String          @id @default(cuid())
+  name          String
+  description   String?
+  nodes         PipelineNode[]
+  edges         PipelineEdge[]
+  projectId     String
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agents        Agent[]
+  scheduledJobs ScheduledJob[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
 
   @@map("pipelines")
 }
@@ -140,4 +142,45 @@ enum PipelineStepStatus {
   ACTIVE
   DONE
   ERROR
+}
+
+model ScheduledJob {
+  id              String   @id @default(cuid())
+  pipelineId      String
+  pipeline        Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  cronExpression  String
+  enabled         Boolean  @default(true)
+  timezone        String   @default("America/Sao_Paulo")
+  webhookSecret   String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  lastRunStatus   String?
+  lastRunOutput   String?
+  lastError       String?
+  runCount        Int      @default(0)
+  executions      PipelineExecution[]
+
+  @@map("scheduled_jobs")
+}
+
+model PipelineExecution {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         ScheduledJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  pipelineId  String
+  projectId   String
+  status      String   @default("running")
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  output      String?
+  error       String?
+  triggeredBy String   @default("cron")
+
+  @@map("pipeline_executions")
 }

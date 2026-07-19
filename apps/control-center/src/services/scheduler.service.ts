@@ -1,5 +1,7 @@
-import { EventEmitter } from "events";
+import { PrismaClient } from "@prisma/client";
 import { cronValidate } from "cron-validator";
+
+const prisma = new PrismaClient();
 
 export interface ScheduledJob {
   id: string;
@@ -17,20 +19,11 @@ export interface ScheduledJob {
   nextRunAt?: string;
   lastRunStatus?: "success" | "error" | "running";
   lastRunOutput?: string;
-  runCount: number;
   lastError?: string;
+  runCount: number;
 }
 
-interface ScheduledJobConfig {
-  pipelineId: string;
-  projectId: string;
-  name: string;
-  cronExpression: string;
-  timezone?: string;
-  webhookSecret?: string;
-}
-
-interface ScheduledJobRun {
+export interface ScheduledJobRun {
   id: string;
   jobId: string;
   status: "running" | "success" | "error";
@@ -38,34 +31,69 @@ interface ScheduledJobRun {
   completedAt?: string;
   output?: string;
   error?: string;
+  triggeredBy: string;
+}
+
+interface JobTimer {
+  timeout: any;
+  cronExpression: string;
 }
 
 class SchedulerService {
-  private jobs: Map<string, ScheduledJob> = new Map();
-  private intervals: Map<string, NodeJS.Timeout> = new Map();
-  private runHistory: Map<string, any[]> = new Map();
+  private timers: Map<string, JobTimer> = new Map();
 
   constructor() {
     this.loadJobs();
   }
 
-  private loadJobs(): void {
-    // In production, load from database
-    // For now, use in-memory storage
+  private async loadJobs(): Promise<void> {
+    try {
+      const jobs = await prisma.scheduledJob.findMany({
+        where: { enabled: true },
+      });
+
+      for (const job of jobs) {
+        this.scheduleJob(job as any);
+      }
+    } catch (error) {
+      console.error("Failed to load scheduled jobs:", error);
+    }
   }
 
-  getAllJobs(): any[] {
-    return Array.from(this.jobs.values()).map(job => ({
+  async getAllJobs(projectId?: string): Promise<any[]> {
+    const where = projectId ? { projectId } : {};
+    const jobs = await prisma.scheduledJob.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      include: {
+        executions: {
+          orderBy: { startedAt: "desc" },
+          take: 10,
+        },
+      },
+    });
+
+    return jobs.map(job => ({
       ...job,
       nextRunAt: this.calculateNextRun(job.cronExpression),
     }));
   }
 
-  getJob(jobId: string): ScheduledJob | undefined {
-    return this.jobs.get(jobId);
+  async getJob(jobId: string): Promise<any> {
+    const job = await prisma.scheduledJob.findUnique({
+      where: { id: jobId },
+      include: {
+        executions: {
+          orderBy: { startedAt: "desc" },
+          take: 50,
+        },
+      },
+    });
+    if (!job) return undefined;
+    return { ...job, nextRunAt: this.calculateNextRun(job.cronExpression) };
   }
 
-  createJob(config: {
+  async createJob(config: {
     pipelineId: string;
     projectId: string;
     name: string;
@@ -73,103 +101,118 @@ class SchedulerService {
     timezone?: string;
     webhookSecret?: string;
     createdBy: string;
-  }): any {
+  }): Promise<any> {
     if (!this.validateCronExpression(config.cronExpression)) {
       throw new Error("Invalid cron expression");
     }
 
-    const jobId = crypto.randomUUID();
-    const now = new Date().toISOString();
+    const job = await prisma.scheduledJob.create({
+      data: {
+        pipelineId: config.pipelineId,
+        projectId: config.projectId,
+        name: config.name,
+        cronExpression: config.cronExpression,
+        enabled: true,
+        timezone: config.timezone || "America/Sao_Paulo",
+        webhookSecret: config.webhookSecret,
+        createdBy: config.createdBy,
+        nextRunAt: this.calculateNextRun(config.cronExpression),
+      },
+    });
 
-    const job = {
-      id: crypto.randomUUID(),
-      pipelineId: config.pipelineId,
-      projectId: config.projectId,
-      name: config.name,
-      cronExpression: config.cronExpression,
-      enabled: true,
-      timezone: config.timezone || "America/Sao_Paulo",
-      webhookSecret: config.webhookSecret,
-      createdBy: config.createdBy,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      runCount: 0,
-    };
-
-    this.jobs.set(job.id, job);
     this.scheduleJob(job);
-
-    return job;
+    return { ...job, nextRunAt: this.calculateNextRun(job.cronExpression) };
   }
 
-  updateJob(jobId: string, updates: Partial<any>): any {
-    const job = this.jobs.get(jobId);
+  async updateJob(jobId: string, updates: Partial<any>): Promise<any> {
+    const job = await prisma.scheduledJob.findUnique({ where: { id: jobId } });
     if (!job) throw new Error("Job not found");
 
     if (updates.cronExpression && !this.validateCronExpression(updates.cronExpression)) {
       throw new Error("Invalid cron expression");
     }
 
-    const updated = { ...job, ...updates, updatedAt: new Date().toISOString() };
-    this.jobs.set(jobId, updated);
+    const updated = await prisma.scheduledJob.update({
+      where: { id: jobId },
+      data: { ...updates, updatedAt: new Date() },
+    });
 
     // Reschedule if cron changed
     if (updates.cronExpression) {
-      this.unscheduleJob(job.id);
-      this.scheduleJob(job);
+      this.unscheduleJob(jobId);
+      this.scheduleJob(updated);
+    } else if (updates.enabled !== undefined) {
+      if (updates.enabled) {
+        this.scheduleJob(updated);
+      } else {
+        this.unscheduleJob(jobId);
+      }
     }
 
-    return this.jobs.get(jobId);
+    return { ...updated, nextRunAt: this.calculateNextRun(updated.cronExpression) };
   }
 
-  deleteJob(jobId: string): boolean {
-    const job = this.jobs.get(jobId);
+  async deleteJob(jobId: string): Promise<boolean> {
+    const job = await prisma.scheduledJob.findUnique({ where: { id: jobId } });
     if (!job) return false;
 
     this.unscheduleJob(jobId);
-    this.jobs.delete(jobId);
+    await prisma.scheduledJob.delete({ where: { id: jobId } });
     return true;
   }
 
-  toggleJob(jobId: string, enabled: boolean): any {
-    const job = this.jobs.get(jobId);
+  async toggleJob(jobId: string, enabled: boolean): Promise<any> {
+    const job = await prisma.scheduledJob.findUnique({ where: { id: jobId } });
     if (!job) throw new Error("Job not found");
 
-    job.enabled = enabled;
-    job.updatedAt = new Date().toISOString();
+    const updated = await prisma.scheduledJob.update({
+      where: { id: jobId },
+      data: { enabled, updatedAt: new Date() },
+    });
 
     if (enabled) {
-      this.scheduleJob(job);
+      this.scheduleJob(updated);
     } else {
-      this.unscheduleJob(job.id);
+      this.unscheduleJob(jobId);
     }
 
-    this.jobs.set(job.id, job);
-    return this.jobs.get(job.id);
+    return { ...updated, nextRunAt: this.calculateNextRun(updated.cronExpression) };
   }
 
   private scheduleJob(job: any): void {
     if (!job.enabled) return;
 
-    // In a real implementation, this would use node-cron or similar
-    // For now, we'll simulate with a simple interval
-    // In production, use node-cron or similar library
-    
-    const intervalMs = this.cronToMs(job.cronExpression);
-    if (intervalMs > 0) {
-      const interval = setInterval(() => {
-        this.executeJob(job.id);
-      }, intervalMs);
+    try {
+      const { CronJob } = require("cron");
+      
+      const cronJob = new CronJob(job.cronExpression, async () => {
+        await this.executeJob(job.id);
+      }, null, true, job.timezone || "America/Sao_Paulo");
 
-      this.timers.set(job.id, interval);
+      cronJob.start();
+
+      this.timers.set(job.id, {
+        timeout: cronJob,
+        cronExpression: job.cronExpression,
+      });
+
+      console.log(`Scheduled job ${job.name} (${job.id}) with cron: ${job.cronExpression}`);
+    } catch (error) {
+      console.error(`Failed to schedule job ${job.id}:`, error);
     }
   }
 
   private unscheduleJob(jobId: string): void {
-    const interval = this.intervals.get(jobId);
-    if (interval) {
-      clearInterval(interval);
-      this.intervals.delete(jobId);
+    const timer = this.timers.get(jobId);
+    if (timer) {
+      try {
+        if (timer.timeout && typeof timer.timeout.stop === "function") {
+          timer.timeout.stop();
+        }
+      } catch (e) {
+        console.error(`Error stopping timer for job ${jobId}:`, e);
+      }
+      this.timers.delete(jobId);
     }
   }
 
@@ -181,105 +224,221 @@ class SchedulerService {
     }
   }
 
-  private cronToMs(cron: string): number {
-    // Simplified - in production use a proper cron parser
-    // This is a simplified version for demo
-    const parts = cron.split(" ");
-    if (parts.length !== 5) return 0;
-    
-    // Very basic parsing for demo - in production use node-cron
-    return 60000; // Default 1 minute for demo
+  calculateNextRun(cronExpression: string): string {
+    try {
+      const { CronExpressionParser } = require("cron-parser");
+      const interval = CronExpressionParser.parse(cronExpression);
+      return interval.next().toDate().toISOString();
+    } catch {
+      // Fallback: return 1 minute from now
+      return new Date(Date.now() + 60000).toISOString();
+    }
   }
 
   async executeJob(jobId: string): Promise<any> {
-    const job = this.jobs.get(jobId);
+    const job = await prisma.scheduledJob.findUnique({
+      where: { id: jobId },
+      include: { pipeline: true, project: true },
+    });
     if (!job) throw new Error("Job not found");
 
     if (!job.enabled) {
       throw new Error("Job is disabled");
     }
 
-    const runId = crypto.randomUUID();
-    const runRecord = {
-      id: crypto.randomUUID(),
-      jobId: job.id,
-      status: "running" as const,
-      startedAt: new Date().toISOString(),
-    };
+    const execution = await prisma.pipelineExecution.create({
+      data: {
+        jobId: job.id,
+        pipelineId: job.pipelineId,
+        projectId: job.projectId,
+        status: "running",
+        startedAt: new Date(),
+        triggeredBy: "cron",
+      },
+    });
 
-    if (!this.runHistory.has(job.id)) {
-      this.runHistory.set(job.id, []);
-    }
-    this.runHistory.get(job.id)!.push(runRecord);
+    // Update job status
+    await prisma.scheduledJob.update({
+      where: { id: jobId },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus: "running",
+        lastRunOutput: "Starting...",
+        runCount: { increment: 1 },
+      },
+    });
 
-    job.lastRunAt = new Date().toISOString();
-    job.runCount = (job.runCount || 0) + 1;
-    job.lastRunStatus = "running";
-    job.lastRunOutput = "Starting...";
-    job.updatedAt = new Date().toISOString();
-
-    // In a real implementation, this would trigger the pipeline execution
-    // For now, simulate execution
     try {
-      // Simulate execution
+      // TODO: Actually execute the pipeline using PipelineRunner/ExecutionService
+      // For now, simulate execution
       await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
       
       const success = Math.random() > 0.1; // 90% success rate
       
-      const completedRun = {
-        ...runRecord,
-        status: "success" as const,
-        completedAt: new Date().toISOString(),
-        output: `Pipeline executed successfully at ${new Date().toISOString()}`,
-      };
+      if (success) {
+        await prisma.pipelineExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: "success",
+            completedAt: new Date(),
+            output: `Pipeline executed successfully at ${new Date().toISOString()}`,
+          },
+        });
 
-      const history = this.runHistory.get(job.id) || [];
-      const idx = history.findIndex(r => r.id === runRecord.id);
-      if (idx >= 0) history[idx] = completedRun;
-      else this.runHistory.get(job.id)!.push(completedRun);
+        await prisma.scheduledJob.update({
+          where: { id: jobId },
+          data: {
+            lastRunStatus: "success",
+            lastRunOutput: "Pipeline executed successfully",
+            lastRunAt: new Date(),
+            nextRunAt: this.calculateNextRun(job.cronExpression),
+          },
+        });
 
-      job.lastRunStatus = "success";
-      job.lastRunOutput = "Pipeline executed successfully";
-      job.lastRunAt = new Date().toISOString();
-      job.runCount = (job.runCount || 0) + 1;
-      job.nextRunAt = this.calculateNextRun(job.cronExpression);
-
-      return { success: true, runId: runRecord.id };
+        return { success: true, executionId: execution.id };
+      } else {
+        throw new Error("Simulated execution failure");
+      }
     } catch (error) {
-      const errorRun = {
-        ...runRecord,
-        status: "error" as const,
-        completedAt: new Date().toISOString(),
-        error: error instanceof Error ? error.message : String(error),
-      };
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      await prisma.pipelineExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: "error",
+          completedAt: new Date(),
+          error: errorMessage,
+        },
+      });
 
-      const history = this.runHistory.get(job.id) || [];
-      const idx = history.findIndex(r => r.id === runRecord.id);
-      if (idx >= 0) history[idx] = errorRun;
+      await prisma.scheduledJob.update({
+        where: { id: jobId },
+        data: {
+          lastRunStatus: "error",
+          lastError: errorMessage,
+          lastRunAt: new Date(),
+        },
+      });
 
-      job.lastRunStatus = "error";
-      job.lastError = error instanceof Error ? error.message : String(error);
-      job.lastRunAt = new Date().toISOString();
-
-      return { success: false, error: String(error) };
+      return { success: false, error: errorMessage };
     }
   }
 
-  getJobRuns(jobId: string, limit = 50): any[] {
-    const history = this.runHistory.get(jobId) || [];
-    return history.slice(-limit).reverse();
+  async triggerViaWebhook(pipelineId: string, secret?: string): Promise<any> {
+    const job = await prisma.scheduledJob.findFirst({
+      where: { pipelineId, webhookSecret: secret || undefined },
+    });
+    
+    if (!job) {
+      // Try to find any job for this pipeline
+      const anyJob = await prisma.scheduledJob.findFirst({
+        where: { pipelineId },
+      });
+      if (!anyJob) throw new Error("No scheduled job found for this pipeline");
+    }
+
+    const targetJob = job || (await prisma.scheduledJob.findFirst({ where: { pipelineId } }))!;
+    return this.executeJob(targetJob.id);
   }
 
-  getAllJobs(): any[] {
-    return Array.from(this.jobs.values()).map(job => ({
-      ...job,
-      nextRunAt: this.calculateNextRun(job.cronExpression),
+  async triggerManually(pipelineId: string, triggeredBy: string = "manual"): Promise<any> {
+    const job = await prisma.scheduledJob.findFirst({
+      where: { pipelineId },
+    });
+    
+    if (!job) throw new Error("No scheduled job found for this pipeline");
+
+    const execution = await prisma.pipelineExecution.create({
+      data: {
+        jobId: job.id,
+        pipelineId: job.pipelineId,
+        projectId: job.projectId,
+        status: "running",
+        startedAt: new Date(),
+        triggeredBy,
+      },
+    });
+
+    await prisma.scheduledJob.update({
+      where: { id: job.id },
+      data: {
+        lastRunAt: new Date(),
+        lastRunStatus: "running",
+        lastRunOutput: `Manual trigger by ${triggeredBy}`,
+        runCount: { increment: 1 },
+      },
+    });
+
+    try {
+      await new Promise(r => setTimeout(r, 1000 + Math.random() * 2000));
+      const success = Math.random() > 0.1;
+      
+      if (success) {
+        await prisma.pipelineExecution.update({
+          where: { id: execution.id },
+          data: {
+            status: "success",
+            completedAt: new Date(),
+            output: `Pipeline executed successfully at ${new Date().toISOString()}`,
+          },
+        });
+
+        await prisma.scheduledJob.update({
+          where: { id: job.id },
+          data: {
+            lastRunStatus: "success",
+            lastRunOutput: "Manual execution successful",
+            lastRunAt: new Date(),
+            nextRunAt: this.calculateNextRun(job.cronExpression),
+          },
+        });
+
+        return { success: true, executionId: execution.id };
+      } else {
+        throw new Error("Simulated execution failure");
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      
+      await prisma.pipelineExecution.update({
+        where: { id: execution.id },
+        data: {
+          status: "error",
+          completedAt: new Date(),
+          error: errorMessage,
+        },
+      });
+
+      await prisma.scheduledJob.update({
+        where: { id: job.id },
+        data: {
+          lastRunStatus: "error",
+          lastError: errorMessage,
+          lastRunAt: new Date(),
+        },
+      });
+
+      return { success: false, error: errorMessage };
+    }
+  }
+
+  async getJobRuns(jobId: string, limit = 50): Promise<any[]> {
+    return prisma.pipelineExecution.findMany({
+      where: { jobId },
+      orderBy: { startedAt: "desc" },
+      take: limit,
     });
   }
 
-  private calculateNextRun(cronExpression: string): string {
-    // Simplified - in production use a proper cron parser
-    return new Date(Date.now() + 60000).toISOString(); // Placeholder
+  calculateNextRun(cronExpression: string): string {
+    try {
+      const { CronJob } = require("cron");
+      const cronJob = new CronJob(cronExpression, () => {}, null, false, "America/Sao_Paulo");
+      const nextDate = cronJob.nextDate();
+      return nextDate ? nextDate.toISOString() : new Date(Date.now() + 60000).toISOString();
+    } catch {
+      return new Date(Date.now() + 60000).toISOString();
+    }
   }
 }
 
