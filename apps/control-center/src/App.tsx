@@ -10,11 +10,30 @@ import {
   SlidersHorizontal, Paperclip as PaperclipIcon,
   Target, AlertTriangle, Rocket, Calendar, DollarSign, Code, Zap, Brain, GitBranch, Megaphone, BookOpen, Instagram, Music as MusicIcon, Video as VideoIcon, Image as ImageIcon,
   Trash2,
+  Copy,
+  RotateCcw,
+  FileText as FileTextIcon,
+  Save,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+  X,
+  FilePlus,
+  Play,
+  ChevronRight,
+  ChevronLeft,
+  Settings,
+  Zap,
+  Terminal,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive } from './services/beehiveApi';
+import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
+import { MessageList } from './components/chat/MessageList';
+import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
+import { PipelineRunner } from './components/pipeline/PipelineRunner';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
