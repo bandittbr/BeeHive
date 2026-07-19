@@ -267,6 +267,10 @@ export function PipelineBuilder({ pipeline: initialPipeline, project, onSave, on
   const [showGrid, setShowGrid] = useState(true);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [showScheduler, setShowScheduler] = useState(false);
+  const [showExecution, setShowExecution] = useState(false);
+  const [execution, setExecution] = useState<any>(null);
+  const [executionLogs, setExecutionLogs] = useState<string[]>([]);
+  const [isExecuting, setIsExecuting] = useState(false);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -405,6 +409,56 @@ export function PipelineBuilder({ pipeline: initialPipeline, project, onSave, on
       y: Math.round(pos.y / gridSize) * gridSize,
     };
   }, [snapToGrid]);
+
+  // Execution handlers
+  const handleRun = useCallback(async () => {
+    setIsExecuting(true);
+    setExecution({
+      id: `exec-${Date.now()}`,
+      pipelineId: pipeline.id,
+      projectId: project?.id,
+      status: "running",
+      startedAt: new Date().toISOString(),
+    });
+    setExecutionLogs([`[${new Date().toLocaleTimeString()}] 🚀 Starting pipeline execution...`]);
+    setNodeStatuses({});
+
+    // Simulate execution - in production, call the API
+    const nodeTypes = [...new Set(pipeline.nodes.map(n => n.type))];
+    const typeOrder = ["input", "agent", "tool", "condition", "loop", "parallel", "delay", "code", "http", "db", "output"];
+    const sortedTypes = nodeTypes.sort((a, b) => typeOrder.indexOf(a) - typeOrder.indexOf(b));
+
+    for (const type of sortedTypes) {
+      if (!isExecuting) break;
+      const nodesOfType = pipeline.nodes.filter(n => n.type === type);
+      for (const node of nodesOfType) {
+        setNodeStatuses(prev => ({ ...prev, [node.id]: "running" }));
+        setExecutionLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] 🔄 ${node.label} (${type}) running...`]);
+        
+        // Simulate work
+        await new Promise(r => setTimeout(r, 800 + Math.random() * 1000));
+        
+        if (!isExecuting) break;
+        
+        const success = Math.random() > 0.1; // 90% success
+        setNodeStatuses(prev => ({ ...prev, [node.id]: success ? "success" : "error" }));
+        setExecutionLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${success ? "✅" : "❌"} ${node.label} ${success ? "completed" : "failed"}`]);
+        
+        if (!success && !isExecuting) break;
+      }
+    }
+
+    const finalStatus = Object.values(nodeStatuses).includes("error") ? "error" : "success";
+    setExecution(prev => prev ? { ...prev, status: finalStatus, completedAt: new Date().toISOString() } : null);
+    setExecutionLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${finalStatus === "success" ? "🎉" : "💥"} Pipeline ${finalStatus === "success" ? "completed successfully" : "failed"}`]);
+    setIsExecuting(false);
+  }, [pipeline, project, isExecuting, nodeStatuses]);
+
+  const handleStop = useCallback(() => {
+    setIsExecuting(false);
+    setExecution(prev => prev ? { ...prev, status: "error", completedAt: new Date().toISOString() } : null);
+    setExecutionLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ⏹️ Execution stopped by user`]);
+  }, []);
 
   return (
     <div className={cn("pipeline-builder", className)} ref={containerRef} onWheel={handleWheel} onMouseDown={handlePan}>
@@ -1039,6 +1093,241 @@ function SchedulerPanel({ pipeline, project, onClose }: SchedulerPanelProps) {
 }
 
 export default SchedulerPanel;
+
+// ============================================
+// EXECUTION PANEL COMPONENT
+// ============================================
+
+interface ExecutionPanelProps {
+  pipeline: any;
+  project: any;
+  isRunning: boolean;
+  onRun: () => void;
+  onStop: () => void;
+}
+
+function ExecutionPanel({ pipeline, project, isRunning, onRun, onStop }: ExecutionPanelProps) {
+  const [execution, setExecution] = useState<any>(null);
+  const [logs, setLogs] = useState<string[]>([]);
+  const [nodeStatuses, setNodeStatuses] = useState<Record<string, "idle" | "running" | "success" | "error">>({});
+  const [eventSource, setEventSource] = useState<EventSource | null>(null);
+  const logRef = useRef<HTMLDivElement>(null);
+  const executionIdRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!isRunning) {
+      // Cleanup on stop
+      if (eventSource) {
+        eventSource.close();
+        setEventSource(null);
+      }
+      return;
+    }
+
+    // Start execution via API
+    const startExecution = async () => {
+      try {
+        const res = await fetch(`/api/executions`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ 
+            pipelineId: pipeline.id, 
+            projectId: project.id,
+            triggeredBy: 'manual'
+          }),
+        });
+        const data = await res.json();
+        if (data.executionId) {
+          executionIdRef.current = data.executionId;
+          connectSSE(data.executionId);
+        }
+      } catch (error) {
+        console.error('Failed to start execution:', error);
+      }
+    };
+
+    const connectSSE = (executionId: string) => {
+      const es = new EventSource(`/api/executions/${executionId}/stream`);
+      setEventSource(es);
+
+      es.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          handleSSEEvent(data);
+        } catch (e) {
+          console.error('SSE parse error:', e);
+        }
+      };
+
+      es.onerror = () => {
+        es.close();
+      };
+    };
+
+    const handleSSEEvent = (event: any) => {
+      if (event.type === 'init') {
+        setExecution(event.execution);
+        // Initialize node statuses
+        const statuses: Record<string, "idle" | "running" | "success" | "error"> = {};
+        event.execution.nodes.forEach((n: any) => {
+          statuses[n.id] = n.status === "pending" ? "idle" : n.status;
+        });
+        setNodeStatuses(statuses);
+      } else if (event.type === 'node') {
+        const status = event.data.status;
+        setNodeStatuses(prev => ({ ...prev, [event.data.nodeId]: status }));
+        if (status === 'running') {
+          setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ▶️ ${event.data.nodeName} (${event.data.nodeType}) running...`]);
+        } else if (status === 'success') {
+          setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ✅ ${event.data.nodeName} completed`]);
+        } else if (status === 'error') {
+          setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ❌ ${event.data.nodeName} failed: ${event.data.error || 'Unknown error'}`]);
+        }
+      } else if (event.type === 'log') {
+        setLogs(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${event.data.log}`]);
+      } else if (event.type === 'complete') {
+        setExecution(prev => prev ? { ...prev, status: event.data.status, completedAt: event.data.completedAt } : null);
+        onStop();
+      }
+    };
+
+    startExecution();
+
+    return () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    };
+  }, [isRunning, pipeline.id, project.id, onStop]);
+
+  const scrollToBottom = () => {
+    if (logRef.current) {
+      logRef.current.scrollTop = logRef.current.scrollHeight;
+    }
+  };
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [logs]);
+
+  const getNodeStatus = (nodeId: string) => {
+    const node = pipeline.nodes.find((n: any) => n.id === nodeId);
+    if (!node) return "idle";
+    const type = node.type;
+    // Map node types to execution steps
+    const typeMap: Record<string, string> = {
+      input: "input",
+      agent: "agent",
+      tool: "tool",
+      condition: "condition",
+      loop: "agent",
+      parallel: "agent",
+      delay: "tool",
+      code: "tool",
+      http: "tool",
+      db: "tool",
+      output: "output",
+    };
+    return nodeStatuses[typeMap[type] || type] || "idle";
+  };
+
+  return (
+    <div className="execution-panel">
+      <div className="execution-header">
+        <h3>Execução</h3>
+        <div className="execution-status">
+          <span className={cn("status-indicator", isRunning ? "running" : "idle")} />
+          <span>{isRunning ? "Executando" : "Parado"}</span>
+        </div>
+      </div>
+
+      <div className="execution-toolbar">
+        <button 
+          className="btn-primary" 
+          onClick={isRunning ? onStop : onRun}
+          disabled={isRunning && !onStop}
+        >
+          {isRunning ? (
+            <>
+              <Loader2 size={16} className="spin" />
+              Parar
+            </>
+          ) : (
+            <>
+              <Play size={16} />
+              Executar
+            </>
+          )}
+        </button>
+        {execution && (
+          <button className="btn-secondary" onClick={() => {}}>
+            <Copy size={16} /> Copiar Logs
+          </button>
+        )}
+      </div>
+
+      <div className="execution-tabs">
+        <button className="tab active">Nodes</button>
+        <button className="tab">Logs</button>
+        <button className="tab">Timeline</button>
+      </div>
+
+      <div className="execution-content">
+        {/* Nodes View */}
+        <div className="execution-nodes">
+          {pipeline.nodes.map((node: any) => {
+            const status = getNodeStatus(node.id);
+            return (
+              <div key={node.id} className={cn("execution-node-item", status)}>
+                <div className="node-status-indicator">
+                  <span className={cn("status-dot", status)} />
+                  <span className="node-type-badge">{NODE_TYPES[node.type]?.icon || "⬜"}</span>
+                  <span className="node-label">{node.label}</span>
+                </div>
+                <div className="node-status-badge">{status}</div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Logs View */}
+        <div className="execution-logs" ref={logRef}>
+          {logs.map((log, i) => (
+            <div key={i} className="log-line">
+              <span className="log-time">{log.match(/^\[(.*?)\]/)?.[1] || ""}</span>
+              <span className="log-message">{log.replace(/^\[.*?\]\s*/, "")}</span>
+            </div>
+          ))}
+          {logs.length === 0 && !isRunning && (
+            <div className="empty-logs">Nenhuma execução ainda. Clique em "Executar" para iniciar.</div>
+          )}
+        </div>
+
+        {/* Timeline View */}
+        <div className="execution-timeline">
+          {execution && (
+            <div className="timeline-item">
+              <div className="timeline-marker" />
+              <div className="timeline-content">
+                <span className="timeline-time">{new Date(execution.startedAt).toLocaleTimeString()}</span>
+                <span className="timeline-event">Pipeline iniciado</span>
+              </div>
+            </div>
+          )}
+          {logs.slice(0, 10).map((log, i) => (
+            <div key={i} className="timeline-item">
+              <div className="timeline-marker" />
+              <div className="timeline-content">
+                <span className="timeline-time">{log.match(/^\[(.*?)\]/)?.[1] || ""}</span>
+                <span className="timeline-event">{log.replace(/^\[.*?\]\s*/, "")}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Pipeline Node Component
 interface PipelineNodeProps {

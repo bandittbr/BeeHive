@@ -1,4 +1,5 @@
 import { PrismaClient } from "@prisma/client";
+import { executionStream } from "./execution-stream";
 
 const prisma = new PrismaClient();
 
@@ -48,10 +49,18 @@ export async function executePipeline(config: PipelineExecutorConfig): Promise<P
 
     // Find entry nodes (nodes with no incoming edges)
     const entryNodes = nodes.filter(n => reverseAdjacency[n.id].length === 0);
-    
+
     if (entryNodes.length === 0) {
       throw new Error("Pipeline has no entry point");
     }
+
+    // Initialize execution stream
+    executionStream.createExecution(
+      config.executionId,
+      config.pipelineId,
+      pipeline.name,
+      nodes.map(n => ({ id: n.id, name: n.label, type: n.type }))
+    );
 
     // Execute nodes in topological order
     const visited = new Set<string>();
@@ -67,6 +76,9 @@ export async function executePipeline(config: PipelineExecutorConfig): Promise<P
       if (!node) throw new Error(`Node ${nodeId} not found`);
 
       executing.add(nodeId);
+      
+      // Mark node as running
+      executionStream.updateNodeStatus(config.executionId, nodeId, "running");
 
       // Wait for all dependencies to complete
       const deps = reverseAdjacency[nodeId] || [];
@@ -83,6 +95,9 @@ export async function executePipeline(config: PipelineExecutorConfig): Promise<P
       results[nodeId] = nodeResult;
       
       output += `[${node.label}] ${JSON.stringify(nodeResult)}\n`;
+      
+      // Mark node as complete
+      executionStream.updateNodeStatus(config.executionId, nodeId, "success", { output: nodeResult, logs: [`${node.label}: completed`] });
       
       visited.add(nodeId);
       executing.delete(nodeId);
