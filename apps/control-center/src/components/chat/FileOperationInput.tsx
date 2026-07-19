@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect, useCallback } from "react";
-import { FileText, FilePlus, X, AlertCircle, CheckCircle, Loader2, Search, ChevronDown } from "lucide-react";
+import { FileText, FilePlus, X, AlertCircle, CheckCircle, Loader2, Search, ChevronDown, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface FileOperation {
