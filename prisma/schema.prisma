@@ -17,6 +17,10 @@ model Project {
   artifacts    Artifact[]
   pipelines    Pipeline[]
   scheduledJobs ScheduledJob[]
+  templates    WorkflowTemplate[]
+  secrets      Secret[]
+  costRecords  CostRecord[]
+  evaluationSuites EvaluationSuite[]
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -231,4 +235,156 @@ enum ApprovalStatus {
   REJECTED
   EXPIRED
   CANCELLED
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  category    String
+  tags        Json
+  nodes       Json
+  edges       Json
+  thumbnail   String?
+  isPublic    Boolean  @default(true)
+  createdBy   String
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workflow_templates")
+}
+
+model Secret {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key       String
+  value     String   // Encrypted
+  type      SecretType @default(STRING)
+  description String?
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@map("secrets")
+}
+
+enum SecretType {
+  STRING
+  API_KEY
+  DATABASE_URL
+  OAUTH_TOKEN
+  SSH_KEY
+  CERTIFICATE
+}
+
+model CostRecord {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  executionId   String?
+  pipelineId    String?
+  nodeId        String?
+  nodeType      String?
+  model         String?
+  promptTokens  Int      @default(0)
+  completionTokens Int   @default(0)
+  totalTokens   Int      @default(0)
+  costUsd       Float    @default(0)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@map("cost_records")
+}
+
+model EvaluationSuite {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pipelineId  String?
+  name        String
+  description String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  testCases   EvaluationTestCase[]
+  runs        EvaluationRun[]
+
+  @@map("evaluation_suites")
+}
+
+model EvaluationTestCase {
+  id            String   @id @default(cuid())
+  suiteId       String
+  suite         EvaluationSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  input         Json
+  expectedOutput Json?
+  assertions    Json    // Array of {type, path, expected, operator}
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  runs          EvaluationTestCaseRun[]
+
+  @@map("evaluation_test_cases")
+}
+
+model EvaluationRun {
+  id              String   @id @default(cuid())
+  suiteId         String
+  suite           EvaluationSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  pipelineId      String
+  status          EvaluationRunStatus @default(PENDING)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  totalCases      Int      @default(0)
+  passedCases     Int      @default(0)
+  failedCases     Int      @default(0)
+  error           String?
+  results         Json     // Array of {testCaseId, passed, output, error, duration}
+  createdAt       DateTime @default(now())
+
+  testCaseRuns    EvaluationTestCaseRun[]
+
+  @@map("evaluation_runs")
+}
+
+model EvaluationTestCaseRun {
+  id              String   @id @default(cuid())
+  runId           String
+  run             EvaluationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  testCaseId      String
+  testCase        EvaluationTestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  status          TestCaseRunStatus @default(PENDING)
+  output          Json?
+  error           String?
+  durationMs      Int?
+  assertionResults Json    // Array of {assertion, passed, actual, expected}
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@map("evaluation_test_case_runs")
+}
+
+enum EvaluationRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TestCaseRunStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  ERROR
+  SKIPPED
 }
