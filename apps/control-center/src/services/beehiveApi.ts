@@ -8,6 +8,9 @@
 //   POST /api/conversation/respond
 //   body:  { message: { role: "user", content: string } }
 //   resp:  { messages: [{ role: "assistant", content: string }] }
+//
+// OBS: O backend NÃO suporta SSE/streaming nativo — retorna JSON completo.
+// O streaming no frontend é simulado via chunking da resposta completa.
 
 const BEEHIVE_API_URL = 'https://beehive-production-d934.up.railway.app';
 
@@ -33,7 +36,7 @@ export async function askBeeHive(content: string): Promise<string> {
   }
 }
 
-// Streaming version using SSE
+// Streaming version — simulated chunking (backend não suporta SSE nativo)
 export async function askBeeHiveStream(
   content: string,
   onChunk: (chunk: string) => void
@@ -49,63 +52,20 @@ export async function askBeeHiveStream(
       throw new Error(`HTTP ${res.status}: ${errBody}`);
     }
 
-    // Check if the response supports streaming
-    const reader = res.body?.getReader();
-    if (!reader) {
-      // Fallback: read all at once
-      const data = await res.json();
-      const messages = Array.isArray(data?.messages) ? data.messages : [];
-      const reply = messages[messages.length - 1];
-      const content = typeof reply?.content === 'string' ? reply.content : 'Não consegui gerar uma resposta agora.';
-      // Simulate streaming by chunking
-      const chunks = content.match(/.{1,10}/g) || [];
-      for (const chunk of chunks) {
-        onChunk(chunk);
-        await new Promise(r => setTimeout(r, 20));
-      }
-      return;
-    }
+    const data = await res.json();
+    const messages = Array.isArray(data?.messages) ? data.messages : [];
+    const reply = messages[messages.length - 1];
+    const fullContent = typeof reply?.content === 'string' ? reply.content : 'Não consegui gerar uma resposta agora.';
 
-    const decoder = new TextDecoder();
-    let buffer = '';
-
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      
-      buffer += decoder.decode(value, { stream: true });
-      
-      // Try to parse complete JSON objects from buffer
-      let boundary = buffer.indexOf('\n');
-      while (boundary !== -1) {
-        const line = buffer.slice(0, boundary).trim();
-        buffer = buffer.slice(boundary + 1);
-        
-        if (line.startsWith('data: ')) {
-          const jsonStr = line.slice(6);
-          try {
-            const parsed = JSON.parse(jsonStr);
-            if (parsed.content) {
-              onChunk(parsed.content);
-            }
-          } catch {
-            // Ignore parse errors for incomplete JSON
-          }
-        }
-        boundary = buffer.indexOf('\n');
-      }
-    }
-
-    // Handle any remaining buffer
-    if (buffer.trim()) {
-      try {
-        const parsed = JSON.parse(buffer.trim());
-        if (parsed.content) {
-          onChunk(parsed.content);
-        }
-      } catch {
-        // Ignore
-      }
+    // Simulate streaming by chunking words with realistic timing
+    const words = fullContent.split(/(\s+)/).filter(w => w.length > 0);
+    let accumulated = '';
+    
+    for (const word of words) {
+      accumulated += word;
+      onChunk(accumulated);
+      // Variable delay for more natural feel: 20-80ms per chunk
+      await new Promise(r => setTimeout(r, 20 + Math.random() * 60));
     }
   } catch (err) {
     console.error('[beehiveApi] falha no streaming:', err);
