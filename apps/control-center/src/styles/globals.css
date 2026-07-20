@@ -537,3 +537,112 @@
   border-radius: var(--radius-xs);
   font-weight: 500;
 }
+
+/* ===== CODE BLOCK STYLING (shiki) ===== */
+.code-block {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--bg);
+  margin: 12px 0;
+}
+
+.code-block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.code-language {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  letter-spacing: 0.05em;
+}
+
+.copy-code-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.copy-code-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.copy-code-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.copy-code-btn.copied {
+  color: var(--success);
+}
+
+.code-block-content {
+  padding: 12px;
+  overflow-x: auto;
+  max-height: 500px;
+}
+
+.code-block-content pre {
+  margin: 0;
+  padding: 0;
+  background: transparent !important;
+}
+
+.code-block-content code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: transparent !important;
+}
+
+/* Shiki token colors (github-dark theme compatible) */
+.code-block-content .shiki { 
+  background: transparent !important; 
+}
+
+.code-block-content .line { 
+  display: block; 
+}
+
+.code-block-content .keyword { color: #ff7b72; }
+.code-block-content .function { color: #d2a8ff; }
+.code-block-content .string { color: #a5d6ff; }
+.code-block-content .number { color: #79c0ff; }
+.code-block-content .comment { color: #8b949e; font-style: italic; }
+.code-block-content .type { color: #ffa657; }
+.code-block-content .class { color: #ffa657; }
+.code-block-content .variable { color: #ffd740; }
+.code-block-content .operator { color: #ff7b72; }
+.code-block-content .punctuation { color: #c9d1d9; }
+.code-block-content .property { color: #79c0ff; }
+.code-block-content .parameter { color: #ffab70; }
+.code-block-content .constant { color: #79c0ff; }
+.code-block-content .decorator { color: #d2a8ff; }
+.code-block-content .regex { color: #a5d6ff; }
+.code-block-content .tag { color: #ff7b72; }
+.code-block-content .attribute { color: #79c0ff; }
+.code-block-content .namespace { color: #d2a8ff; }
+.code-block-content .meta { color: #8b949e; }
+.code-block-content .attr { color: #79c0ff; }
+.code-block-content .builtin { color: #ff7b72; }
+.code-block-content .symbol { color: #d2a8ff; }
+.code-block-content .selector { color: #ffa657; }
+.code-block-content .url { color: #a5d6ff; }
+.code-block-content .attr-value { color: #a5d6ff; }
+.code-block-content .attr-name { color: #79c0ff; }
