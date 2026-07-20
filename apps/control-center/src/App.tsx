@@ -40,6 +40,7 @@ import { CostDashboard } from './components/cost/CostDashboard';
 import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
 import { ModelSelect } from './components/chat/ModelSelector';
 import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
+import { Composer } from './components/chat/Composer';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
@@ -329,7 +330,6 @@ function ChatInputArea({
   showFilePanel: boolean;
   setShowFilePanel: (v: boolean) => void;
 }) {
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -349,13 +349,6 @@ function ChatInputArea({
     { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
     { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
   ];
-
-  useEffect(() => {
-    if (textareaRef.current) {
-      textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = Math.min(textareaRef.current.scrollHeight, 220) + 'px';
-    }
-  }, [input]);
 
   const currentModel = modelOptions.find(m => `${m.providerID}:${m.modelID}` === selectedModel);
   const supportsImages = currentModel?.supportsImages ?? false;
@@ -432,17 +425,16 @@ function ChatInputArea({
             <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
           </div>
           
-          {/* Center: Textarea - fills available space */}
-          <div className="input-center">
-            <textarea
-              ref={textareaRef}
-              placeholder={sending ? 'Aguardando resposta...' : 'Digite sua mensagem... (Shift+Enter para nova linha)'}
+          {/* Center: Composer (Lexical) - fills available space */}
+          <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
+            <Composer
               value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
+              onChange={setInput}
+              onSubmit={handleSend}
               disabled={sending}
-              rows={1}
-              spellCheck={false}
+              placeholder="Digite sua mensagem... (Shift+Enter para nova linha, / para comandos, @ para menções)"
+              maxHeight={220}
+              showToolbar={true}
             />
           </div>
           

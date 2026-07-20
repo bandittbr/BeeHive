@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useRef, useState, useCallback } from "react";
 import { LexicalComposer } from "@lexical/react/LexicalComposer";
@@ -15,14 +15,13 @@ import { $createListItemNode, $createListNode, ListItemNode, ListNode } from "@l
 import { $createHashtagNode, HashtagNode, addHashtag } from "@lexical/hashtag";
 import { $createTableNode, $createTableCellNode, $createTableRowNode, TableNode, TableCellNode, TableRowNode } from "@lexical/table";
 import { $createImageNode, ImageNode } from "@lexical/file";
-import { $createHorizontalRuleNode, HorizontalRuleNode } from "@lexical/react/LexicalHorizontalRulePlugin";
 import { $createParagraphNode, ParagraphNode } from "lexical";
 import { cn } from "@/lib/utils";
 import { 
   Bold, Italic, Strikethrough, Code, Type, List, ListOrdered, 
   Quote, Link, Image, Minus, Heading1, Heading2, Heading3,
   ChevronDown, X, Search, Bot, FileText, Zap, Hash, Table,
-  MoreHorizontal, Hashtag, AtSign
+  Hashtag, AtSign
 } from "lucide-react";
 
 const initialConfig = {
@@ -468,7 +467,7 @@ export function Composer({
                   })}
                   title="Bloco de código"
                   disabled={disabled}
-                ><Minus size={14} /></button>
+                ><Code size={14} /></button>
               </div>
               <div className="toolbar-divider" />
               <div className="toolbar-group">
@@ -498,19 +497,6 @@ export function Composer({
                   title="Tabela"
                   disabled={disabled}
                 ><Table size={14} /></button>
-                <button 
-                  type="button" 
-                  className="toolbar-btn"
-                  onClick={() => editorRef.current?.update(() => {
-                    const selection = $getSelection();
-                    if ($isRangeSelection(selection)) {
-                      const hr = $createHorizontalRuleNode();
-                      selection.insertNodes([hr]);
-                    }
-                  })}
-                  title="Linha horizontal"
-                  disabled={disabled}
-                ><MoreHorizontal size={14} /></button>
               </div>
             </div>
           )}
