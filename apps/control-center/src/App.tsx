@@ -31,7 +31,7 @@ import {
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
-import { askBeeHive } from './services/beehiveApi';
+import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
 import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
@@ -217,12 +217,28 @@ function HomeChat() {
     if (!value && attachedFiles.length === 0 || sending) return;
     setStarted(true);
     const userContent = value + (attachedFiles.length > 0 ? `\n\n[Arquivos anexados: ${attachedFiles.map(f => f.name).join(', ')}]` : '');
-    setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: userContent, time: now() }]);
+    const userMsgId = String(Date.now());
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, time: now() }]);
     setInput('');
     setAttachedFiles([]);
     setSending(true);
-    const reply = await askBeeHive(value);
-    setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: reply, time: now() }]);
+
+    // Add empty assistant message for streaming
+    const assistantMsgId = String(Date.now() + 1);
+    setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', time: now() }]);
+
+    let fullContent = '';
+    await askBeeHiveStream(value, (chunk) => {
+      fullContent += chunk;
+      setMessages((prev) => prev.map((m) =>
+        m.id === assistantMsgId ? { ...m, content: fullContent } : m
+      ));
+    });
+
+    // Ensure final content is set
+    setMessages((prev) => prev.map((m) =>
+      m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m
+    ));
     setSending(false);
   };
 
