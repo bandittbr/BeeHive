@@ -38,11 +38,13 @@ import { FileOperationInput, useFileOperations } from './components/chat/FileOpe
 import { PipelineRunner } from './components/pipeline/PipelineRunner';
 import { CostDashboard } from './components/cost/CostDashboard';
 import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
+import { ModelSelect } from './components/chat/ModelSelector';
+import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
 // ============================================================
-// APP SHELL â€” Sidebar rotulada + Topbar + àreas
+// APP SHELL — Sidebar rotulada + Topbar + Áreas
 // ============================================================
 
 type MainArea = 'chat' | 'projetos' | 'negocios' | 'evaluations' | 'settings';
@@ -77,7 +79,7 @@ const { projects } = useAppStore();
   const handleNewProject = async () => {
     const name = prompt('Nome do novo projeto:');
     if (name) {
-      const icons = ['ðŸ“', 'ðŸš€', 'ðŸ’¡', 'ðŸŽ¯', 'ðŸ”¥'];
+      const icons = ['📁', '🚀', '💡', '🎯', '🔥'];
       const icon = icons[Math.floor(Math.random() * icons.length)];
       const project = await projectService.create({ name, icon, description: '', status: 'active' });
       openProject(project);
@@ -97,106 +99,87 @@ const { projects } = useAppStore();
           <div className="logo-mark"><img src="/logo.png" alt="BeeHive" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} /></div>
           <span className="logo-text">BeeHive</span>
         </div>
-
-        <nav className="sidebar-nav">
+        <div className="sidebar-nav">
           <div className="nav-group">
-            <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => setActiveArea('chat')}>
-                <MessageSquare size={17} strokeWidth={1.6} />
-                <span>Chat</span>
-              </button>
-              <button className="nav-row-plus" title="Nova conversa" onClick={handleNewConversation}>
-                <Plus size={13} strokeWidth={2} />
-              </button>
-            </div>
-
-            <div className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`} onClick={goToProjectsList}>
-              <button className="nav-row-main nav-row-single">
-                <FolderKanban size={17} strokeWidth={1.6} />
-                <span>Projetos</span>
-              </button>
-            </div>
-
-            <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => setActiveArea('negocios')}>
-              <button className="nav-row-main nav-row-single">
-                <Package size={17} strokeWidth={1.6} />
-                <span>Negócios</span>
-              </button>
-            </div>
-
-            <div className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`} onClick={() => setActiveArea('evaluations')}>
-              <button className="nav-row-main nav-row-single">
-                <Target size={17} strokeWidth={1.6} />
-                <span>Avaliações</span>
-              </button>
-            </div>
+            <button className={`nav-row${activeArea === 'chat' ? ' active' : ''}`} onClick={() => { setActiveArea('chat'); setOpenedProject(null); }}>
+              <button className="nav-row-main"><MessageSquare size={16} /> Chat</button>
+              <button className="nav-row-plus" onClick={handleNewConversation}><Plus size={14} /></button>
+            </button>
+            <button className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`} onClick={() => { setActiveArea('projetos'); setOpenedProject(null); }}>
+              <button className="nav-row-main"><FolderKanban size={16} /> Projetos</button>
+              <button className="nav-row-plus" onClick={handleNewProject}><Plus size={14} /></button>
+            </button>
+            <button className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => { setActiveArea('negocios'); setOpenedProject(null); }}>
+              <button className="nav-row-main"><Globe size={16} /> Negócios</button>
+            </button>
+            <button className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`} onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); }}>
+              <button className="nav-row-main"><BarChart3 size={16} /> Avaliações</button>
+            </button>
           </div>
-        </nav>
-
-        <div className="sidebar-divider" />
-
-        <div className="sidebar-recent">
-          <div className="sidebar-section-label"><span>Recentes</span></div>
-          <div className="recent-list">
-            {projects.slice(0, 6).map((p) => (
-              <button key={p.id} className="recent-row" onClick={() => openProject(p)}>
-                <span className="recent-icon">{p.icon}</span>
-                <span className="recent-name">{p.name}</span>
-                <span className={`recent-dot ${p.status}`} />
-              </button>
-            ))}
-            {projects.length === 0 && (
-              <div className="recent-empty">Nenhum projeto ainda</div>
-            )}
+          <div className="sidebar-divider" />
+          <div className="nav-group">
+            <button className={`nav-row${activeArea === 'settings' ? ' active' : ''}`} onClick={() => { setActiveArea('settings'); setOpenedProject(null); }}>
+              <button className="nav-row-main"><Settings size={16} /> Settings</button>
+            </button>
           </div>
         </div>
-
         <div className="sidebar-footer">
-          <button className={`nav-row-main nav-row-single${activeArea === 'settings' ? ' active' : ''}`} onClick={() => setActiveArea('settings')}>
-            <Settings size={17} strokeWidth={1.6} />
-            <span>Settings</span>
-          </button>
+          <div className="sidebar-recent" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+            <div className="sidebar-section-label">Projetos Recentes</div>
+            <div className="recent-list">
+              {projects.slice(0, 5).map((p) => (
+                <button key={p.id} className="recent-row" onClick={() => openProject(p)}>
+                  <span className="recent-icon">{p.icon}</span>
+                  <span className="recent-name">{p.name}</span>
+                  <span className={`recent-dot ${p.status}`} />
+                </button>
+              ))}
+              {projects.length === 0 && <div className="recent-empty">Nenhum projeto ainda</div>}
+            </div>
+          </div>
           <div className="sidebar-user">
             <div className="user-avatar">GT</div>
             <div className="user-info">
               <span className="user-name">Gabriel T.</span>
-              <span className="user-plan">Premium</span>
+              <span className="user-plan">Pro Plan</span>
             </div>
           </div>
         </div>
       </aside>
 
-      {/* Coluna principal: topbar + conteúdo */}
       <div className="app-body">
         <header className="topbar">
           <div className="breadcrumb">
-            <span className="breadcrumb-root">BeeHive</span>
-            <ChevronRight size={13} className="breadcrumb-sep" />
-            <span className="breadcrumb-current">{AREA_LABELS[activeArea]}</span>
+            <span className="breadcrumb-root" onClick={goToProjectsList}>Projetos</span>
+            <span className="breadcrumb-sep">/</span>
+            {openedProject ? (
+              <>
+                <span className="breadcrumb-sep">/</span>
+                <span className="breadcrumb-current">{openedProject.name}</span>
+              </>
+            ) : (
+              <span className="breadcrumb-current">{AREA_LABELS[activeArea]}</span>
+            )}
           </div>
           <div className="topbar-right">
+            <button className="topbar-icon-btn" title="Buscar"><Search size={16} /></button>
             <button className="topbar-icon-btn" title="Notificações"><Bell size={16} /></button>
+            <div className="topbar-user">
+              <div className="user-avatar">GT</div>
+              <div className="user-info">
+                <span className="user-name">Gabriel T.</span>
+                <span className="user-plan">Pro Plan</span>
+              </div>
+            </div>
           </div>
         </header>
 
         <main className="main">
           {activeArea === 'chat' && <HomeChat key={chatResetKey} />}
-          {activeArea === 'projetos' && (
-            openedProject ? (
-              <ProjectView
-                project={openedProject}
-                activeView={projectView}
-                onViewChange={setProjectView}
-                rightPanel={rightPanel}
-                onRightPanelChange={setRightPanel}
-                onBack={goToProjectsList}
-              />
-            ) : (
-              <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />
-            )
-          )}
+          {activeArea === 'projetos' && !openedProject && <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />}
+          {activeArea === 'projetos' && openedProject && <ProjectView project={openedProject} activeView={projectView} onViewChange={setProjectView} rightPanel={rightPanel} onRightPanelChange={setRightPanel} onBack={goToProjectsList} />}
           {activeArea === 'negocios' && <NegociosView />}
-          {activeArea === 'evaluations' && <EvaluationRunner project={{ id: "default" }} />}
+          {activeArea === 'evaluations' && <EvaluationRunner />}
           {activeArea === 'settings' && <SettingsView />}
         </main>
       </div>
@@ -205,7 +188,7 @@ const { projects } = useAppStore();
 }
 
 // ============================================================
-// HOME CHAT â€” centralizado, estilo Claude Desktop
+// HOME CHAT — centralizado, estilo Claude Desktop
 // ============================================================
 
 const QUICK_ACTIONS = [
@@ -248,7 +231,7 @@ function HomeChat() {
         {!started ? (
           <div className="chat-hero">
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
-            <h1>Olá, Gabriel! ðŸ‘‹</h1>
+            <h1>Olá, Gabriel! 👋</h1>
             <p>O que vamos criar hoje?</p>
             <div className="quick-actions-grid">
               {QUICK_ACTIONS.map((a) => {
@@ -350,26 +333,18 @@ function ChatInputArea({
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [searchModel, setSearchModel] = useState('');
 
-  const models = [
-    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
-    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter', supportsImages: true },
-    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter', supportsImages: true },
-    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter', supportsImages: true },
-    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama', supportsImages: false },
-    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama', supportsImages: false },
+  const modelOptions = [
+    { providerID: 'opencode', modelID: 'big-pickle', title: 'opencode:big-pickle', description: 'OpenCode', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'ollama', modelID: 'llama3', title: 'Llama 3', description: 'Ollama', supportsImages: false },
+    { providerID: 'ollama', modelID: 'mistral', title: 'Mistral', description: 'Ollama', supportsImages: false },
   ];
 
-  // Group models by provider like OpenWork
-  const modelsByProvider = models.reduce((acc, model) => {
-    if (!acc[model.provider]) acc[model.provider] = [];
-    acc[model.provider].push(model);
-    return acc;
-  }, {} as Record<string, typeof models>);
-
   const effortOptions = [
-    { value: 'default', label: 'Padrào', desc: 'Balanceado' },
+    { value: 'default', label: 'Padrão', desc: 'Balanceado' },
     { value: 'low', label: 'Low', desc: 'Rápido, menos tokens' },
     { value: 'medium', label: 'Medium', desc: 'Equilibrado' },
     { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
@@ -382,7 +357,7 @@ function ChatInputArea({
     }
   }, [input]);
 
-  const currentModel = models.find(m => m.id === selectedModel);
+  const currentModel = modelOptions.find(m => `${m.providerID}:${m.modelID}` === selectedModel);
   const supportsImages = currentModel?.supportsImages ?? false;
   const imageFiles = attachedFiles.filter(f => f.type.startsWith('image/'));
   const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
@@ -404,12 +379,10 @@ function ChatInputArea({
   };
 
   const handleFileOperationInput = (op: { type: 'read' | 'write'; path: string; content?: string }) => {
-    // File operations are handled by the FileOperationInput component internally
-    // This is a placeholder - the component calls onFileOperation with parsed result
     console.log('File operation:', op);
   };
 
-return (
+  return (
     <div className="chat-input-area">
       {/* Attached files chips */}
       {attachedFiles.length > 0 && (
@@ -418,18 +391,18 @@ return (
             <span key={i} className={`attached-file-chip${f.type.startsWith('image/') && !supportsImages ? ' unsupported' : ''}`}>
               {f.type.startsWith('image/') ? <Image size={12} /> : <FileText size={12} />}
               {f.name}
-              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo nào suporta imagens">âš </span>}
+              {f.type.startsWith('image/') && !supportsImages && <span className="unsupported-badge" title="Modelo não suporta imagens">⚠</span>}
               <button onClick={() => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}><X size={12} /></button>
             </span>
           ))}
         </div>
-)}
+      )}
 
       {/* Unsupported images warning */}
       {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
-          <span>O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
+          <span>O modelo <strong>{currentModel?.title}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.</span>
         </div>
       )}
 
@@ -484,71 +457,23 @@ return (
         {/* Controls row below: Model + Reasoning */}
         <div className="input-controls-row">
           <div className="input-controls">
-            {/* Model Picker */}
-            <div className="dropdown-group">
-              <button className="dropdown-btn" onClick={() => { setSearchModel(''); setModelOpen(!modelOpen); }} title="Selecionar modelo">
-                <BrainCircuit size={16} />
-                <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
-                <ChevronDown size={12} />
-              </button>
-              {modelOpen && (
-                <div className="dropdown-menu model-dropdown">
-                  <input
-                    type="text"
-                    placeholder="Buscar modelo..."
-                    value={searchModel}
-                    onChange={e => setSearchModel(e.target.value)}
-                    className="dropdown-search"
-                    autoFocus
-                  />
-                  {Object.entries(modelsByProvider).map(([provider, providerModels]) => {
-                    const filtered = providerModels.filter(m => 
-                      m.name.toLowerCase().includes(searchModel.toLowerCase()) ||
-                      m.provider.toLowerCase().includes(searchModel.toLowerCase())
-                    );
-                    if (filtered.length === 0) return null;
-                    return (
-                      <div key={provider} className="model-provider-group">
-                        <div className="model-provider-label">{provider}</div>
-                        {filtered.map(m => (
-                          <button
-                            key={m.id}
-                            className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`}
-                            onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}
-                          >
-                            <span className="dropdown-item-name">{m.name}</span>
-                            {!m.supportsImages && <span className="dropdown-item-warning" title="Nào suporta imagens">âš </span>}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Reasoning Effort */}
-            <div className="dropdown-group">
-              <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
-                <SlidersHorizontal size={16} />
-                <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrào'}</span>
-                <ChevronDown size={12} />
-              </button>
-              {effortOpen && (
-                <div className="dropdown-menu effort-dropdown">
-                  {effortOptions.map(e => (
-                    <button
-                      key={e.value}
-                      className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`}
-                      onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}
-                    >
-                      <span className="dropdown-item-name">{e.label}</span>
-                      <span className="dropdown-item-desc">{e.desc}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
+            {/* Model Picker - usando novo componente ModelSelect */}
+            <ModelSelect
+              open={modelOpen}
+              onOpenChange={setModelOpen}
+              value={{ providerID: selectedModel.split(':')[0] || 'opencode', modelID: selectedModel.split(':')[1] || selectedModel }}
+              onChange={(modelRef) => setSelectedModel(`${modelRef.providerID}:${modelRef.modelID}`)}
+              options={modelOptions}
+              placeholder="Select model"
+            />
+            
+            {/* Reasoning Effort - usando novo componente ReasoningEffortSelect */}
+            <ReasoningEffortSelect
+              value={reasoningEffort}
+              label="Raciocínio"
+              options={effortOptions}
+              onChange={setReasoningEffort}
+            />
           </div>
         </div>
       </div>
@@ -589,7 +514,7 @@ function FilePanel({ files, onClose }: { files: { id: string; name: string; type
 }
 
 // ============================================================
-// PROJETOS â€” Lista de projetos
+// PROJETOS — Lista de projetos
 // ============================================================
 
 function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; onOpen: (p: Project) => void; onNew: () => void }) {
@@ -611,7 +536,7 @@ function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; on
               <span className={`topbar-status ${p.status}`}>{p.status}</span>
             </div>
             <h3 className="workflow-card-name">{p.name}</h3>
-            <p className="agent-card-task">{p.description || 'Sem descriçào'}</p>
+            <p className="agent-card-task">{p.description || 'Sem descrição'}</p>
             <div className="project-card-meta">
               <span><Bot size={12} /> {p.agents.length}</span>
               <span><Workflow size={12} /> {p.workflows.length}</span>
@@ -625,7 +550,7 @@ function ProjectsListView({ projects, onOpen, onNew }: { projects: Project[]; on
 }
 
 // ============================================================
-// PROJECT VIEW â€” Context-Aware
+// PROJECT VIEW — Context-Aware
 // ============================================================
 
 function ProjectView({
@@ -700,7 +625,7 @@ function ProjectView({
         <div className="project-main">
           {activeView === 'agents' && <ProjectAgents project={project} />}
           {activeView === 'workflows' && <ProjectWorkflows project={project} />}
-{activeView === 'pipelines' && (
+          {activeView === 'pipelines' && (
             <PipelineBuilder
               pipeline={project.pipelines?.[0]}
               project={project}
@@ -716,7 +641,7 @@ function ProjectView({
               />
             </div>
           )}
-{activeView === 'artifacts' && <ProjectArtifacts project={project} />}
+          {activeView === 'artifacts' && <ProjectArtifacts project={project} />}
           {activeView === 'secrets' && <SecretVault project={project} />}
           {activeView === 'costs' && <CostDashboard project={project} />}
           {activeView === 'settings' && <ProjectSettings project={project} />}
@@ -893,7 +818,7 @@ function ProjectArtifacts({ project }: { project: Project }) {
               </div>
               <div className="artifact-card-info">
                 <span className="artifact-card-name">{a.name}</span>
-                <span className="artifact-card-meta">{a.type} Â· {a.size}</span>
+                <span className="artifact-card-meta">{a.type} • {a.size}</span>
               </div>
               <button className="btn-icon-sm"><Download size={14} /></button>
             </div>
@@ -923,7 +848,7 @@ function ProjectSettings({ project }: { project: Project }) {
       <div className="section-header"><h2>Configurações do Projeto</h2></div>
       <div className="settings-form">
         <div className="form-group"><label>Nome</label><input type="text" value={name} onChange={(e) => setName(e.target.value)} /></div>
-        <div className="form-group"><label>Descriçào</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
+        <div className="form-group"><label>Descrição</label><textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} /></div>
         <div className="form-group">
           <label>Status</label>
           <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)}>
@@ -939,7 +864,7 @@ function ProjectSettings({ project }: { project: Project }) {
 }
 
 // ============================================================
-// PROJECT COWORK â€” AI Computer Control (Terminal, Bash, Files, Web)
+// PROJECT COWORK — AI Computer Control (Terminal, Bash, Files, Web)
 // ============================================================
 
 interface CoworkMessage {
@@ -958,7 +883,7 @@ interface CoworkMessage {
 function ProjectCowork({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [messages, setMessages] = useState<CoworkMessage[]>([
-    { id: '1', type: 'assistant', content: `ðŸ¤– **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\nâ€¢ **Executar comandos bash** â€” digite \`$ ls\` ou \`$ npm run build\`\nâ€¢ **Ler/Escrever arquivos** â€” use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteúdo\` para escrever\nâ€¢ **Navegar na web** â€” \`$ browse https://site.com\`\nâ€¢ **Controlar o computador** â€” automaçào via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
+    { id: '1', type: 'assistant', content: `🐝 **Cowork ativo no projeto ${project.name}**\n\nO BeeHive pode agora:\n🔹 **Executar comandos bash** — digite \`$ ls\` ou \`$ npm run build\`\n🔹 **Ler/Escrever arquivos** — use \`@arquivo.txt\` para ler ou \`@arquivo.txt:conteúdo\` para escrever\n🔹 **Navegar na web** — \`$ browse https://site.com\`\n🔹 **Controlar o computador** — automação via Playwright\n\nDigite um comando ou descreva o que precisa.`, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) },
   ]);
   const [cwd, setCwd] = useState('~/projects/' + project.name.toLowerCase().replace(/\s+/g, '-'));
   const [history, setHistory] = useState<string[]>([]);
@@ -997,12 +922,12 @@ function ProjectCowork({ project }: { project: Project }) {
       const file = trimmed.split(' ')[1];
       output = `// ${file}\n{\n  "name": "${project.name}",\n  "version": "1.0.0",\n  "scripts": {\n    "dev": "vite",\n    "build": "tsc && vite build"\n  }\n}`;
     } else if (trimmed.startsWith('npm ') || trimmed.startsWith('yarn ') || trimmed.startsWith('pnpm ')) {
-      output = `> ${trimmed}\n\nâœ” Dependencies installed\nâœ” Build completed in 2.3s\n\ndist/index.html  0.45 kB\ndist/assets/index.css  12.3 kB\ndist/assets/index.js   45.7 kB`;
+      output = `> ${trimmed}\n\n✓ Dependencies installed\n✓ Build completed in 2.3s\n\ndist/index.html  0.45 kB\ndist/assets/index.css  12.3 kB\ndist/assets/index.js   45.7 kB`;
     } else if (trimmed.startsWith('git ')) {
       output = `On branch main\nYour branch is up to date with 'origin/main'.\n\nnothing to commit, working tree clean`;
     } else if (trimmed.startsWith('browse ') || trimmed.startsWith('open ')) {
       const url = trimmed.split(' ')[1];
-      output = `ðŸŒ Navegando para: ${url}\nâœ” Página carregada\nðŸ“„ Título: "Exemplo de Site"\nðŸ”— Links encontrados: 12`;
+      output = `🌐 Navegando para: ${url}\n✓ Página carregada\n📄 Título: "Exemplo de Site"\n🔗 Links encontrados: 12`;
     } else if (trimmed === 'pwd') {
       output = cwd;
     } else if (trimmed.startsWith('cd ')) {
@@ -1077,7 +1002,7 @@ function ProjectCowork({ project }: { project: Project }) {
           value={input}
           onChange={e => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, /: histrico)'}
+          placeholder={executing ? 'Executando...' : 'Digite comando ou descreva a tarefa... (Tab: autocomplete, ↑/↓: histórico)'}
           disabled={executing}
           autoFocus
         />
@@ -1089,13 +1014,13 @@ function ProjectCowork({ project }: { project: Project }) {
 // ============================================================
 // SECRET VAULT COMPONENT
 // ============================================================
- 
+
 const secretTypes = [
-  { value: "STRING", label: "Texto", icon: "📝" },
+  { value: "STRING", label: "Texto", icon: "🔤" },
   { value: "API_KEY", label: "API Key", icon: "🔑" },
   { value: "DATABASE_URL", label: "Database URL", icon: "🗄️" },
-  { value: "OAUTH_TOKEN", label: "OAuth Token", icon: "🎫" },
-  { value: "SSH_KEY", label: "SSH Key", icon: "🔐" },
+  { value: "OAUTH_TOKEN", label: "OAuth Token", icon: "🔐" },
+  { value: "SSH_KEY", label: "SSH Key", icon: "🗝️" },
   { value: "CERTIFICATE", label: "Certificado", icon: "📜" },
 ];
  
@@ -1256,7 +1181,7 @@ function SecretVault({ project }: { project: any }) {
  
       <div className="vault-usage">
         <h4>Como usar nos pipelines</h4>
-        <p>Referencie secrets nas configurações dos nós com <span style={{fontFamily: "monospace", background: "var(--surface-2)", padding: "2px 6px", borderRadius: 4}}>{"{{secrets.SUA_CHAVE}}"}</span></p>
+        <p>Referencie secrets nas configurações dos nós com <span style={{fontFamily: "monospace", background: "var(--surface-2)", padding: "2px 6px", borderRadius: "4px"}}>{'{{secrets.SUA_CHAVE}}'}</span></p>
         <div className="usage-example">
           <pre>{`// Exemplo no config de um nó:
 {
@@ -1379,7 +1304,7 @@ function LogsPanel() {
       <div className="rp-header"><span>Logs</span></div>
       <div className="rp-body">
         <div className="rp-logs">
-          {['[10:30] Mission started', '[10:31] Agent response generated', '[10:32] Pipeline step completed', '[10:33] Artifact saved', '[10:34] Memory updated'].map((l, i) => (
+          {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
             <div key={i} className="rp-log-line"><code>{l}</code></div>
           ))}
         </div>
@@ -1389,7 +1314,7 @@ function LogsPanel() {
 }
 
 // ============================================================
-// NEGà“CIOS â€” negócios digitais autà´nomos (redes sociais)
+// NEGÓCIOS — negócios digitais autônomos (redes sociais)
 // ============================================================
 
 interface BizTypeConfig {
@@ -1410,13 +1335,13 @@ const BIZ_TYPES: BizTypeConfig[] = [
   },
   {
     id: 'conteudo', name: 'Canal Dark / Criador de Conteúdo', color: '#6366F1', icon: Clapperboard,
-    desc: 'Gera vídeos e conteúdo do zero de acordo com o nicho da conta â€” estética, fitness, infantil, humor, etc.',
+    desc: 'Gera vídeos e conteúdo do zero de acordo com o nicho da conta — estética, fitness, infantil, humor, etc.',
     fieldLabel: 'Nicho', fieldPlaceholder: 'Ex: fitness, humor, estética...',
   },
   {
     id: 'afiliados', name: 'Afiliados', color: '#3B82F6', icon: Link2,
     desc: 'Divulga produtos com link de afiliado nas redes cadastradas para gerar vendas.',
-    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrà´nicos, moda, casa...',
+    fieldLabel: 'Nicho / produtos', fieldPlaceholder: 'Ex: eletrônicos, moda, casa...',
   },
 ];
 
@@ -1434,7 +1359,7 @@ function NegociosView() {
       <div className="page-header">
         <div>
           <h1>Negócios</h1>
-          <p>Seus negócios digitais autà´nomos â€” cortes, criaçào de conteúdo e afiliados</p>
+          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo e afiliados</p>
         </div>
       </div>
 
@@ -1575,7 +1500,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
 }
 
 // ============================================================
-// SETTINGS â€” Organizado por Grupos
+// SETTINGS — Organizado por Grupos
 // ============================================================
 
 type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
@@ -1597,7 +1522,7 @@ const SETTINGS_GROUPS = [
     { id: 'database' as SettingsPage, label: 'Banco', icon: Database },
     { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
   ]},
-  { label: 'Personalizaçào', items: [
+  { label: 'Personalização', items: [
     { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
     { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
     { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
@@ -1666,9 +1591,9 @@ function SettingsView() {
             <div className="form-group">
               <label>Tema</label>
               <div className="theme-grid">
-                <button className="theme-card active">ðŸŒ™ Dark</button>
-                <button className="theme-card">â˜€ï¸ Light</button>
-                <button className="theme-card">ðŸ’» System</button>
+                <button className="theme-card active">🌙 Dark</button>
+                <button className="theme-card">☀️ Light</button>
+                <button className="theme-card">💻 System</button>
               </div>
             </div>
           </div>
@@ -1693,6 +1618,4 @@ function SettingsView() {
       </div>
     </div>
   );
-} 
-
-
+}

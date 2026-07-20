@@ -3,10 +3,13 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Copy, CopyCheck, Loader2, RotateCcw, Code, MessageSquare, Bot, Users,
-  FileText, FilePlus, Download, X, AlertCircle, Send
+  FileText, FilePlus, Download, X, AlertCircle, Send,
+  BrainCircuit, SlidersHorizontal, ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StreamingMessage, CodeBlock, RegenerateButton, CopyButton } from "./StreamingComponents";
+import { ModelSelect } from "./ModelSelector";
+import { ReasoningEffortSelect } from "./ReasoningEffortSelect";
 
 interface Message {
   id: string;
@@ -98,35 +101,23 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
         {message.attachedFiles && message.attachedFiles.length > 0 && (
           <div className="file-operations">
             {message.attachedFiles.map((op) => (
-              <div key={op.id} className={`file-op ${op.type} ${op.status}`}>
-                <div className="file-op-header">
-                  <FileText size={12} />
-                  <span className="file-op-type">
-                    {op.type === "read" ? "Lendo" : "Escrevendo"}
-                  </span>
-                  <span className="file-op-path">{op.path}</span>
-                  <span className={`file-op-status ${op.status}`}>
-                    {op.status === "pending" && <Loader2 size={12} />}
-                    {op.status === "completed" && <CheckCircle size={12} />}
-                    {op.status === "error" && <AlertCircle size={12} />}
-                  </span>
-                </div>
-                {op.error && <div className="file-op-error">{op.error}</div>}
-                {op.status === "completed" && op.content && (
-                  <details className="file-op-content">
-                    <summary>Ver conteúdo</summary>
-                    <pre>{op.content}</pre>
-                  </details>
-                )}
+              <div key={op.id} className={`file-op ${op.status}`}>
+                <span className="file-op-icon">
+                  {op.type === "read" && <FileText size={12} />}
+                  {op.type === "write" && <FilePlus size={12} />}
+                </span>
+                <span className="file-op-path">{op.path}</span>
+                {op.error && <span className="file-op-error">{op.error}</span>}
               </div>
             ))}
           </div>
         )}
-
+        
+        {/* Actions on hover */}
         <div className="message-actions">
-          <CopyButton content={message.content} />
-          {message.role === "assistant" && (
-            <RegenerateButton onClick={() => {}} disabled={false} loading={false} />
+          <CopyButton onClick={handleCopy} copied={copied} />
+          {message.role === "assistant" && isLast && (
+            <RegenerateButton onClick={handleRegenerate} />
           )}
         </div>
       </div>
@@ -135,202 +126,101 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
 }
 
 interface MessageListProps {
-  messages: any[];
+  messages: Message[];
+  streaming?: boolean;
   onRegenerate?: (messageId: string) => void;
   onCopy?: (content: string) => void;
-  streaming?: boolean;
-  onScroll?: () => void;
 }
 
-export function MessageList({ messages, onRegenerate, onCopy, streaming, onScroll }: MessageListProps) {
+export function MessageList({ messages, streaming, onRegenerate, onCopy }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const listRef = useRef<HTMLDivElement>(null);
+  const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  const handleScroll = () => {
-    onScroll?.();
-  };
+  const handleCopy = useCallback((content: string, messageId: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedIds(prev => new Set(prev).add(messageId));
+    setTimeout(() => {
+      setCopiedIds(prev => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
+    }, 2000);
+    onCopy?.(content);
+  }, [onCopy]);
+
+  const handleRegenerate = useCallback((messageId: string) => {
+    onRegenerate?.(messageId);
+  }, [onRegenerate]);
 
   return (
-    <div 
-      ref={listRef} 
-      className="message-list" 
-      onScroll={handleScroll}
-    >
+    <div className="chat-messages">
       {messages.map((message, index) => (
         <MessageBubble
           key={message.id}
           message={message}
-          onRegenerate={onRegenerate}
-          onCopy={onCopy}
+          onCopy={(c) => handleCopy(c, message.id)}
+          onRegenerate={handleRegenerate}
           isLast={index === messages.length - 1}
         />
       ))}
+      {streaming && (
+        <StreamingMessage />
+      )}
       <div ref={messagesEndRef} />
     </div>
   );
 }
 
-// Streaming message component
-interface StreamingMessageProps {
-  content: string;
-  onComplete?: () => void;
-}
-
-export function StreamingMessage({ content, onComplete }: StreamingMessageProps) {
-  const [displayedContent, setDisplayedContent] = useState("");
-  const [isComplete, setIsComplete] = useState(false);
-
-  useEffect(() => {
-    if (!content) return;
-    
-    let index = 0;
-    const interval = setInterval(() => {
-      if (index < content.length) {
-        setDisplayedContent(content.slice(0, index + 1));
-        index++;
-      } else {
-        clearInterval(interval);
-        setIsComplete(true);
-        onComplete?.();
-      }
-    }, 15);
-
-    return () => clearInterval(interval);
-  }, [content, onComplete]);
-
-  return (
-    <div className="message-bubble assistant streaming">
-      <div className="message-avatar"><Bot size={16} /></div>
-      <div className="message-content-wrapper">
-        <div className="message-content">
-          <span>{displayedContent}</span>
-          {isComplete ? null : <span className="cursor">|</span>}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// Code block with syntax highlighting (using simple CSS)
-export function CodeBlock({ language, code, onCopy }: { language: string; code: string; onCopy?: () => void }) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(code);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    onCopy?.();
-  };
-
-  return (
-    <div className="code-block">
-      <div className="code-header">
-        <span className="code-lang">{language || "text"}</span>
-        <button 
-          className={`code-action-btn ${copied ? "copied" : ""}`}
-          onClick={handleCopy}
-          title="Copiar"
-        >
-          {copied ? <CopyCheck size={14} /> : <Copy size={14} />}
-        </button>
-      </div>
-      <pre><code className={`language-${language}`}>{code}</code></pre>
-    </div>
-  );
-}
-
-// Regenerate button component
-interface RegenerateButtonProps {
-  onClick: () => void;
-  disabled?: boolean;
-  loading?: boolean;
-}
-
-export function RegenerateButton({ onClick, disabled, loading }: RegenerateButtonProps) {
-  return (
-    <button
-      className={`regenerate-btn ${disabled ? "disabled" : ""} ${loading ? "loading" : ""}`}
-      onClick={onClick}
-      disabled={disabled || loading}
-      aria-label="Regenerar resposta"
-    >
-      <RotateCcw size={14} className={loading ? "spin" : ""} />
-      <span>{loading ? "Regenerando..." : "Regenerar"}</span>
-    </button>
-  );
-}
-
-// Copy button for messages
-interface CopyButtonProps {
-  content: string;
-  onCopied?: () => void;
-}
-
-export function CopyButton({ content, onCopied }: CopyButtonProps) {
-  const [copied, setCopied] = useState(false);
-
-  const handleCopy = async () => {
-    await navigator.clipboard.writeText(content);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-    onCopied?.();
-  };
-
-  return (
-    <button
-      className={`copy-btn ${copied ? "copied" : ""}`}
-      onClick={handleCopy}
-      aria-label="Copiar conteúdo"
-    >
-      {copied ? <CopyCheck size={14} /> : <Copy size={14} />}
-    </button>
-  );
-}
-
-// Streaming input with file operations support
 interface StreamingInputProps {
   value: string;
   onChange: (value: string) => void;
   onSubmit: () => void;
-  disabled?: boolean;
+  disabled: boolean;
   placeholder?: string;
-  streaming?: boolean;
+  streaming: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
   onFileAttach?: (files: FileList) => void;
   attachedFiles?: File[];
   onRemoveFile?: (index: number) => void;
+  selectedModel?: string;
+  setSelectedModel?: (v: string) => void;
+  reasoningEffort?: 'default' | 'low' | 'medium' | 'high';
+  setReasoningEffort?: (v: 'default' | 'low' | 'medium' | 'high') => void;
 }
 
-export function StreamingInput({ 
-  value, 
-  onChange, 
-  onSubmit, 
-  disabled, 
+function StreamingInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
   placeholder = "Digite sua mensagem... (Shift+Enter para nova linha)",
   streaming,
   onKeyDown,
   onFileAttach,
   attachedFiles,
-  onRemoveFile
+  onRemoveFile,
+  selectedModel,
+  setSelectedModel,
+  reasoningEffort,
+  setReasoningEffort
 }: StreamingInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
 
-  const models = [
-    { id: 'opencode:big-pickle', name: 'opencode:big-pickle', provider: 'OpenCode', supportsImages: false },
-    { id: 'openrouter:gpt-4o', name: 'GPT-4o', provider: 'OpenRouter', supportsImages: true },
-    { id: 'openrouter:claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'OpenRouter', supportsImages: true },
-    { id: 'openrouter:gemini-1.5-pro', name: 'Gemini 1.5 Pro', provider: 'OpenRouter', supportsImages: true },
-    { id: 'ollama:llama3', name: 'Llama 3', provider: 'Ollama', supportsImages: false },
-    { id: 'ollama:mistral', name: 'Mistral', provider: 'Ollama', supportsImages: false },
+  const modelOptions = [
+    { providerID: 'opencode', modelID: 'big-pickle', title: 'opencode:big-pickle', description: 'OpenCode', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'ollama', modelID: 'llama3', title: 'Llama 3', description: 'Ollama', supportsImages: false },
+    { providerID: 'ollama', modelID: 'mistral', title: 'Mistral', description: 'Ollama', supportsImages: false },
   ];
 
   const effortOptions = [
@@ -362,6 +252,11 @@ export function StreamingInput({
     });
   };
 
+  const currentModel = modelOptions.find(m => `${m.providerID}:${m.modelID}` === selectedModel);
+  const supportsImages = currentModel?.supportsImages ?? false;
+  const imageFiles = attachedFiles?.filter(f => f.type.startsWith('image/')) || [];
+  const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
+
   return (
     <div className="chat-input-area">
       {/* Attached files chips */}
@@ -379,15 +274,15 @@ export function StreamingInput({
           ))}
         </div>
       )}
-{hasUnsupportedImages && (
+      {hasUnsupportedImages && (
         <div className="model-warning">
           <AlertTriangle size={14} />
           <span>
-            O modelo <strong>{currentModel?.name}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.
+            O modelo <strong>{currentModel?.title}</strong> não suporta imagens. As {imageFiles.length} imagem(ns) serão ignoradas. Troque para GPT-4o, Claude ou Gemini para usar imagens.
           </span>
         </div>
       )}
-      
+       
       {/* Main input row */}
       <div className="input-row">
         <div className="input-left">
@@ -410,38 +305,22 @@ export function StreamingInput({
         </div>
         <div className="input-right">
           <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
-              <BrainCircuit size={16} />
-              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
-              <ChevronDown size={12} />
-            </button>
-            {modelOpen && (
-              <div className="dropdown-menu model-dropdown">
-                {models.map(m => (
-                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
-                    <span className="dropdown-item-name">{m.name}</span>
-                    <span className="dropdown-item-provider">{m.provider}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <ModelSelect
+              open={modelOpen}
+              onOpenChange={setModelOpen}
+              value={{ providerID: selectedModel?.split(':')[0] || 'opencode', modelID: selectedModel?.split(':')[1] || selectedModel }}
+              onChange={(modelRef) => setSelectedModel?.(`${modelRef.providerID}:${modelRef.modelID}`)}
+              options={modelOptions}
+              placeholder="Select model"
+            />
           </div>
           <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
-              <SlidersHorizontal size={16} />
-              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
-              <ChevronDown size={12} />
-            </button>
-            {effortOpen && (
-              <div className="dropdown-menu effort-dropdown">
-                {effortOptions.map(e => (
-                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
-                    <span className="dropdown-item-name">{e.label}</span>
-                    <span className="dropdown-item-desc">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <ReasoningEffortSelect
+              value={reasoningEffort}
+              label="Raciocínio"
+              options={effortOptions}
+              onChange={setReasoningEffort}
+            />
           </div>
           <button className="chat-send-btn" onClick={onSubmit} disabled={streaming || (!value.trim() && !attachedFiles?.length)}>
             <Send size={18} />
@@ -453,40 +332,34 @@ export function StreamingInput({
       <div className="input-controls-row">
         <div className="input-left-spacer" style={{ width: '40px' }} />
         <div className="input-controls">
-          <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setModelOpen(!modelOpen)} title="Selecionar modelo">
-              <BrainCircuit size={16} />
-              <span>{models.find(m => m.id === selectedModel)?.name || selectedModel}</span>
-              <ChevronDown size={12} />
-            </button>
-            {modelOpen && (
-              <div className="dropdown-menu model-dropdown">
-                {models.map(m => (
-                  <button key={m.id} className={`dropdown-item${selectedModel === m.id ? ' active' : ''}`} onClick={() => { setSelectedModel(m.id); setModelOpen(false); }}>
-                    <span className="dropdown-item-name">{m.name}</span>
-                    <span className="dropdown-item-provider">{m.provider}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="dropdown-group">
-            <button className="dropdown-btn" onClick={() => setEffortOpen(!effortOpen)} title="Esforço de raciocínio">
-              <SlidersHorizontal size={16} />
-              <span>{effortOptions.find(e => e.value === reasoningEffort)?.label || 'Padrão'}</span>
-              <ChevronDown size={12} />
-            </button>
-            {effortOpen && (
-              <div className="dropdown-menu effort-dropdown">
-                {effortOptions.map(e => (
-                  <button key={e.value} className={`dropdown-item${reasoningEffort === e.value ? ' active' : ''}`} onClick={() => { setReasoningEffort(e.value as any); setEffortOpen(false); }}>
-                    <span className="dropdown-item-name">{e.label}</span>
-                    <span className="dropdown-item-desc">{e.desc}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
+          <ModelSelect
+            open={modelOpen}
+            onOpenChange={setModelOpen}
+            value={{ providerID: selectedModel?.split(':')[0] || 'opencode', modelID: selectedModel?.split(':')[1] || selectedModel }}
+            onChange={(modelRef) => setSelectedModel?.(`${modelRef.providerID}:${modelRef.modelID}`)}
+            options={modelOptions}
+            placeholder="Select model"
+          />
+          <ReasoningEffortSelect
+            value={reasoningEffort}
+            label="Raciocínio"
+            options={effortOptions}
+            onChange={setReasoningEffort}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function StreamingMessage() {
+  return (
+    <div className="msg assistant streaming">
+      <div className="msg-avatar"><Bot size={16} /></div>
+      <div className="msg-body">
+        <div className="msg-header"><span className="msg-role">BeeHive</span></div>
+        <div className="msg-content msg-typing">
+          <span>P</span><span>e</span><span>n</span><span>s</span><span>a</span><span>n</span><span>d</span><span>o</span><span>.</span><span>.</span><span>.</span>
         </div>
       </div>
     </div>
