@@ -32,6 +32,7 @@ import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
+import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
 import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
@@ -200,27 +201,58 @@ const QUICK_ACTIONS = [
 ];
 
 function HomeChat() {
-  const [input, setInput] = useState('');
+  const { projects } = useAppStore();
   const [started, setStarted] = useState(false);
-  const [sending, setSending] = useState(false);
-  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string }[]>([]);
-  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [selectedModel, setSelectedModel] = useState('opencode:big-pickle');
-  const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
-  const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
-  const [showFilePanel, setShowFilePanel] = useState(false);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [newConversationTitle, setNewConversationTitle] = useState('');
+  const [showConversationList, setShowConversationList] = useState(false);
+
+  const { projectId } = useAppStore.getState().projects.length > 0 ? { projectId: useAppStore.getState().projects[0]?.id } : { projectId: null };
+  
+  // Use the first project as default if available
+  const firstProjectId = projects.length > 0 ? projects[0].id : null;
+  
+  const {
+    conversations,
+    loading: conversationsLoading,
+    createConversation,
+    loadMore: loadMoreConversations,
+    hasMore: hasMoreConversations,
+  } = useConversations(firstProjectId);
+
+  const { messages, loading: messagesLoading, sendMessage, setMessages: setMessagesList } = useMessages(activeConversationId);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
+  const handleNewConversation = async () => {
+    if (!firstProjectId) return;
+    const title = newConversationTitle || `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+    const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
+    if (conversation) {
+      setActiveConversationId(conversation.id);
+      setStarted(true);
+      setNewConversationTitle('');
+    }
+  };
+
   const handleSend = async (text?: string) => {
-    const value = (text ?? input).trim();
-    if (!value && attachedFiles.length === 0 || sending) return;
+    if (!activeConversationId) {
+      // Create a new conversation first
+      if (!firstProjectId) return;
+      const title = `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+      const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
+      if (!conversation) return;
+      setActiveConversationId(conversation.id);
+      setStarted(true);
+    }
+
+    const value = (text ?? '').trim();
+    if (!value || sending) return;
     setStarted(true);
-    const userContent = value + (attachedFiles.length > 0 ? `\n\n[Arquivos anexados: ${attachedFiles.map(f => f.name).join(', ')}]` : '');
+
+    const userContent = value;
     const userMsgId = String(Date.now());
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, time: now() }]);
-    setInput('');
-    setAttachedFiles([]);
     setSending(true);
 
     // Add empty assistant message for streaming
@@ -245,7 +277,7 @@ function HomeChat() {
   return (
     <div className="home-chat-layout">
       <main className="chat-main">
-        {!started ? (
+        {!started && !activeConversationId ? (
           <div className="chat-hero">
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
             <h1>Olá, Gabriel! 👋</h1>
@@ -262,6 +294,24 @@ function HomeChat() {
                 );
               })}
             </div>
+            
+            {/* Conversation list sidebar */}
+            {conversations.length > 0 && (
+              <div className="conversation-list">
+                <h3>Conversas recentes</h3>
+                <ul>
+                  {conversations.map((c) => (
+                    <li key={c.id} onClick={() => { setActiveConversationId(c.id); setStarted(true); }}>
+                      <span className="conv-title">{c.title}</span>
+                      <span className="conv-time">{new Date(c.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    </li>
+                  ))}
+                </ul>
+                {hasMoreConversations && !conversationsLoading && (
+                  <button onClick={loadMoreConversations} className="load-more">Carregar mais</button>
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="chat-messages">
@@ -288,28 +338,37 @@ function HomeChat() {
         )}
 
         <ChatInputArea
-          input={input}
-          setInput={setInput}
+          input=""
+          setInput={() => {}}
           sending={sending}
           handleSend={handleSend}
-          attachedFiles={attachedFiles}
-          setAttachedFiles={setAttachedFiles}
-          selectedModel={selectedModel}
-          setSelectedModel={setSelectedModel}
-          reasoningEffort={reasoningEffort}
-          setReasoningEffort={setReasoningEffort}
-          fileOperations={fileOperations}
-          setFileOperations={setFileOperations}
-          showFilePanel={showFilePanel}
-          setShowFilePanel={setShowFilePanel}
+          attachedFiles={[]}
+          setAttachedFiles={() => {}}
+          selectedModel="opencode:big-pickle"
+          setSelectedModel={() => {}}
+          reasoningEffort="default"
+          setReasoningEffort={() => {}}
+          fileOperations={[]}
+          setFileOperations={() => {}}
+          showFilePanel={false}
+          setShowFilePanel={() => {}}
         />
       </main>
 
-      {showFilePanel && (
-        <aside className="home-file-panel">
-          <FilePanel files={fileOperations} onClose={() => setShowFilePanel(false)} />
-        </aside>
-      )}
+      <aside className="conversation-sidebar">
+        <div className="sidebar-header">
+          <h3>Conversas</h3>
+          <button onClick={() => { setActiveConversationId(null); setStarted(false); }}>Nova conversa</button>
+        </div>
+        <ul className="conversation-list">
+          {conversations.map((c) => (
+            <li key={c.id} className={activeConversationId === c.id ? 'active' : ''} onClick={() => { setActiveConversationId(c.id); setStarted(true); }}>
+              <span className="conv-title">{c.title}</span>
+              <span className="conv-time">{new Date(c.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+            </li>
+          ))}
+        </ul>
+      </aside>
     </div>
   );
 }
