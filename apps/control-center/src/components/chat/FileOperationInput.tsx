@@ -25,7 +25,6 @@ interface FileOperationInputProps {
   fileOperations?: FileOperation[];
   onFileOperation?: (op: { type: "read" | "write"; path: string; content?: string }) => void;
   onRemoveOperation?: (id: string) => void;
-  disabled?: boolean;
   onKeyDown?: (e: React.KeyboardEvent<HTMLTextAreaElement>) => void;
 }
 
@@ -41,14 +40,12 @@ export function FileOperationInput({
   fileOperations = [],
   onFileOperation,
   onRemoveOperation,
-  disabled: isDisabled = false,
   onKeyDown,
-}: FileOperationInputProps {
+}: FileOperationInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [searchModel, setSearchModel] = useState('');
   const [showFileOps, setShowFileOps] = useState(false);
   const [showFileOpPanel, setShowFileOpPanel] = useState(false);
@@ -131,21 +128,13 @@ export function FileOperationInput({
     return ops;
   }, []);
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      if (!sending && (input.trim() || attachedFiles.length > 0)) handleSend();
-    }
-    onKeyDown?.(e);
-  };
-
   // Extract file operations from input before sending
   const handleSend = async () => {
-    const ops = parseFileOps(input);
+    const ops = parseFileOps(value);
     for (const op of ops) {
       onFileOperation?.(op);
     }
-    handleSend();
+    onSubmit();
   };
 
   return (
@@ -244,7 +233,7 @@ export function FileOperationInput({
               value={value}
               onChange={e => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              disabled={disabled || isDisabled}
+              disabled={disabled}
               rows={1}
               spellCheck={false}
             />

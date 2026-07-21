@@ -1,8 +1,18 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import { auth, type OAuthClientProvider } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import { McpOAuthProvider } from "./mcp-oauth-provider";
+
+async function loadSdkModules() {
+  const [clientMod, transportMod, authMod] = await Promise.all([
+    import("@modelcontextprotocol/sdk/client/index.js"),
+    import("@modelcontextprotocol/sdk/client/streamableHttp.js"),
+    import("@modelcontextprotocol/sdk/client/auth.js"),
+  ]);
+  return {
+    Client: clientMod.Client,
+    StreamableHTTPClientTransport: transportMod.StreamableHTTPClientTransport,
+    auth: authMod.auth,
+  };
+}
 
 export type McpServerConfig = {
   id: string;
@@ -24,7 +34,8 @@ export type McpServerState = {
 
 const OPERATION_TIMEOUT_MS = 30_000;
 
-function createClient(): Client {
+async function createClient() {
+  const { Client } = await loadSdkModules();
   return new Client({ name: "BeeHive", version: "1.0.0" }, { capabilities: {} });
 }
 
@@ -37,8 +48,9 @@ function createHeaders(config: McpServerConfig): Record<string, string> | undefi
 
 async function runWithOAuth(
   config: McpServerConfig,
-  operation: (client: Client, transport: StreamableHTTPClientTransport) => Promise<void>
+  operation: (client: any, transport: any) => Promise<void>
 ): Promise<{ status: "connected" | "needs_auth"; tools?: Tool[]; authorizeUrl?: string }> {
+  const { StreamableHTTPClientTransport, auth } = await loadSdkModules();
   const controller = new AbortController();
   const timeout = setTimeout(
     () => controller.abort(new Error("Connection timeout")),
@@ -46,7 +58,7 @@ async function runWithOAuth(
   );
 
   try {
-    const client = createClient();
+    const client = await createClient();
 
     if (config.authType === "oauth") {
       const provider = new McpOAuthProvider({
@@ -151,7 +163,8 @@ export async function callMcpTool(
   );
 
   try {
-    const client = createClient();
+    const { StreamableHTTPClientTransport } = await loadSdkModules();
+    const client = await createClient();
 
     if (config.authType === "oauth") {
       const provider = new McpOAuthProvider({
