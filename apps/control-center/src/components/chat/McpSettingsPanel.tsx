@@ -22,6 +22,7 @@ function ServerCard({ entry }: { entry: McpServerEntry }) {
     connecting: "text-amber-500",
     connected: "text-green-500",
     error: "text-red-500",
+    needs_auth: "text-blue-500",
   };
 
   const statusLabels = {
@@ -29,6 +30,7 @@ function ServerCard({ entry }: { entry: McpServerEntry }) {
     connecting: "Connecting...",
     connected: "Connected",
     error: "Error",
+    needs_auth: "Needs Authorization",
   };
 
   return (
@@ -95,11 +97,12 @@ function ServerCard({ entry }: { entry: McpServerEntry }) {
               <Label className="text-xs">Auth Type</Label>
               <select
                 value={config.authType}
-                onChange={(e) => updateServer(config.id, { authType: e.target.value as "none" | "api-key" })}
+                onChange={(e) => updateServer(config.id, { authType: e.target.value as "none" | "api-key" | "oauth" })}
                 className="mt-1 w-full h-8 rounded-md border border-border bg-background px-2 text-xs"
               >
                 <option value="none">None</option>
                 <option value="api-key">API Key</option>
+                <option value="oauth">OAuth 2.0</option>
               </select>
             </div>
             {config.authType === "api-key" && (
@@ -174,6 +177,19 @@ function ServerCard({ entry }: { entry: McpServerEntry }) {
               >
                 <WifiOff className="size-3 mr-1" />
                 Disconnect
+              </Button>
+            ) : status === "needs_auth" ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (entry.authorizeUrl) {
+                    window.open(entry.authorizeUrl, "_blank", "width=600,height=700");
+                  }
+                }}
+                className="h-7 text-xs"
+              >
+                Authorize with OAuth
               </Button>
             ) : (
               <Button

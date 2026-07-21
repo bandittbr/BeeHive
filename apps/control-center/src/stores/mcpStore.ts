@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import {
   connectToServer,
+  connectToServerWithOAuth,
   type McpServerConfig,
   type McpServerStatus,
 } from "@/services/mcp-client";
@@ -12,6 +13,7 @@ export type McpServerEntry = {
   status: McpServerStatus;
   tools: Tool[];
   error?: string;
+  authorizeUrl?: string;
 };
 
 type McpStore = {
@@ -62,14 +64,31 @@ export const useMcpStore = create<McpStore>()(
         }));
 
         try {
-          const result = await connectToServer(server.config);
-          set((state) => ({
-            servers: state.servers.map((s) =>
-              s.config.id === id
-                ? { ...s, status: "connected" as const, tools: result.tools, error: undefined }
-                : s
-            ),
-          }));
+          if (server.config.authType === "oauth") {
+            const result = await connectToServerWithOAuth(server.config);
+            set((state) => ({
+              servers: state.servers.map((s) =>
+                s.config.id === id
+                  ? {
+                      ...s,
+                      status: result.status as McpServerStatus,
+                      tools: result.tools,
+                      authorizeUrl: result.authorizeUrl,
+                      error: undefined,
+                    }
+                  : s
+              ),
+            }));
+          } else {
+            const result = await connectToServer(server.config);
+            set((state) => ({
+              servers: state.servers.map((s) =>
+                s.config.id === id
+                  ? { ...s, status: "connected" as const, tools: result.tools, error: undefined }
+                  : s
+              ),
+            }));
+          }
         } catch (error) {
           set((state) => ({
             servers: state.servers.map((s) =>
