@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from 'react';
 import { useProviderStore } from '@/stores/providerStore';
-import type { ProviderType, TestResult, Model } from '@/types';
+import type { ProviderType, TestResult, Model, CreateProviderInput } from '@/types';
 
 interface ConnectedProvider {
   id: string;
@@ -10,7 +10,17 @@ interface ConnectedProvider {
 
 interface UseProvidersReturn {
   connectedProviders: ConnectedProvider[];
-  providers: ReturnType<typeof useProviderStore.getState>['providers'];
+  providers: Array<{
+    id: string;
+    providerType: ProviderType;
+    name: string;
+    maskedApiKey: string;
+    baseUrl: string | null;
+    status: 'connected' | 'disconnected' | 'error' | 'testing';
+    lastTestedAt: string | null;
+    lastTestedError: string | null;
+    models: Model[];
+  }>;
   isLoading: boolean;
   error: string | null;
   onAddProvider: (providerId: string, apiKey: string, baseUrl?: string) => Promise<void>;
@@ -21,41 +31,40 @@ interface UseProvidersReturn {
 }
 
 export function useProviders(): UseProvidersReturn {
-  const {
-    providers,
-    isLoading,
-    error,
-    fetchProviders,
-    addProvider,
-    removeProvider,
-    testConnection,
-    fetchModels,
-  } = useProviderStore();
+  const store = useProviderStore();
 
-  useEffect(() => {
-    fetchProviders();
-  }, [fetchProviders]);
+  const providers = store.providers.map(p => ({
+    id: p.id,
+    providerType: p.providerType,
+    name: p.name,
+    maskedApiKey: p.encryptedKey.slice(0, 4) + '...' + p.encryptedKey.slice(-4),
+    baseUrl: p.baseUrl,
+    status: p.status,
+    lastTestedAt: p.lastTestedAt,
+    lastTestedError: p.lastTestedError,
+    models: p.models,
+  }));
 
   const handleAddProvider = useCallback(
     async (providerId: string, apiKey: string, baseUrl?: string) => {
       const providerType = providerId as ProviderType;
       const name = providerId.charAt(0).toUpperCase() + providerId.slice(1);
       
-      await addProvider({
+      await store.addProvider({
         providerType,
         name,
         apiKey,
         baseUrl,
       });
     },
-    [addProvider]
+    [store.addProvider]
   );
 
   const handleRemoveProvider = useCallback(
     async (providerId: string) => {
-      await removeProvider(providerId);
+      await store.removeProvider(providerId);
     },
-    [removeProvider]
+    [store.removeProvider]
   );
 
   const connectedProviders: ConnectedProvider[] = providers.map((p) => ({
@@ -67,12 +76,12 @@ export function useProviders(): UseProvidersReturn {
   return {
     connectedProviders,
     providers,
-    isLoading,
-    error,
+    isLoading: store.isLoading,
+    error: store.error,
     onAddProvider: handleAddProvider,
     onRemoveProvider: handleRemoveProvider,
-    testConnection,
-    fetchModels,
-    refreshProviders: fetchProviders,
+    testConnection: store.testConnection,
+    fetchModels: store.fetchModels,
+    refreshProviders: async () => { await store.fetchProviders(); },
   };
 }
