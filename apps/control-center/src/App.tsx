@@ -45,6 +45,11 @@ import { ModelSelect } from './components/chat/ModelSelector';
 import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
 import { Composer } from './components/chat/Composer';
 import { McpSettingsPanel } from './components/chat/McpSettingsPanel';
+import { SettingsContent, SettingsPanel, SettingsPanelHeading, SettingsPanelTitle, SettingsPanelDescription } from './components/settings/panel';
+import { AiSettingsView } from './components/settings/ai-view';
+import { AppearanceView } from './components/settings/appearance-view';
+import { PreferencesView } from './components/settings/preferences-view';
+import { ProviderIcon } from './components/settings/provider-icon';
 import { PermissionApprovalModal } from './components/chat/permission-approval-modal';
 import { usePermissionStore } from './stores/permissionStore';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
@@ -1579,7 +1584,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
 // SETTINGS — Organizado por Grupos
 // ============================================================
 
-type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'mcp' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
+type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'mcp' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos' | 'preferencias' | 'aparencia';
 
 const SETTINGS_GROUPS = [
   { label: 'Conta', items: [
@@ -1600,8 +1605,8 @@ const SETTINGS_GROUPS = [
     { id: 'logs' as SettingsPage, label: 'Logs', icon: Terminal },
   ]},
   { label: 'Personalização', items: [
-    { id: 'tema' as SettingsPage, label: 'Tema', icon: Palette },
-    { id: 'idioma' as SettingsPage, label: 'Idioma', icon: Globe },
+    { id: 'preferencias' as SettingsPage, label: 'Preferências', icon: SlidersHorizontal },
+    { id: 'aparencia' as SettingsPage, label: 'Aparência', icon: Palette },
     { id: 'notificacoes' as SettingsPage, label: 'Notificações', icon: Bell },
     { id: 'atalhos' as SettingsPage, label: 'Atalhos', icon: Key },
   ]},
@@ -1609,6 +1614,32 @@ const SETTINGS_GROUPS = [
 
 function SettingsView() {
   const [page, setPage] = useState<SettingsPage>('perfil');
+  const [themeMode, setThemeMode] = useState<'light' | 'dark' | 'system'>('dark');
+  const [showThinking, setShowThinking] = useState(false);
+  const [autoCompactContext, setAutoCompactContext] = useState(true);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
+  const [connectedProviders, setConnectedProviders] = useState<{id: string; name: string; source?: 'env' | 'api' | 'config' | 'custom'}[]>([
+    { id: 'openrouter', name: 'OpenRouter', source: 'api' },
+  ]);
+
+  const handleAddProvider = (providerId: string, apiKey: string) => {
+    const names: Record<string, string> = {
+      openrouter: 'OpenRouter',
+      openai: 'OpenAI',
+      anthropic: 'Anthropic',
+      google: 'Google',
+      ollama: 'Ollama',
+      deepseek: 'DeepSeek',
+    };
+    setConnectedProviders((prev) => [
+      ...prev,
+      { id: providerId, name: names[providerId] || providerId, source: 'api' },
+    ]);
+  };
+
+  const handleRemoveProvider = (providerId: string) => {
+    setConnectedProviders((prev) => prev.filter((p) => p.id !== providerId));
+  };
 
   return (
     <div className="settings">
@@ -1630,76 +1661,82 @@ function SettingsView() {
           ))}
         </nav>
       </div>
-      <div className="settings-content">
+      <SettingsContent>
         {page === 'perfil' && (
           <div className="settings-page">
-            <h2>Perfil</h2>
-            <p className="settings-desc">Suas informações pessoais</p>
-            <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
-            <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
-            <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
-            <button className="btn-primary">Salvar</button>
+            <SettingsPanel>
+              <SettingsPanelHeading>
+                <SettingsPanelTitle>Perfil</SettingsPanelTitle>
+                <SettingsPanelDescription>Suas informações pessoais</SettingsPanelDescription>
+              </SettingsPanelHeading>
+            </SettingsPanel>
+            <div className="mt-6 flex flex-col gap-4 max-w-lg">
+              <div className="form-group"><label>Nome</label><input type="text" placeholder="Seu nome" defaultValue="Gabriel T." /></div>
+              <div className="form-group"><label>Email</label><input type="email" placeholder="seu@email.com" defaultValue="gabriel@beehive.ai" /></div>
+              <div className="form-group"><label>Bio</label><textarea rows={3} placeholder="Conte-nos sobre você..." defaultValue="Desenvolvedor e criador do BeeHive OS" /></div>
+              <button className="btn-primary">Salvar</button>
+            </div>
           </div>
         )}
         {page === 'providers' && (
-          <div className="settings-page">
-            <h2>Providers</h2>
-            <p className="settings-desc">Provedores de IA conectados</p>
-            {[
-              { name: 'OpenRouter', status: 'connected', desc: 'Múltiplos modelos' },
-              { name: 'OpenAI', status: 'disconnected', desc: 'GPT-4, DALL-E' },
-              { name: 'Anthropic', status: 'disconnected', desc: 'Claude 3.5' },
-            ].map((p) => (
-              <div key={p.name} className="provider-card">
-                <div className="provider-header">
-                  <span className="provider-name">{p.name}</span>
-                  <span className={`status-pill ${p.status}`}>{p.status === 'connected' ? 'Conectado' : 'Desconectado'}</span>
-                </div>
-                <p>{p.desc}</p>
-                <div className="form-group"><label>API Key</label><input type="password" placeholder="sk-..." /></div>
-              </div>
-            ))}
-          </div>
+          <AiSettingsView
+            connectedProviders={connectedProviders}
+            onAddProvider={handleAddProvider}
+            onRemoveProvider={handleRemoveProvider}
+          />
+        )}
+        {page === 'preferencias' && (
+          <PreferencesView
+            showThinking={showThinking}
+            onToggleShowThinking={() => setShowThinking(!showThinking)}
+            autoCompactContext={autoCompactContext}
+            onToggleAutoCompactContext={() => setAutoCompactContext(!autoCompactContext)}
+            analyticsEnabled={analyticsEnabled}
+            onToggleAnalytics={() => setAnalyticsEnabled(!analyticsEnabled)}
+          />
+        )}
+        {page === 'aparencia' && (
+          <AppearanceView themeMode={themeMode} setThemeMode={setThemeMode} />
         )}
         {page === 'mcp' && (
           <div className="settings-page">
-            <h2>MCP Servers</h2>
-            <p className="settings-desc">Model Context Protocol servers for extended tool capabilities</p>
-            <McpSettingsPanel />
-          </div>
-        )}
-        {page === 'tema' && (
-          <div className="settings-page">
-            <h2>Tema</h2>
-            <p className="settings-desc">Personalize a aparência</p>
-            <div className="form-group">
-              <label>Tema</label>
-              <div className="theme-grid">
-                <button className="theme-card active">🌙 Dark</button>
-                <button className="theme-card">☀️ Light</button>
-                <button className="theme-card">💻 System</button>
-              </div>
+            <SettingsPanel>
+              <SettingsPanelHeading>
+                <SettingsPanelTitle>MCP Servers</SettingsPanelTitle>
+                <SettingsPanelDescription>Model Context Protocol servers for extended tool capabilities</SettingsPanelDescription>
+              </SettingsPanelHeading>
+            </SettingsPanel>
+            <div className="mt-6">
+              <McpSettingsPanel />
             </div>
           </div>
         )}
         {page === 'logs' && (
           <div className="settings-page">
-            <h2>Logs</h2>
-            <p className="settings-desc">Histórico de atividades do sistema</p>
-            <div className="logs-viewer">
+            <SettingsPanel>
+              <SettingsPanelHeading>
+                <SettingsPanelTitle>Logs</SettingsPanelTitle>
+                <SettingsPanelDescription>Histórico de atividades do sistema</SettingsPanelDescription>
+              </SettingsPanelHeading>
+            </SettingsPanel>
+            <div className="mt-6 logs-viewer">
               {['[09:00] System boot', '[09:01] Kernel initialized', '[09:01] 3 plugins loaded', '[09:02] OpenRouter connected', '[09:03] Browser plugin ready'].map((l, i) => (
                 <div key={i} className="log-line"><code>{l}</code></div>
               ))}
             </div>
           </div>
         )}
-        {!['perfil', 'providers', 'tema', 'logs'].includes(page) && (
+        {!['perfil', 'providers', 'preferencias', 'aparencia', 'mcp', 'logs'].includes(page) && (
           <div className="settings-page">
-            <h2>{SETTINGS_GROUPS.flatMap((g) => g.items).find((i) => i.id === page)?.label}</h2>
-            <p className="settings-desc">Em desenvolvimento</p>
+            <SettingsPanel>
+              <SettingsPanelHeading>
+                <SettingsPanelTitle>{SETTINGS_GROUPS.flatMap((g) => g.items).find((i) => i.id === page)?.label}</SettingsPanelTitle>
+                <SettingsPanelDescription>Em desenvolvimento</SettingsPanelDescription>
+              </SettingsPanelHeading>
+            </SettingsPanel>
           </div>
         )}
-      </div>
+      </SettingsContent>
     </div>
   );
 }
