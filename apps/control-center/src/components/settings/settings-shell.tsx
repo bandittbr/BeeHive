@@ -16,6 +16,7 @@ import { PreferencesView } from "./preferences-view";
 import { EnvironmentView } from "./environment-view";
 import { ExtensionsView } from "./extensions-view";
 import { McpSettingsPanel } from "@/components/chat/McpSettingsPanel";
+import { useProviders } from "@/hooks/useProviders";
 
 export type SettingsTab = 
   | "general" | "ai" | "preferences" | "appearance" | "extensions" 
@@ -210,9 +211,11 @@ interface SettingsTabContentProps {
 }
 
 function SettingsTabContent({ activeTab }: SettingsTabContentProps) {
+  const providers = useProviders();
+  
   switch (activeTab) {
     case "ai":
-      return <AiSettingsView />;
+      return <AiSettingsView {...providers} />;
     case "preferences":
       return <PreferencesView />;
     case "appearance":

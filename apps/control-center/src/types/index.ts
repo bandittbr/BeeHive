@@ -105,6 +105,64 @@ export interface Model {
   name: string;
   provider: string;
   contextWindow: number;
+  maxOutput?: number;
+  supportsImages?: boolean;
+  supportsTools?: boolean;
+}
+
+// ===== Provider Credential Management =====
+
+export type ProviderType = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'ollama' | 'deepseek' | 'custom';
+export type ProviderStatus = 'connected' | 'disconnected' | 'error' | 'testing';
+
+export interface ProviderConfig {
+  models?: string[];
+  defaultModel?: string;
+  temperature?: number;
+  maxTokens?: number;
+  [key: string]: unknown;
+}
+
+export interface ProviderWithMaskedKey {
+  id: string;
+  providerType: ProviderType;
+  name: string;
+  maskedApiKey: string;
+  baseUrl: string | null;
+  config: ProviderConfig | null;
+  isDefault: boolean;
+  status: ProviderStatus;
+  lastTestedAt: string | null;
+  lastTestedError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProviderWithModels extends ProviderWithMaskedKey {
+  models: Model[];
+}
+
+export interface CreateProviderInput {
+  providerType: ProviderType;
+  name: string;
+  apiKey: string;
+  baseUrl?: string;
+  config?: ProviderConfig;
+}
+
+export interface UpdateProviderInput {
+  name?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  config?: ProviderConfig;
+  isDefault?: boolean;
+}
+
+export interface TestResult {
+  success: boolean;
+  error?: string;
+  latency?: number;
+  models?: string[];
 }
 
 export interface Mission {

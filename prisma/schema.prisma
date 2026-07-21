@@ -416,3 +416,22 @@ model Message {
 
   @@map("messages")
 }
+
+model AiProvider {
+  id              String   @id @default(cuid())
+  providerType    String   // "openai" | "anthropic" | "openrouter" | "google" | "ollama" | "deepseek" | "custom"
+  name            String   // Nome para exibição
+  encryptedKey    String   // API key criptografada (AES-GCM)
+  iv              String   // Vetor de inicialização (12 bytes base64)
+  authTag         String   // Tag de autenticação GCM (16 bytes base64)
+  baseUrl         String?  // Endpoint customizado (para OpenAI-compatible, Ollama)
+  config          Json?    // Configurações específicas (models[], settings)
+  isDefault       Boolean  @default(false)
+  status          String   @default("connected") // "connected" | "disconnected" | "error" | "testing"
+  lastTestedAt    DateTime?
+  lastTestedError String?  // Último erro de teste
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("ai_providers")
+}
