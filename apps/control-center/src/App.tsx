@@ -43,6 +43,8 @@ import { ModelSelect } from './components/chat/ModelSelector';
 import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
 import { Composer } from './components/chat/Composer';
 import { McpSettingsPanel } from './components/chat/McpSettingsPanel';
+import { PermissionApprovalModal } from './components/chat/permission-approval-modal';
+import { usePermissionStore } from './stores/permissionStore';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
@@ -207,6 +209,8 @@ function HomeChat() {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [newConversationTitle, setNewConversationTitle] = useState('');
   const [showConversationList, setShowConversationList] = useState(false);
+  const pending = usePermissionStore((s) => s.pending);
+  const respondPermission = usePermissionStore((s) => s.respondPermission);
 
   const { projectId } = useAppStore.getState().projects.length > 0 ? { projectId: useAppStore.getState().projects[0]?.id } : { projectId: null };
   
@@ -370,6 +374,12 @@ function HomeChat() {
           ))}
         </ul>
       </aside>
+
+      <PermissionApprovalModal
+        permission={pending ?? { id: '', permission: 'bash', patterns: [] }}
+        open={!!pending}
+        respondPermission={(id, reply) => respondPermission(id, reply)}
+      />
     </div>
   );
 }

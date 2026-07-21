@@ -30,6 +30,8 @@ import { SkillTool } from "@/components/tools/skill";
 import { ApplyPatchTool } from "@/components/tools/apply-patch";
 import { Tool } from "@/components/ui/tool";
 import { McpToolRenderer } from "@/components/tools/mcp-tool";
+import { PermissionApprovalPanel } from "@/components/chat/permission-approval-modal";
+import { usePermissionStore } from "@/stores/permissionStore";
 
 interface Message {
   id: string;
@@ -204,8 +206,17 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy }: Messa
     onRegenerate?.(messageId);
   }, [onRegenerate]);
 
+  const pending = usePermissionStore((s) => s.pending);
+  const respondPermission = usePermissionStore((s) => s.respondPermission);
+
   return (
     <div className="chat-messages">
+      {pending && (
+        <PermissionApprovalPanel
+          permission={pending}
+          respondPermission={(id, reply) => respondPermission(id, reply)}
+        />
+      )}
       {messages.map((message, index) => (
         <MessageBubble
           key={message.id}
