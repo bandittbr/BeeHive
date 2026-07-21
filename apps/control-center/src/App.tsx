@@ -12,6 +12,7 @@ import {
   Trash2,
   Copy,
   RotateCcw,
+  Edit2,
   FileText as FileTextIcon,
   Save,
   AlertCircle,
@@ -37,6 +38,7 @@ import { createExecutionService, UnifiedExecutionService, ExecutionConfig, Execu
 import { MessageList } from './components/chat/MessageList';
 
 import { PipelineRunner } from './components/pipeline/PipelineRunner';
+import { PipelineBuilder } from './components/pipeline/PipelineBuilder';
 import { CostDashboard } from './components/cost/CostDashboard';
 import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
 import { ModelSelect } from './components/chat/ModelSelector';

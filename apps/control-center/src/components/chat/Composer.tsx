@@ -14,7 +14,6 @@ import { $createLinkNode, LinkNode, TOGGLE_LINK_COMMAND } from "@lexical/link";
 import { $createListItemNode, $createListNode, ListItemNode, ListNode } from "@lexical/list";
 import { $createHashtagNode, HashtagNode, addHashtag } from "@lexical/hashtag";
 import { $createTableNode, $createTableCellNode, $createTableRowNode, TableNode, TableCellNode, TableRowNode } from "@lexical/table";
-import { $createImageNode, ImageNode } from "@lexical/file";
 import { $createParagraphNode, ParagraphNode } from "lexical";
 import { cn } from "@/lib/utils";
 import { 
@@ -490,7 +489,7 @@ export function Composer({
                   onClick={() => editorRef.current?.update(() => {
                     const selection = $getSelection();
                     if ($isRangeSelection(selection)) {
-                      const table = $createTableNode({ rows: 3, cols: 3 });
+                      const table = $createTableNode();
                       selection.insertNodes([table]);
                     }
                   })}

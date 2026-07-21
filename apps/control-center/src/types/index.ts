@@ -1,4 +1,11 @@
-﻿export interface Project {
+﻿export interface Agent {
+  id: string;
+  name: string;
+  status: 'active' | 'paused' | 'error';
+  projectId: string;
+}
+
+export interface Project {
   id: string;
   name: string;
   icon: string;

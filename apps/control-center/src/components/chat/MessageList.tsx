@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Copy, CopyCheck, Loader2, RotateCcw, Code, MessageSquare, Bot, Users,
   FileText, FilePlus, Download, X, AlertCircle, Send,
-  BrainCircuit, SlidersHorizontal, ChevronDown
+  BrainCircuit, SlidersHorizontal, ChevronDown, Image, AlertTriangle
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StreamingMessage, CodeBlock, RegenerateButton, CopyButton } from "./StreamingComponents";
