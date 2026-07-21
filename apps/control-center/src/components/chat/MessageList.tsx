@@ -4,12 +4,14 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { 
   Copy, CopyCheck, Loader2, RotateCcw, Code, MessageSquare, Bot, Users,
   FileText, FilePlus, Download, X, AlertCircle, Send,
-  BrainCircuit, SlidersHorizontal, ChevronDown, Image, AlertTriangle
+  BrainCircuit, SlidersHorizontal, ChevronDown, Image, AlertTriangle,
+  Loader2 as Loader2Icon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { StreamingMessage, CodeBlock, RegenerateButton, CopyButton } from "./StreamingComponents";
 import { ModelSelect } from "./ModelSelector";
 import { ReasoningEffortSelect } from "./ReasoningEffortSelect";
+import { MarkdownBlock } from "@/components/markdown/markdown";
 import {
   isBashToolPart, isEditToolPart, isWriteToolPart, isReadToolPart,
   isGrepToolPart, isGlobToolPart, isApplyPatchToolPart, isSkillToolPart,
@@ -32,6 +34,10 @@ import { Tool } from "@/components/ui/tool";
 import { McpToolRenderer } from "@/components/tools/mcp-tool";
 import { PermissionApprovalPanel } from "@/components/chat/permission-approval-modal";
 import { usePermissionStore } from "@/stores/permissionStore";
+import { MessageListProvider, useMessageList } from "./message-list-provider";
+import { ArtifactList } from "./artifact";
+import { deriveOpenTargets } from "@/types/open-target";
+import { getToolActivityLabel, isToolPartInFlight, getActiveToolLabel } from "@/lib/tool-activity";
 
 interface Message {
   id: string;
@@ -92,34 +98,10 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
     onRegenerate?.(message.id);
   };
 
-  const renderContent = (content: string) => {
-    // Simple markdown parsing for code blocks
-    const parts = content.split(/```(\w+)?\n([\s\S]*?)```/g);
-    return parts.map((part, index) => {
-      if (index % 3 === 0) {
-        // Regular text - render with simple markdown
-        return (
-          <div key={index} className="message-text">
-            {part.split("\n").map((line, i) => (
-              <div key={i} className="message-line">{line}</div>
-            ))}
-          </div>
-        );
-      }
-      if (index % 3 === 1) {
-        // Language
-        return null;
-      }
-      // Code block
-      const language = parts[index - 1];
-      const code = part;
-      return (
-        <CodeBlock key={index} language={language || "text"} code={code} />
-      );
-    });
-  };
-
   if (!message) return null;
+
+  const dynamicParts = message.parts?.filter((p): p is DynamicToolUIPart => p.type === "dynamic-tool") || [];
+  const activeLabel = dynamicParts.length > 0 ? getActiveToolLabel(dynamicParts) : null;
 
   return (
     <div className={`message-bubble ${message.role} ${message.streaming ? "streaming" : ""}`}>
@@ -134,7 +116,7 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
           <span className="message-time">{message.time}</span>
         </div>
         <div className="message-content">
-          {renderContent(message.content)}
+          <MarkdownBlock text={message.content} />
         </div>
 
         {/* Tool parts */}
@@ -143,6 +125,14 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
             {message.parts.filter((p): p is DynamicToolUIPart => p.type === "dynamic-tool").map((part) => (
               <ToolMessageInner key={part.toolCallId} part={part} />
             ))}
+          </div>
+        )}
+
+        {/* Active tool label */}
+        {activeLabel && (
+          <div className="flex items-center gap-2 mt-1.5 text-xs text-muted-foreground animate-pulse">
+            <Loader2Icon size={12} className="animate-spin" />
+            <span>{activeLabel}</span>
           </div>
         )}
         
@@ -209,28 +199,52 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy }: Messa
   const pending = usePermissionStore((s) => s.pending);
   const respondPermission = usePermissionStore((s) => s.respondPermission);
 
+  const allArtifacts = deriveOpenTargets(
+    messages.map((m) => ({
+      role: m.role,
+      parts: [
+        { type: "text" as const, text: m.content },
+        ...((m.parts || []).map((p) => ({
+          type: "dynamic-tool" as const,
+          toolName: "toolName" in p ? String((p as any).toolName) : undefined,
+          input: "input" in p ? (p as any).input : undefined,
+          output: "output" in p ? (p as any).output : undefined,
+          state: "state" in p ? String((p as any).state) : undefined,
+        }))),
+      ],
+    }))
+  );
+  const uniqueArtifacts = Array.from(
+    new Map(allArtifacts.map((a) => [a.id, a])).values()
+  );
+
   return (
-    <div className="chat-messages">
-      {pending && (
-        <PermissionApprovalPanel
-          permission={pending}
-          respondPermission={(id, reply) => respondPermission(id, reply)}
-        />
-      )}
-      {messages.map((message, index) => (
-        <MessageBubble
-          key={message.id}
-          message={message}
-          onCopy={(c) => handleCopy(c, message.id)}
-          onRegenerate={handleRegenerate}
-          isLast={index === messages.length - 1}
-        />
-      ))}
-      {streaming && (
-        <StreamingMessage />
-      )}
-      <div ref={messagesEndRef} />
-    </div>
+    <MessageListProvider showThinking={false} developerMode={false}>
+      <div className="chat-messages">
+        {pending && (
+          <PermissionApprovalPanel
+            permission={pending}
+            respondPermission={(id, reply) => respondPermission(id, reply)}
+          />
+        )}
+        {uniqueArtifacts.length > 0 && (
+          <ArtifactList artifacts={uniqueArtifacts} />
+        )}
+        {messages.map((message, index) => (
+          <MessageBubble
+            key={message.id}
+            message={message}
+            onCopy={(c) => handleCopy(c, message.id)}
+            onRegenerate={handleRegenerate}
+            isLast={index === messages.length - 1}
+          />
+        ))}
+        {streaming && (
+          <StreamingMessage />
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+    </MessageListProvider>
   );
 }
 
