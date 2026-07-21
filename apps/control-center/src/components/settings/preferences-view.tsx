@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutSection,
@@ -12,16 +13,10 @@ import {
   LayoutStack,
 } from "./settings-layout";
 
-export type PreferencesViewProps = {
-  showThinking: boolean;
-  onToggleShowThinking: () => void;
-  autoCompactContext: boolean;
-  onToggleAutoCompactContext: () => void;
-  analyticsEnabled: boolean;
-  onToggleAnalytics: () => void;
-};
-
-export function PreferencesView(props: PreferencesViewProps) {
+export function PreferencesView() {
+  const [showThinking, setShowThinking] = useState(false);
+  const [autoCompactContext, setAutoCompactContext] = useState(true);
+  const [analyticsEnabled, setAnalyticsEnabled] = useState(false);
   return (
     <LayoutStack>
       <LayoutSection>
@@ -37,8 +32,8 @@ export function PreferencesView(props: PreferencesViewProps) {
             <LayoutSectionItemHeaderActions>
               <Switch
                 aria-label="Show model reasoning"
-                checked={props.showThinking}
-                onCheckedChange={props.onToggleShowThinking}
+                checked={showThinking}
+                onCheckedChange={() => setShowThinking(!showThinking)}
               />
             </LayoutSectionItemHeaderActions>
           </LayoutSectionItemHeader>
@@ -51,8 +46,8 @@ export function PreferencesView(props: PreferencesViewProps) {
             <LayoutSectionItemHeaderActions>
               <Switch
                 aria-label="Auto-compact context"
-                checked={props.autoCompactContext}
-                onCheckedChange={props.onToggleAutoCompactContext}
+                checked={autoCompactContext}
+                onCheckedChange={() => setAutoCompactContext(!autoCompactContext)}
               />
             </LayoutSectionItemHeaderActions>
           </LayoutSectionItemHeader>
@@ -72,8 +67,8 @@ export function PreferencesView(props: PreferencesViewProps) {
             <LayoutSectionItemHeaderActions>
               <Switch
                 aria-label="Usage analytics"
-                checked={props.analyticsEnabled}
-                onCheckedChange={props.onToggleAnalytics}
+                checked={analyticsEnabled}
+                onCheckedChange={() => setAnalyticsEnabled(!analyticsEnabled)}
               />
             </LayoutSectionItemHeaderActions>
           </LayoutSectionItemHeader>
