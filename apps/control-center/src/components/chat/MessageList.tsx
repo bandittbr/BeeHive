@@ -10,6 +10,25 @@ import { cn } from "@/lib/utils";
 import { StreamingMessage, CodeBlock, RegenerateButton, CopyButton } from "./StreamingComponents";
 import { ModelSelect } from "./ModelSelector";
 import { ReasoningEffortSelect } from "./ReasoningEffortSelect";
+import {
+  isBashToolPart, isEditToolPart, isWriteToolPart, isReadToolPart,
+  isGrepToolPart, isGlobToolPart, isApplyPatchToolPart, isSkillToolPart,
+  isTodoWriteToolPart, isWebFetchToolPart, isWebSearchToolPart,
+  isQuestionToolPart, isTaskToolPart,
+  type AnyToolPart, type DynamicToolUIPart,
+} from "@/lib/tool-types";
+import { BashTool } from "@/components/tools/bash";
+import { EditTool } from "@/components/tools/edit";
+import { ReadFileTool, WriteFileTool } from "@/components/tools/file";
+import { GlobTool } from "@/components/tools/glob";
+import { GrepTool } from "@/components/tools/grep";
+import { WebfetchTool } from "@/components/tools/webfetch";
+import { WebsearchTool } from "@/components/tools/websearch";
+import { QuestionTool } from "@/components/tools/question";
+import { TodoWriteTool } from "@/components/tools/todowrite";
+import { SkillTool } from "@/components/tools/skill";
+import { ApplyPatchTool } from "@/components/tools/apply-patch";
+import { Tool } from "@/components/ui/tool";
 
 interface Message {
   id: string;
@@ -19,6 +38,7 @@ interface Message {
   agent?: string;
   streaming?: boolean;
   attachedFiles?: FileOperation[];
+  parts?: AnyToolPart[];
 }
 
 interface FileOperation {
@@ -35,6 +55,23 @@ interface MessageBubbleProps {
   onCopy?: (content: string) => void;
   onRegenerate?: (messageId: string) => void;
   isLast?: boolean;
+}
+
+function ToolMessageInner({ part }: { part: DynamicToolUIPart }) {
+  if (isBashToolPart(part)) return <BashTool part={part} />;
+  if (isEditToolPart(part)) return <EditTool part={part} />;
+  if (isWriteToolPart(part)) return <WriteFileTool part={part} />;
+  if (isReadToolPart(part)) return <ReadFileTool part={part} />;
+  if (isGrepToolPart(part)) return <GrepTool part={part} />;
+  if (isGlobToolPart(part)) return <GlobTool part={part} />;
+  if (isApplyPatchToolPart(part)) return <ApplyPatchTool part={part} />;
+  if (isSkillToolPart(part)) return <SkillTool part={part} />;
+  if (isTodoWriteToolPart(part)) return <TodoWriteTool part={part} />;
+  if (isWebFetchToolPart(part)) return <WebfetchTool part={part} />;
+  if (isWebSearchToolPart(part)) return <WebsearchTool part={part} />;
+  if (isQuestionToolPart(part)) return <QuestionTool part={part} />;
+  if (isTaskToolPart(part)) return <Tool toolPart={part} />;
+  return <Tool toolPart={part} />;
 }
 
 function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleProps) {
@@ -96,6 +133,15 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
         <div className="message-content">
           {renderContent(message.content)}
         </div>
+
+        {/* Tool parts */}
+        {message.parts && message.parts.length > 0 && (
+          <div className="tool-parts mt-2 space-y-1">
+            {message.parts.filter((p): p is DynamicToolUIPart => p.type === "dynamic-tool").map((part) => (
+              <ToolMessageInner key={part.toolCallId} part={part} />
+            ))}
+          </div>
+        )}
         
         {/* File operations display */}
         {message.attachedFiles && message.attachedFiles.length > 0 && (
