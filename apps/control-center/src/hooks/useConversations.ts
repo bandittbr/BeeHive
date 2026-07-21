@@ -211,6 +211,7 @@ export function useMessages(conversationId: string | null) {
 
   return {
     messages,
+    setMessages,
     loading,
     error,
     hasMore: !!nextCursor,
