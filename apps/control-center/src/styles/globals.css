@@ -646,3 +646,29 @@
 .code-block-content .url { color: #a5d6ff; }
 .code-block-content .attr-value { color: #a5d6ff; }
 .code-block-content .attr-name { color: #79c0ff; }
+
+@keyframes accordion-down {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--accordion-panel-height);
+  }
+}
+
+@keyframes accordion-up {
+  from {
+    height: var(--accordion-panel-height);
+  }
+  to {
+    height: 0;
+  }
+}
+
+@utility animate-accordion-down {
+  animation: accordion-down 200ms ease-out;
+}
+
+@utility animate-accordion-up {
+  animation: accordion-up 200ms ease-out;
+}

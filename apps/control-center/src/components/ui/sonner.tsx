@@ -58,7 +58,7 @@ interface ToastOptions {
 }
 
 const TOAST_ICONS: Record<Exclude<ToastType, "default">, LucideIcon> = {
-  success: CheckCircleIcon,
+  success: CircleCheckIcon,
   info: InfoIcon,
   warning: TriangleAlertIcon,
   error: OctagonXIcon,

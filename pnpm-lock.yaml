@@ -31,7 +31,7 @@ importers:
   apps/control-center:
     dependencies:
       '@base-ui/react':
-        specifier: ^1.0.0
+        specifier: ^1.4.1
         version: 1.6.0(@types/react@18.3.31)(date-fns@2.30.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@lexical/clipboard':
         specifier: ^0.48.0
@@ -111,6 +111,9 @@ importers:
       react-dom:
         specifier: ^18.3.1
         version: 18.3.1(react@18.3.1)
+      react-resizable-panels:
+        specifier: ^4.12.2
+        version: 4.12.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       react-router-dom:
         specifier: ^7.18.1
         version: 7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -121,10 +124,10 @@ importers:
         specifier: ^2.0.0
         version: 2.0.7(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       tailwind-merge:
-        specifier: ^3.2.0
+        specifier: ^3.5.0
         version: 3.6.0
       tailwindcss:
-        specifier: ^4.1.0
+        specifier: ^4.1.18
         version: 4.3.3
       tw-animate-css:
         specifier: ^1.4.0
@@ -134,7 +137,7 @@ importers:
         version: 5.0.14(@types/react@18.3.31)(react@18.3.1)(use-sync-external-store@1.6.0(react@18.3.1))
     devDependencies:
       '@tailwindcss/vite':
-        specifier: ^4.1.0
+        specifier: ^4.1.18
         version: 4.3.3(vite@6.4.3(@types/node@22.20.1)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.0))
       '@types/react':
         specifier: ^18.3.12
@@ -2901,6 +2904,12 @@ packages:
   react-refresh@0.17.0:
     resolution: {integrity: sha512-z6F7K9bV85EfseRCp2bzrpyQ0Gkw1uLoCel9XBVWPg/TjRj94SkJzUTGfOa4bs7iJvBWtQG0Wq7wnI0syw3EBQ==}
     engines: {node: '>=0.10.0'}
+
+  react-resizable-panels@4.12.2:
+    resolution: {integrity: sha512-NwY5LCo4WrxVvDh0xoMML6EMLPONP/8ckKcIdpnojxexoatZdjLiRqLJQjQK5CPkd4SYiB/2M5BVrjZBQtOO7Q==}
+    peerDependencies:
+      react: ^18.0.0 || ^19.0.0
+      react-dom: ^18.0.0 || ^19.0.0
 
   react-router-dom@7.18.1:
     resolution: {integrity: sha512-KaZh+X/6UtEp28x51AUYZDMg9NGoz2ja3dNHa+ta/tk40vCzKhQ/RypCWBMLbmDr6//E24Vv5uPsrqXFozdkAg==}
@@ -5902,6 +5911,11 @@ snapshots:
       scheduler: 0.23.2
 
   react-refresh@0.17.0: {}
+
+  react-resizable-panels@4.12.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+    dependencies:
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
 
   react-router-dom@7.18.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
     dependencies:
