@@ -42,6 +42,7 @@ import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
 import { ModelSelect } from './components/chat/ModelSelector';
 import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
 import { Composer } from './components/chat/Composer';
+import { McpSettingsPanel } from './components/chat/McpSettingsPanel';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
 
@@ -1570,7 +1571,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
 // SETTINGS — Organizado por Grupos
 // ============================================================
 
-type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
+type SettingsPage = 'perfil' | 'seguranca' | 'providers' | 'modelos' | 'plugins' | 'integrations' | 'mcp' | 'storage' | 'memoria' | 'database' | 'logs' | 'tema' | 'idioma' | 'notificacoes' | 'atalhos';
 
 const SETTINGS_GROUPS = [
   { label: 'Conta', items: [
@@ -1580,6 +1581,7 @@ const SETTINGS_GROUPS = [
   { label: 'Sistema', items: [
     { id: 'providers' as SettingsPage, label: 'Providers', icon: Cpu },
     { id: 'modelos' as SettingsPage, label: 'Modelos', icon: Bot },
+    { id: 'mcp' as SettingsPage, label: 'MCP Servers', icon: Network },
     { id: 'plugins' as SettingsPage, label: 'Plugins', icon: Layers },
     { id: 'integrations' as SettingsPage, label: 'Integrações', icon: Globe },
   ]},
@@ -1649,6 +1651,13 @@ function SettingsView() {
                 <div className="form-group"><label>API Key</label><input type="password" placeholder="sk-..." /></div>
               </div>
             ))}
+          </div>
+        )}
+        {page === 'mcp' && (
+          <div className="settings-page">
+            <h2>MCP Servers</h2>
+            <p className="settings-desc">Model Context Protocol servers for extended tool capabilities</p>
+            <McpSettingsPanel />
           </div>
         )}
         {page === 'tema' && (

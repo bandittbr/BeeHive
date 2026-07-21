@@ -29,6 +29,7 @@ import { TodoWriteTool } from "@/components/tools/todowrite";
 import { SkillTool } from "@/components/tools/skill";
 import { ApplyPatchTool } from "@/components/tools/apply-patch";
 import { Tool } from "@/components/ui/tool";
+import { McpToolRenderer } from "@/components/tools/mcp-tool";
 
 interface Message {
   id: string;
@@ -71,7 +72,7 @@ function ToolMessageInner({ part }: { part: DynamicToolUIPart }) {
   if (isWebSearchToolPart(part)) return <WebsearchTool part={part} />;
   if (isQuestionToolPart(part)) return <QuestionTool part={part} />;
   if (isTaskToolPart(part)) return <Tool toolPart={part} />;
-  return <Tool toolPart={part} />;
+  return <McpToolRenderer part={part} />;
 }
 
 function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleProps) {
