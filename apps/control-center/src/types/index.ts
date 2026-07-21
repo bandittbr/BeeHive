@@ -1,8 +1,11 @@
-﻿export interface Agent {
+export interface Agent {
   id: string;
   name: string;
   status: 'active' | 'paused' | 'error';
   projectId: string;
+  color?: string;
+  task?: string;
+  pipeline?: { id: string; label: string; type?: string; status?: string }[];
 }
 
 export interface Project {
@@ -15,6 +18,7 @@ export interface Project {
   workflows: Workflow[];
   artifacts: Artifact[];
   pipelines: Pipeline[]; // Added pipeline support
+  secrets?: { id: string; key: string; createdAt?: string }[];
   createdAt: string;
   updatedAt: string;
 }
@@ -281,4 +285,3 @@ export interface BizAccount {
   status: 'active' | 'paused';
   createdAt: string;
 }
-
