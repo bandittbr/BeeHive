@@ -35,7 +35,7 @@ import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
-import { FileOperationInput, useFileOperations } from './components/chat/FileOperations';
+
 import { PipelineRunner } from './components/pipeline/PipelineRunner';
 import { CostDashboard } from './components/cost/CostDashboard';
 import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
@@ -225,7 +225,14 @@ function HomeChat() {
     hasMore: hasMoreConversations,
   } = useConversations(firstProjectId);
 
-  const { messages, loading: messagesLoading, sendMessage, setMessages: setMessagesList } = useMessages(activeConversationId);
+  const [sending, setSending] = useState(false);
+  const [input, setInput] = useState('');
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [selectedModel, setSelectedModel] = useState('opencode:big-pickle');
+  const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
+  const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
+  const [showFilePanel, setShowFilePanel] = useState(false);
+  const { messages, loading: messagesLoading, sendMessage, setMessages } = useMessages(activeConversationId);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -251,8 +258,10 @@ function HomeChat() {
       setStarted(true);
     }
 
-    const value = (text ?? '').trim();
+    const value = (text ?? input).trim();
     if (!value || sending) return;
+    setInput('');
+    setAttachedFiles([]);
     setStarted(true);
 
     const userContent = value;
@@ -343,20 +352,20 @@ function HomeChat() {
         )}
 
         <ChatInputArea
-          input=""
-          setInput={() => {}}
+          input={input}
+          setInput={setInput}
           sending={sending}
           handleSend={handleSend}
-          attachedFiles={[]}
-          setAttachedFiles={() => {}}
-          selectedModel="opencode:big-pickle"
-          setSelectedModel={() => {}}
-          reasoningEffort="default"
-          setReasoningEffort={() => {}}
-          fileOperations={[]}
-          setFileOperations={() => {}}
-          showFilePanel={false}
-          setShowFilePanel={() => {}}
+          attachedFiles={attachedFiles}
+          setAttachedFiles={setAttachedFiles}
+          selectedModel={selectedModel}
+          setSelectedModel={setSelectedModel}
+          reasoningEffort={reasoningEffort}
+          setReasoningEffort={setReasoningEffort}
+          fileOperations={fileOperations}
+          setFileOperations={setFileOperations}
+          showFilePanel={showFilePanel}
+          setShowFilePanel={setShowFilePanel}
         />
       </main>
 
@@ -485,20 +494,7 @@ function ChatInputArea({
         </div>
       )}
 
-      {/* File Operations Input - OpenWork style: @file.txt to read, @file.txt:content to write */}
-      <FileOperationInput
-        value={input}
-        onChange={setInput}
-        onSubmit={handleFileOperationInput}
-        placeholder="Digite sua mensagem... (Shift+Enter para nova linha, @arquivo.txt para ler, @arquivo.txt:conteúdo para escrever)"
-        attachedFiles={attachedFiles}
-        onFileAttach={handleFileAttach}
-        onRemoveFile={(i) => setAttachedFiles(prev => prev.filter((_, idx) => idx !== i))}
-        fileOperations={fileOperations}
-        onFileOperation={handleFileOperationInput}
-        onRemoveOperation={(id) => setFileOperations(prev => prev.filter(op => op.id !== id))}
-        disabled={sending}
-      />
+      {/* File Operations Input - removed, using Composer below */}
 
       {/* Single unified input bubble - OpenWork style */}
       <div className="input-bubble">
