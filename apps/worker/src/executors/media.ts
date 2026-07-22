@@ -1,5 +1,5 @@
 // Executor de mídia (Cortes): baixar vídeo + transcrição (ytFetch) e cortar
-// trechos em vertical com legendas sincronizadas (clip). Usa yt-dlp e ffmpeg.
+// trechos em vertical com legenda animada estilo viral (clip). Usa yt-dlp e ffmpeg.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -86,15 +86,6 @@ function parseSrtTime(t: string): number {
   if (!m) return 0;
   return (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4]) / 1000;
 }
-function fmtSrtTime(sec: number): string {
-  if (sec < 0) sec = 0;
-  const h = Math.floor(sec / 3600);
-  const mm = Math.floor((sec % 3600) / 60);
-  const ss = Math.floor(sec % 60);
-  const ms = Math.round((sec - Math.floor(sec)) * 1000);
-  const p = (n: number, l = 2) => String(n).padStart(l, '0');
-  return `${p(h)}:${p(mm)}:${p(ss)},${p(ms, 3)}`;
-}
 function parseSrt(content: string): Cue[] {
   const blocks = content.replace(/\r/g, '').split(/\n\n+/);
   const cues: Cue[] = [];
@@ -110,24 +101,67 @@ function parseSrt(content: string): Cue[] {
   }
   return cues;
 }
-// gera um SRT recortado à janela [ws, we], com tempos relativos a ws
-function sliceSrt(cues: Cue[], ws: number, we: number): string {
-  let idx = 1;
-  const out: string[] = [];
+// --- Legenda ANIMADA estilo viral (Hormozi/TikTok): 1-3 palavras grandes,
+// centralizadas, pop-in com bounce e palavra ativa destacada. Gera arquivo .ass. ---
+
+function fmtAssTime(sec: number): string {
+  if (sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const mm = Math.floor((sec % 3600) / 60);
+  const ss = Math.floor(sec % 60);
+  const cs = Math.round((sec - Math.floor(sec)) * 100);
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${h}:${p(mm)}:${p(ss)}.${p(cs)}`;
+}
+
+// escapa texto para ASS (evita quebrar tags)
+function escAss(t: string): string {
+  return t.replace(/[{}]/g, '').replace(/\\/g, '').replace(/\n/g, ' ').trim();
+}
+
+// Cabeçalho ASS em 1080x1920 com estilo grande, negrito, contorno preto forte.
+const ASS_HEADER = `[Script Info]
+ScriptType: v4.00+
+PlayResX: 1080
+PlayResY: 1920
+WrapStyle: 2
+ScaledBorderAndShadow: yes
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: Pop,DejaVu Sans,96,&H00FFFFFF,&H000000FF,&H00000000,&H64000000,-1,0,0,0,100,100,0,0,1,7,3,2,80,80,360,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+// Divide os cues (já recortados p/ janela relativa a 0) em "chunks" de até 3
+// palavras, cada um com sua fatia de tempo, e monta os eventos ASS com bounce.
+function buildAss(cues: Cue[], ws: number, we: number, groupSize = 3): string {
+  const events: string[] = [];
   for (const c of cues) {
     if (c.end <= ws || c.start >= we) continue;
     const s = Math.max(0, c.start - ws);
     const e = Math.min(we - ws, c.end - ws);
     if (e <= s) continue;
-    out.push(String(idx++), `${fmtSrtTime(s)} --> ${fmtSrtTime(e)}`, c.text, '');
+    const words = escAss(c.text).split(/\s+/).filter(Boolean);
+    if (words.length === 0) continue;
+    const dur = e - s;
+    for (let i = 0; i < words.length; i += groupSize) {
+      const group = words.slice(i, i + groupSize);
+      const gStart = s + (i / words.length) * dur;
+      const gEnd = s + Math.min(words.length, i + groupSize) / words.length * dur;
+      if (gEnd <= gStart) continue;
+      const text = group.join(' ').toUpperCase();
+      // pop-in: entra em 85% e cresce até 100% (bounce), com fade rápido
+      const anim = `{\\fad(60,40)\\fscx85\\fscy85\\t(0,110,\\fscx106\\fscy106)\\t(110,190,\\fscx100\\fscy100)}`;
+      events.push(`Dialogue: 0,${fmtAssTime(gStart)},${fmtAssTime(gEnd)},Pop,,0,0,0,,${anim}${text}`);
+    }
   }
-  return out.join('\n');
+  return ASS_HEADER + events.join('\n') + '\n';
 }
 
-// estilo das legendas (TikTok-like): grande, contorno forte, centro-baixo
-const SUB_STYLE = "FontName=DejaVu Sans,Fontsize=22,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=170";
-
-// Corta segmentos em vertical 1080x1920 com legendas sincronizadas.
+// Corta segmentos em vertical 1080x1920 com legenda animada sincronizada.
 export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result: unknown }> {
   const input = String(req.payload.input ?? 'source.mp4').trim();
   const vertical = req.payload.vertical !== false;
@@ -159,14 +193,15 @@ export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result
     const title = seg.title ? String(seg.title) : '';
 
     let vf = crop;
-    // legendas sincronizadas se houver transcrição para a janela
+    // legenda ANIMADA (estilo viral) sincronizada se houver transcrição na janela
     let subFile = '';
     if (cues.length) {
-      const slice = sliceSrt(cues, start, end);
-      if (slice.trim()) {
-        subFile = `clip_${i + 1}.srt`;
-        await fsp.writeFile(path.join(dir, subFile), slice, 'utf8');
-        vf += `,subtitles=${subFile}:force_style='${SUB_STYLE}'`;
+      const ass = buildAss(cues, start, end);
+      // só usa se houver ao menos um evento de diálogo
+      if (ass.includes('Dialogue:')) {
+        subFile = `clip_${i + 1}.ass`;
+        await fsp.writeFile(path.join(dir, subFile), ass, 'utf8');
+        vf += `,ass=${subFile}`;
       }
     }
     // sem legendas → queima o título como fallback
