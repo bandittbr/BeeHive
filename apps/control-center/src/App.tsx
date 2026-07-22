@@ -554,9 +554,9 @@ function ChatInputArea({
               onChange={setInput}
               onSubmit={handleSend}
               disabled={sending}
-              placeholder="Digite sua mensagem... (Shift+Enter para nova linha, / para comandos, @ para menções)"
+              placeholder="Digite sua mensagem..."
               maxHeight={220}
-              showToolbar={true}
+              showToolbar={false}
             />
           </div>
           
