@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
   BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
@@ -26,6 +26,8 @@ import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
+import { planTask, runStep, type Plan, type PlanStep } from './services/orchestrator';
+import { TaskPlan } from './components/chat/TaskPlan';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
@@ -236,6 +238,7 @@ function HomeChat() {
   const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
   const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
   const [showFilePanel, setShowFilePanel] = useState(false);
+  const [plan, setPlan] = useState<Plan | null>(null);
   const { messages, loading: messagesLoading, sendMessage, setMessages } = useMessages(activeConversationId);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -267,13 +270,24 @@ function HomeChat() {
     setInput('');
     setAttachedFiles([]);
     setStarted(true);
+    setPlan(null);
 
     const userContent = value;
     const userMsgId = String(Date.now());
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, createdAt: new Date().toISOString() }]);
     setSending(true);
 
-    // Add empty assistant message for streaming
+    // 1) O cérebro decide: conversa simples ou tarefa multi-etapa?
+    const decided = await planTask(value);
+
+    if (!decided.conversational && decided.steps.length > 0) {
+      // Tarefa: mostra o plano e executa etapa por etapa (progresso ao vivo)
+      await runPlan(decided);
+      setSending(false);
+      return;
+    }
+
+    // 2) Conversa simples → resposta com streaming (como antes)
     const assistantMsgId = String(Date.now() + 1);
     setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', createdAt: new Date().toISOString() }]);
 
@@ -285,11 +299,32 @@ function HomeChat() {
       ));
     });
 
-    // Ensure final content is set
     setMessages((prev) => prev.map((m) =>
       m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m
     ));
     setSending(false);
+  };
+
+  // Executa um plano etapa por etapa, atualizando o painel de progresso ao vivo.
+  const runPlan = async (initial: Plan) => {
+    let steps: PlanStep[] = initial.steps.map((s) => ({ ...s }));
+    setPlan({ ...initial, steps });
+
+    for (let i = 0; i < steps.length; i++) {
+      steps = steps.map((s, idx) => (idx === i ? { ...s, status: 'running' } : s));
+      setPlan({ ...initial, steps });
+
+      const updated = await runStep(steps[i], { intent: initial.intent, previous: steps.slice(0, i) });
+      steps = steps.map((s, idx) => (idx === i ? updated : s));
+      setPlan({ ...initial, steps });
+    }
+
+    // Resumo final no chat
+    const done = steps.filter((s) => s.status === 'done').length;
+    const blocked = steps.filter((s) => s.status === 'blocked').length;
+    const summary = `Plano concluído: ${done}/${steps.length} etapas executadas.` +
+      (blocked > 0 ? ` ${blocked} etapa(s) aguardam o Cowork (execução real) — em construção.` : '');
+    setMessages((prev) => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: summary, createdAt: new Date().toISOString() }]);
   };
 
   return (
@@ -343,6 +378,7 @@ function HomeChat() {
               }))}
               streaming={sending}
             />
+            {plan && !plan.conversational && <TaskPlan intent={plan.intent} steps={plan.steps} />}
             {sending && (
               <div className="msg assistant">
                 <div className="msg-avatar"><Bot size={16} /></div>
