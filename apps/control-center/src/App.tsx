@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
   BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
@@ -17,15 +17,8 @@ import {
   Save,
   AlertCircle,
   CheckCircle,
-  Loader2,
-  X,
-  FilePlus,
   Play,
-  ChevronRight,
   ChevronLeft,
-  Settings,
-  Zap,
-  Terminal,
   Calendar as CalendarIcon,
   Key as KeyIcon,
 } from 'lucide-react';
@@ -37,7 +30,6 @@ import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
 
-import { PipelineRunner } from './components/pipeline/PipelineRunner';
 import { PipelineBuilder } from './components/pipeline/PipelineBuilder';
 import { CostDashboard } from './components/cost/CostDashboard';
 import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
@@ -76,7 +68,7 @@ export default function App() {
 const { projects } = useAppStore();
   const [activeArea, setActiveArea] = useState<MainArea>('chat');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
-  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'costs'>('cowork');
+  const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'secrets' | 'costs'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
 
@@ -116,33 +108,26 @@ const { projects } = useAppStore();
         </div>
         <div className="sidebar-nav">
           <div className="nav-group">
-            <button className={`nav-row${activeArea === 'chat' ? ' active' : ''}`} onClick={() => { setActiveArea('chat'); setOpenedProject(null); }}>
-              <button className="nav-row-main"><MessageSquare size={16} /> Chat</button>
-              <button className="nav-row-plus" onClick={handleNewConversation}><Plus size={14} /></button>
-            </button>
-            <button className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`} onClick={() => { setActiveArea('projetos'); setOpenedProject(null); }}>
-              <button className="nav-row-main"><FolderKanban size={16} /> Projetos</button>
-              <button className="nav-row-plus" onClick={handleNewProject}><Plus size={14} /></button>
-            </button>
-            <button className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`} onClick={() => { setActiveArea('negocios'); setOpenedProject(null); }}>
-              <button className="nav-row-main"><Globe size={16} /> Negócios</button>
-            </button>
-            <button className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`} onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); }}>
-              <button className="nav-row-main"><BarChart3 size={16} /> Avaliações</button>
-            </button>
+            <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('chat'); setOpenedProject(null); }}><MessageSquare size={16} /> Chat</button>
+              <button className="nav-row-plus" onClick={handleNewConversation} title="Nova conversa"><Plus size={14} /></button>
+            </div>
+            <div className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('projetos'); setOpenedProject(null); }}><FolderKanban size={16} /> Projetos</button>
+              <button className="nav-row-plus" onClick={handleNewProject} title="Novo projeto"><Plus size={14} /></button>
+            </div>
+            <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); }}><Globe size={16} /> Negócios</button>
+            </div>
+            <div className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); }}><BarChart3 size={16} /> Avaliações</button>
+            </div>
           </div>
           <div className="sidebar-divider" />
-          <div className="nav-group">
-            <button className={`nav-row${activeArea === 'settings' ? ' active' : ''}`} onClick={() => { setActiveArea('settings'); setOpenedProject(null); }}>
-              <button className="nav-row-main"><Settings size={16} /> Settings</button>
-            </button>
-          </div>
-        </div>
-        <div className="sidebar-footer">
-          <div className="sidebar-recent" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+          <div className="sidebar-recent" style={{ maxHeight: '220px', overflowY: 'auto' }}>
             <div className="sidebar-section-label">Projetos Recentes</div>
             <div className="recent-list">
-              {projects.slice(0, 5).map((p) => (
+              {projects.slice(0, 5).map((p: Project) => (
                 <button key={p.id} className="recent-row" onClick={() => openProject(p)}>
                   <span className="recent-icon">{p.icon}</span>
                   <span className="recent-name">{p.name}</span>
@@ -150,6 +135,13 @@ const { projects } = useAppStore();
                 </button>
               ))}
               {projects.length === 0 && <div className="recent-empty">Nenhum projeto ainda</div>}
+            </div>
+          </div>
+        </div>
+        <div className="sidebar-footer">
+          <div className="nav-group">
+            <div className={`nav-row${activeArea === 'settings' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('settings'); setOpenedProject(null); }}><Settings size={16} /> Settings</button>
             </div>
           </div>
           <div className="sidebar-user">
@@ -194,7 +186,9 @@ const { projects } = useAppStore();
           {activeArea === 'projetos' && !openedProject && <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />}
           {activeArea === 'projetos' && openedProject && <ProjectView project={openedProject} activeView={projectView} onViewChange={setProjectView} rightPanel={rightPanel} onRightPanelChange={setRightPanel} onBack={goToProjectsList} />}
           {activeArea === 'negocios' && <NegociosView />}
-          {activeArea === 'evaluations' && <EvaluationRunner />}
+          {activeArea === 'evaluations' && (projects[0]
+            ? <EvaluationRunner project={projects[0]} />
+            : <div className="page-header"><div><h1>Avaliações</h1><p>Crie um projeto primeiro para rodar avaliações.</p></div></div>)}
           {activeArea === 'settings' && <SettingsView />}
         </main>
       </div>
@@ -276,12 +270,12 @@ function HomeChat() {
 
     const userContent = value;
     const userMsgId = String(Date.now());
-    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, time: now() }]);
+    setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, createdAt: new Date().toISOString() }]);
     setSending(true);
 
     // Add empty assistant message for streaming
     const assistantMsgId = String(Date.now() + 1);
-    setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', time: now() }]);
+    setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', createdAt: new Date().toISOString() }]);
 
     let fullContent = '';
     await askBeeHiveStream(value, (chunk) => {
@@ -310,7 +304,7 @@ function HomeChat() {
               {QUICK_ACTIONS.map((a) => {
                 const Icon = a.icon;
                 return (
-                  <button key={a.label} className="quick-action" onClick={() => a.label === 'Nova conversa' ? undefined : handleSend(a.label)}>
+                  <button key={a.label} className="quick-action" onClick={() => a.label === 'Nova conversa' ? handleNewConversation() : handleSend(a.label)}>
                     <Icon size={20} />
                     <span className="quick-action-label">{a.label}</span>
                     <span className="quick-action-desc">{a.desc}</span>
@@ -340,12 +334,12 @@ function HomeChat() {
         ) : (
           <div className="chat-messages">
             <MessageList
-              messages={messages.map(m => ({
+              messages={messages.filter(m => m.role !== 'system').map(m => ({
                 id: m.id,
-                role: m.role,
+                role: m.role as 'user' | 'assistant',
                 content: m.content,
-                timestamp: new Date(m.time).getTime(),
-                isStreaming: sending && m.id === messages[messages.length - 1]?.id,
+                time: new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+                streaming: sending && m.id === messages[messages.length - 1]?.id,
               }))}
               streaming={sending}
             />
@@ -425,13 +419,13 @@ function ChatInputArea({
   sending: boolean;
   handleSend: () => void;
   attachedFiles: File[];
-  setAttachedFiles: (files: File[]) => void;
+  setAttachedFiles: React.Dispatch<React.SetStateAction<File[]>>;
   selectedModel: string;
   setSelectedModel: (v: string) => void;
   reasoningEffort: 'default' | 'low' | 'medium' | 'high';
   setReasoningEffort: (v: 'default' | 'low' | 'medium' | 'high') => void;
   fileOperations: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[];
-  setFileOperations: (ops: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]) => void;
+  setFileOperations: React.Dispatch<React.SetStateAction<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>>;
   showFilePanel: boolean;
   setShowFilePanel: (v: boolean) => void;
 }) {
@@ -556,7 +550,7 @@ function ChatInputArea({
               value={reasoningEffort}
               label="Raciocínio"
               options={effortOptions}
-              onChange={setReasoningEffort}
+              onChange={(v) => v && setReasoningEffort(v as 'default' | 'low' | 'medium' | 'high')}
             />
           </div>
         </div>
@@ -707,6 +701,7 @@ function ProjectView({
 
       <div className="project-content">
         <div className="project-main">
+          {activeView === 'cowork' && <ProjectChat project={project} />}
           {activeView === 'agents' && <ProjectAgents project={project} />}
           {activeView === 'workflows' && <ProjectWorkflows project={project} />}
           {activeView === 'pipelines' && (
@@ -749,43 +744,75 @@ function ProjectView({
 
 function ProjectChat({ project }: { project: Project }) {
   const [input, setInput] = useState('');
-  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string; agent?: string }[]>([
-    { id: '1', role: 'user', content: 'Analise o desempenho da última campanha.', time: '10:30' },
-    { id: '2', role: 'assistant', content: 'Análise concluída para o projeto ' + project.name + '.\n\n**Métricas:**\n- ROI: 4.2x\n- CAC: R$ 42.30\n- Conversões: +23%\n\n**Recomendações:**\n- Aumentar budget em Instagram\n- Testar TikTok Ads', time: '10:31', agent: project.agents[0]?.name },
-  ]);
+  const [sending, setSending] = useState(false);
+  const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string }[]>([]);
+
+  const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   const handleSend = async () => {
-    if (!input.trim()) return;
-    const userMsg = { id: String(Date.now()), role: 'user' as const, content: input, time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) };
-    setMessages((prev) => [...prev, userMsg]);
+    const value = input.trim();
+    if (!value || sending) return;
     setInput('');
-    await chatService.sendMessage(project.id, input);
-    setTimeout(() => {
-      setMessages((prev) => [...prev, { id: String(Date.now() + 1), role: 'assistant', content: 'Processando no contexto do projeto ' + project.name + '...', time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }), agent: project.agents[0]?.name }]);
-    }, 800);
+    setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: value, time: now() }]);
+    setSending(true);
+
+    const assistantMsgId = String(Date.now() + 1);
+    setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', time: now() }]);
+
+    // Contexto do projeto vai junto no prompt até o runtime real (opencode) existir
+    const contextPrefix = `[Projeto: ${project.name}${project.description ? ` — ${project.description}` : ''}]\n\n`;
+    let fullContent = '';
+    await askBeeHiveStream(contextPrefix + value, (chunk) => {
+      fullContent = chunk;
+      setMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent } : m)));
+    });
+    setMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m)));
+    setSending(false);
   };
 
   return (
     <div className="project-chat">
       <div className="chat-messages">
+        {messages.length === 0 && (
+          <div className="chat-hero">
+            <div className="chat-hero-icon"><Sparkles size={28} /></div>
+            <h1>Cowork — {project.name}</h1>
+            <p>Dê um prompt e o BeeHive trabalha no contexto deste projeto.</p>
+          </div>
+        )}
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.role}`}>
             <div className="msg-avatar">{m.role === 'user' ? <Users size={16} /> : <Bot size={16} />}</div>
             <div className="msg-body">
               <div className="msg-header">
-                <span className="msg-role">{m.role === 'user' ? 'Você' : m.agent || project.name}</span>
+                <span className="msg-role">{m.role === 'user' ? 'Você' : project.name}</span>
                 <span className="msg-time">{m.time}</span>
               </div>
-              <div className="msg-content">{m.content}</div>
+              <div className="msg-content">{m.content || (sending ? '…' : '')}</div>
             </div>
           </div>
         ))}
       </div>
-      <div className="chat-input">
-        <div className="input-wrapper">
-          <button className="input-action"><Paperclip size={16} /></button>
-          <input type="text" placeholder={`Enviar para ${project.name}...`} value={input} onChange={(e) => setInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSend()} />
-          <button className="input-send" onClick={handleSend}><Send size={16} /></button>
+      <div className="chat-input-area">
+        <div className="input-bubble">
+          <div className="input-row">
+            <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
+              <Composer
+                value={input}
+                onChange={setInput}
+                onSubmit={handleSend}
+                disabled={sending}
+                placeholder={`Enviar para ${project.name}... (Shift+Enter para nova linha)`}
+                maxHeight={180}
+                showToolbar={false}
+              />
+            </div>
+            <div className="input-right">
+              <button className="chat-send-btn" onClick={handleSend} disabled={sending || !input.trim()} aria-label="Enviar">
+                <Send size={18} />
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
