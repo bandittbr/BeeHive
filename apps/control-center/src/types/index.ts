@@ -1,4 +1,4 @@
-export interface Agent {
+﻿export interface Agent {
   id: string;
   name: string;
   status: 'active' | 'paused' | 'error';
@@ -275,12 +275,26 @@ export interface EvaluationTestCaseRun {
   completedAt?: string;
 }
 
+export interface ContentPackage {
+  id: string;
+  createdAt: string;
+  idea: string;
+  script: string;
+  title: string;
+  description: string;
+  hashtags: string[];
+  status: 'gerado' | 'aprovado' | 'agendado' | 'postado';
+}
+
 export interface BizAccount {
   id: string;
   type: BizType;
   name: string;
   niche?: string; // usado em "Canal Dark / Criador de Conteúdo"
   postSchedule?: string; // usado em "Cortes de Vídeos" — horário de postagem
+  description?: string; // diretrizes de conteúdo
+  postsPerDay?: number; // quantas postagens por dia
+  content?: ContentPackage[]; // pacotes de conteúdo gerados
   socialAccounts: SocialAccount[];
   status: 'active' | 'paused';
   createdAt: string;
