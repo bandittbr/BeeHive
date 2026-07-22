@@ -28,6 +28,7 @@ import { projectService } from './services/project.service';
 import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
 import { planTask, runStep, type Plan, type PlanStep } from './services/orchestrator';
 import { generateContentPackage } from './services/contentPipeline';
+import { generateCortes, type CorteClip } from './services/cortesPipeline';
 import { TaskPlan } from './components/chat/TaskPlan';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
@@ -1626,6 +1627,24 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
   const [handle, setHandle] = useState('');
   const [generating, setGenerating] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Cortes
+  const [cortesUrl, setCortesUrl] = useState('');
+  const [cortesBusy, setCortesBusy] = useState(false);
+  const [cortesMsg, setCortesMsg] = useState('');
+  const [cortesErr, setCortesErr] = useState('');
+  const [cortesClips, setCortesClips] = useState<CorteClip[]>([]);
+
+  const runCortes = async () => {
+    if (cortesBusy || !cortesUrl.trim()) return;
+    setCortesBusy(true); setCortesErr(''); setCortesClips([]); setCortesMsg('Iniciando...');
+    try {
+      const res = await generateCortes({ url: cortesUrl.trim(), count: 3, onProgress: setCortesMsg });
+      if (res.error) setCortesErr(res.error);
+      setCortesClips(res.clips);
+    } finally {
+      setCortesBusy(false); setCortesMsg('');
+    }
+  };
 
   const submitSocial = () => {
     if (!handle.trim()) return;
@@ -1685,6 +1704,43 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
         <button className="biz-add-social-btn" onClick={() => setAddingSocial(true)}><Plus size={12} /> Rede social</button>
       )}
 
+      {/* Cortes: baixar vídeo grande → cortar em vertical */}
+      {biz.type === 'cortes' && (
+        <div style={{ marginTop: 12, borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Gerar cortes de um vídeo</span>
+          <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+            <input
+              type="text"
+              value={cortesUrl}
+              onChange={(e) => setCortesUrl(e.target.value)}
+              placeholder="Cole o link do vídeo (YouTube...)"
+              style={{ flex: 1, minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, padding: '6px 8px', outline: 'none' }}
+            />
+            <button
+              onClick={runCortes}
+              disabled={cortesBusy || !cortesUrl.trim()}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '6px 10px', borderRadius: 6, border: 'none', cursor: cortesBusy ? 'default' : 'pointer', color: 'white', background: color, opacity: cortesBusy || !cortesUrl.trim() ? 0.6 : 1, whiteSpace: 'nowrap' }}
+            >
+              {cortesBusy ? <Loader2 size={12} className="spin" /> : <Scissors size={12} />}
+              {cortesBusy ? 'Cortando...' : 'Gerar cortes'}
+            </button>
+          </div>
+          {cortesMsg && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>{cortesMsg}</p>}
+          {cortesErr && <p style={{ fontSize: 11, color: 'var(--danger)', marginTop: 6 }}>{cortesErr}</p>}
+          {cortesClips.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 5, marginTop: 8 }}>
+              {cortesClips.map((c, i) => (
+                <a key={i} href={c.url} target="_blank" rel="noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-secondary)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px', textDecoration: 'none' }}>
+                  <Video size={14} style={{ color: color }} />
+                  <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || `Corte ${i + 1}`}</span>
+                  <Download size={13} />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Conteúdo gerado */}
       <div style={{ marginTop: 12, borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
@@ -1719,7 +1775,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
                     {c.hashtags.length > 0 && <div style={{ color: 'var(--primary-light)' }}>{c.hashtags.map((h) => `#${h}`).join(' ')}</div>}
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{c.status}</span>
-                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>vídeo e postagem automáticos — em construção</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>postagem automática — em construção</span>
                     </div>
                   </div>
                 )}
