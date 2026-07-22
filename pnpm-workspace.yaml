@@ -1,6 +1,7 @@
 packages:
   - "ui"
   - "apps/*"
+  - "!apps/worker"
   - "application/*"
   - "kernel/*"
   - "plugins/*"
