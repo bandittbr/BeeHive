@@ -187,7 +187,7 @@ async function runOnWorker(step: PlanStep, context: { intent: string; previous: 
     .map((s) => `- ${s.title}: ${typeof s.result === 'string' ? s.result.slice(0, 400) : JSON.stringify(s.result).slice(0, 400)}`)
     .join('\n');
 
-  const translatePrompt = `Você converte uma etapa de trabalho em UMA ação executável por um worker (ambiente Linux com bash, git, node, python e navegador).
+  const translatePrompt = `Você converte uma etapa de trabalho em UMA ação executável por um worker (ambiente Linux: bash, git, node, python, navegador; Vercel CLI disponível).
 Tarefa geral: "${context.intent}".
 ${prior ? `Contexto anterior:\n${prior}\n` : ''}
 Etapa a executar: "${step.title}" (agente: ${step.agent})
@@ -198,14 +198,20 @@ Responda SOMENTE com JSON válido, um destes formatos:
 { "type": "git", "payload": { "args": "commit -m \\"msg\\"" } }
 { "type": "browser", "payload": { "steps": [ { "action": "goto", "url": "..." }, { "action": "text" } ] } }
 
-Regras: escolha o tipo mais adequado. Use caminhos relativos. Nada de comandos destrutivos. JSON apenas.`;
+Regras:
+- Trabalhe sempre na RAIZ do workspace (caminhos relativos simples, ex.: index.html).
+- Para DEPLOY na Vercel use exatamente: { "type": "shell", "payload": { "command": "npx --yes vercel deploy --prod --yes --token=$VERCEL_TOKEN --cwd ." } } — a URL publicada aparece no stdout.
+- Nada de comandos destrutivos. Escolha o tipo mais adequado. JSON apenas.`;
 
   let job: WorkerJob | null = null;
   try {
     const raw = await askBeeHive(translatePrompt);
     const parsed = extractJson(raw);
     if (parsed && typeof parsed === 'object' && parsed.type && parsed.payload) {
-      job = { type: parsed.type, payload: parsed.payload, label: step.title };
+      const payload = parsed.payload as Record<string, unknown>;
+      // dá mais tempo a comandos longos (build/deploy) sem travar em 120s
+      if (parsed.type === 'shell' && payload.timeoutMs == null) payload.timeoutMs = 280000;
+      job = { type: parsed.type, payload, label: step.title };
     }
   } catch {
     /* cai no erro abaixo */
@@ -215,7 +221,7 @@ Regras: escolha o tipo mais adequado. Use caminhos relativos. Nada de comandos d
     return { ...step, status: 'error', detail: 'Não consegui traduzir esta etapa em uma ação executável.' };
   }
 
-  const outcome = await runWorkerJob(job, { timeoutMs: 180000 });
+  const outcome = await runWorkerJob(job, { timeoutMs: 300000 });
   if (outcome.status === 'done') {
     const resultText = outcome.output?.trim()
       || (typeof outcome.result === 'string' ? outcome.result : JSON.stringify(outcome.result ?? {}));
