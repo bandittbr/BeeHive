@@ -200,7 +200,7 @@ Responda SOMENTE com JSON válido, um destes formatos:
 
 Regras:
 - Trabalhe sempre na RAIZ do workspace (caminhos relativos simples, ex.: index.html).
-- Para DEPLOY na Vercel use exatamente: { "type": "shell", "payload": { "command": "npx --yes vercel deploy --prod --yes --token=$VERCEL_TOKEN --cwd ." } } — a URL publicada aparece no stdout.
+- Para DEPLOY na Vercel use EXATAMENTE este comando: { "type": "shell", "payload": { "command": "npx --yes vercel deploy --prod --yes --token=$VERCEL_TOKEN 2>&1 | tee /tmp/v.log; echo; echo URL_PUBLICADA:; grep -Eo 'https://[a-zA-Z0-9.-]+vercel.app' /tmp/v.log | tail -1" } } — a URL final aparece depois de "URL_PUBLICADA:".
 - Nada de comandos destrutivos. Escolha o tipo mais adequado. JSON apenas.`;
 
   let job: WorkerJob | null = null;
