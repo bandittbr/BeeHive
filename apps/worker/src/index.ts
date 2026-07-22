@@ -1,5 +1,5 @@
 // BeeHive Cowork Nuvem — servidor do worker.
-// Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes)
+// Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes/publish)
 // e transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
 import express from 'express';
 import cors from 'cors';
@@ -11,6 +11,7 @@ import { writeFile, readFile } from './executors/files.js';
 import { runGit } from './executors/git.js';
 import { runBrowser } from './executors/browser.js';
 import { runYtFetch, runClip } from './executors/media.js';
+import { runPublishYoutube } from './executors/publish.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -141,6 +142,9 @@ async function execute(rec: JobRecord) {
         break;
       case 'clip':
         rec.result = (await runClip(rec.request, onChunk)).result;
+        break;
+      case 'publishYoutube':
+        rec.result = (await runPublishYoutube(rec.request, onChunk)).result;
         break;
       default:
         throw new Error(`tipo de job desconhecido: ${(rec.request as JobRequest).type}`);

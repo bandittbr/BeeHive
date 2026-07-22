@@ -9,7 +9,8 @@ export type JobType =
   | 'git' // comando git (clone/commit/push...)
   | 'browser' // automação de navegador (Playwright)
   | 'ytFetch' // baixar vídeo + transcrição (Cortes)
-  | 'clip'; // cortar trechos em vertical (Cortes)
+  | 'clip' // cortar trechos em vertical (Cortes)
+  | 'publishYoutube'; // publicar vídeo no YouTube (API oficial)
 
 export interface JobRequest {
   type: JobType;
