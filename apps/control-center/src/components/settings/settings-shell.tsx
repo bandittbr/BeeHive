@@ -1,26 +1,27 @@
 import { useState } from "react";
-import { 
-  ArrowLeft, ChevronDown, X, Cpu, SlidersHorizontal, Paintbrush, 
+import {
+  ArrowLeft, ChevronDown, X, Cpu, SlidersHorizontal, Paintbrush,
   Terminal, Puzzle, Sparkles, Shield, Zap, RefreshCcw, Wrench,
-  Bug, Network, BarChart3, Settings as SettingsIcon
+  Bug, Network, BarChart3, Cloud, Settings as SettingsIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { 
-  SettingsContent, SettingsPanel, SettingsPanelHeading, 
-  SettingsPanelTitle, SettingsPanelDescription 
+import {
+  SettingsContent, SettingsPanel, SettingsPanelHeading,
+  SettingsPanelTitle, SettingsPanelDescription
 } from "./panel";
 import { AiSettingsView } from "./ai-view";
 import { AppearanceView } from "./appearance-view";
 import { PreferencesView } from "./preferences-view";
 import { EnvironmentView } from "./environment-view";
 import { ExtensionsView } from "./extensions-view";
+import { CoworkView } from "./cowork-view";
 import { McpSettingsPanel } from "@/components/chat/McpSettingsPanel";
 import { useProviders } from "@/hooks/useProviders";
 
-export type SettingsTab = 
-  | "general" | "ai" | "preferences" | "appearance" | "extensions" 
-  | "environment" | "mcp" | "skills" | "plugins" | "advanced" | "debug";
+export type SettingsTab =
+  | "general" | "ai" | "preferences" | "appearance" | "extensions"
+  | "cowork" | "environment" | "mcp" | "skills" | "plugins" | "advanced" | "debug";
 
 export function getSettingsTabIcon(tab: SettingsTab) {
   switch (tab) {
@@ -28,6 +29,7 @@ export function getSettingsTabIcon(tab: SettingsTab) {
     case "preferences": return SlidersHorizontal;
     case "appearance": return Paintbrush;
     case "extensions": return Puzzle;
+    case "cowork": return Cloud;
     case "environment": return Terminal;
     case "mcp": return Network;
     case "skills": return Sparkles;
@@ -44,6 +46,7 @@ export function getSettingsTabLabel(tab: SettingsTab) {
     case "preferences": return "Preferences";
     case "appearance": return "Appearance";
     case "extensions": return "Extensions";
+    case "cowork": return "Cowork Nuvem";
     case "environment": return "Environment";
     case "mcp": return "MCP Servers";
     case "skills": return "Skills";
@@ -60,6 +63,7 @@ export function getSettingsTabDescription(tab: SettingsTab) {
     case "preferences": return "Default model, reasoning, and compaction";
     case "appearance": return "Theme, colors, and visual preferences";
     case "extensions": return "MCP servers, plugins, and skills";
+    case "cowork": return "Worker que executa terminal, arquivos, git e browser";
     case "environment": return "Environment variables and API keys";
     case "mcp": return "Model Context Protocol servers";
     case "skills": return "Install and manage skills";
@@ -73,6 +77,7 @@ export function getSettingsTabDescription(tab: SettingsTab) {
 const SETTINGS_SECTIONS = [
   { label: null, tabs: ["general"] as SettingsTab[] },
   { label: "System", tabs: ["ai", "preferences", "appearance", "extensions"] as SettingsTab[] },
+  { label: "Runtime", tabs: ["cowork"] as SettingsTab[] },
   { label: "Data", tabs: ["environment", "mcp"] as SettingsTab[] },
   { label: "Developer", tabs: ["advanced", "debug"] as SettingsTab[] },
 ];
@@ -222,6 +227,8 @@ function SettingsTabContent({ activeTab }: SettingsTabContentProps) {
       return <AppearanceView />;
     case "extensions":
       return <ExtensionsView />;
+    case "cowork":
+      return <CoworkView />;
     case "environment":
       return <EnvironmentView />;
     case "mcp":

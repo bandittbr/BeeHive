@@ -4,10 +4,11 @@
 //
 // Fase 1: o planner roda via LLM (backend Railway) e devolve um plano estruturado.
 // Etapas de texto/pesquisa são respondidas pelo próprio LLM; etapas que exigem
-// execução real (browser, terminal, deploy, postagem) são marcadas como
-// "requer runtime" e serão ligadas ao Cowork Nuvem / Agente Local nas próximas fases.
+// execução real (browser, terminal, deploy, postagem) são traduzidas em jobs e
+// executadas no Cowork Nuvem quando o worker está configurado.
 
 import { askBeeHive } from './beehiveApi';
+import { isWorkerConfigured, runWorkerJob, type WorkerJob } from './worker';
 
 export type AgentKind =
   | 'chat' // conversa/resposta direta
@@ -30,7 +31,7 @@ export interface PlanStep {
   id: string;
   title: string;
   agent: AgentKind;
-  /** true quando a etapa precisa de execução real (Cowork/agente), ainda não disponível */
+  /** true quando a etapa precisa de execução real (Cowork/agente) */
   needsRuntime: boolean;
   status: StepStatus;
   detail?: string;
@@ -49,7 +50,7 @@ const AGENTS: AgentKind[] = [
   'browser', 'marketing', 'social', 'analytics', 'seo', 'sales', 'legal',
 ];
 
-// Agentes que exigem execução real (ainda não disponível na Fase 1)
+// Agentes que exigem execução real (rodam no Cowork Nuvem quando configurado)
 const RUNTIME_AGENTS = new Set<AgentKind>([
   'image', 'video', 'coding', 'browser', 'social', 'sales',
 ]);
@@ -142,17 +143,22 @@ export async function planTask(userMessage: string): Promise<Plan> {
 
 /**
  * Executa uma etapa individual do plano.
- * Fase 1: agentes de texto (research/content/marketing/analytics/seo/legal/chat)
- * são resolvidos pelo LLM. Agentes que exigem runtime real retornam bloqueado
- * com instrução de qual fase os habilita.
+ * Agentes de texto (research/content/marketing/analytics/seo/legal/chat) são
+ * resolvidos pelo LLM. Agentes de runtime rodam no Cowork Nuvem (se configurado)
+ * ou ficam bloqueados pedindo configuração.
  */
 export async function runStep(step: PlanStep, context: { intent: string; previous: PlanStep[] }): Promise<PlanStep> {
   if (step.needsRuntime) {
-    return {
-      ...step,
-      status: 'blocked',
-      detail: 'Requer o Cowork (execução real) — em construção. Esta etapa foi planejada e ficará pronta para rodar automaticamente quando o runtime estiver ativo.',
-    };
+    // Sem worker configurado: etapa fica pendente (honesto, não finge que rodou).
+    if (!isWorkerConfigured()) {
+      return {
+        ...step,
+        status: 'blocked',
+        detail: 'Requer o Cowork Nuvem. Configure a URL do worker em Settings para executar esta etapa de verdade.',
+      };
+    }
+    // Com worker: traduz a etapa em uma ação concreta e executa no worker.
+    return runOnWorker(step, context);
   }
 
   const prior = context.previous
@@ -172,4 +178,48 @@ Entregue o resultado desta etapa de forma objetiva e pronta para uso (sem preâm
   } catch {
     return { ...step, status: 'error', detail: 'Falha ao executar esta etapa.' };
   }
+}
+
+// Traduz uma etapa de runtime em um job concreto (via LLM) e executa no worker.
+async function runOnWorker(step: PlanStep, context: { intent: string; previous: PlanStep[] }): Promise<PlanStep> {
+  const prior = context.previous
+    .filter((s) => s.result)
+    .map((s) => `- ${s.title}: ${typeof s.result === 'string' ? s.result.slice(0, 400) : JSON.stringify(s.result).slice(0, 400)}`)
+    .join('\n');
+
+  const translatePrompt = `Você converte uma etapa de trabalho em UMA ação executável por um worker (ambiente Linux com bash, git, node, python e navegador).
+Tarefa geral: "${context.intent}".
+${prior ? `Contexto anterior:\n${prior}\n` : ''}
+Etapa a executar: "${step.title}" (agente: ${step.agent})
+
+Responda SOMENTE com JSON válido, um destes formatos:
+{ "type": "shell", "payload": { "command": "comando bash aqui" } }
+{ "type": "writeFile", "payload": { "path": "caminho/relativo", "content": "conteúdo do arquivo" } }
+{ "type": "git", "payload": { "args": "commit -m \\"msg\\"" } }
+{ "type": "browser", "payload": { "steps": [ { "action": "goto", "url": "..." }, { "action": "text" } ] } }
+
+Regras: escolha o tipo mais adequado. Use caminhos relativos. Nada de comandos destrutivos. JSON apenas.`;
+
+  let job: WorkerJob | null = null;
+  try {
+    const raw = await askBeeHive(translatePrompt);
+    const parsed = extractJson(raw);
+    if (parsed && typeof parsed === 'object' && parsed.type && parsed.payload) {
+      job = { type: parsed.type, payload: parsed.payload, label: step.title };
+    }
+  } catch {
+    /* cai no erro abaixo */
+  }
+
+  if (!job) {
+    return { ...step, status: 'error', detail: 'Não consegui traduzir esta etapa em uma ação executável.' };
+  }
+
+  const outcome = await runWorkerJob(job, { timeoutMs: 180000 });
+  if (outcome.status === 'done') {
+    const resultText = outcome.output?.trim()
+      || (typeof outcome.result === 'string' ? outcome.result : JSON.stringify(outcome.result ?? {}));
+    return { ...step, status: 'done', detail: `Executado no Cowork (${job.type}).`, result: resultText || 'OK' };
+  }
+  return { ...step, status: 'error', detail: `Cowork: ${outcome.error ?? 'falha na execução'}`, result: outcome.output };
 }
