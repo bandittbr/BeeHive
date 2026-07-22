@@ -1,5 +1,5 @@
 // Executor de mídia (Cortes): baixar vídeo + transcrição (ytFetch) e cortar
-// trechos em vertical com legenda opcional (clip). Usa yt-dlp e ffmpeg.
+// trechos em vertical com legendas sincronizadas (clip). Usa yt-dlp e ffmpeg.
 import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
@@ -9,7 +9,7 @@ import type { JobRequest } from '../types.js';
 
 type Chunk = (kind: 'stdout' | 'stderr', data: string) => void;
 
-function run(cmd: string, args: string[], cwd: string, onChunk: Chunk, timeoutMs = 600000): Promise<number> {
+function run(cmd: string, args: string[], cwd: string, onChunk: Chunk, timeoutMs = 900000): Promise<number> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { cwd, env: process.env });
     let killed = false;
@@ -31,7 +31,6 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   await fsp.mkdir(dir, { recursive: true });
 
   onChunk('stdout', '→ Baixando vídeo e legendas...\n');
-  // Baixa vídeo (<=1080p) e tenta subs/auto-subs em pt/en, convertendo para srt
   const code = await run('yt-dlp', [
     '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
     '--merge-output-format', 'mp4',
@@ -48,7 +47,6 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   const video = files.find((f) => f === 'source.mp4') || files.find((f) => f.startsWith('source.') && /\.(mp4|mkv|webm)$/.test(f));
   if (!video) throw new Error('ytFetch: vídeo não encontrado após download');
 
-  // duração via ffprobe
   let duration = 0;
   try {
     let out = '';
@@ -56,16 +54,15 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
     duration = Math.round(parseFloat(out.trim()) || 0);
   } catch { /* ignore */ }
 
-  // transcript (primeiro srt encontrado)
   const srt = files.find((f) => f.endsWith('.srt'));
   let transcript = '';
   if (srt) {
     transcript = await fsp.readFile(path.join(dir, srt), 'utf8').catch(() => '');
-    if (transcript.length > 60000) transcript = transcript.slice(0, 60000);
+    if (transcript.length > 120000) transcript = transcript.slice(0, 120000);
   }
 
   onChunk('stdout', `✓ Vídeo: ${video} (${duration}s) · legenda: ${srt ? 'sim' : 'não'}\n`);
-  return { result: { video, duration, hasSubs: !!srt, transcript } };
+  return { result: { video, srt: srt || null, duration, hasSubs: !!srt, transcript } };
 }
 
 function toSeconds(v: unknown): number {
@@ -77,12 +74,60 @@ function toSeconds(v: unknown): number {
   return parts.reduce((acc, n) => acc * 60 + n, 0);
 }
 
-// escapa texto para o filtro drawtext do ffmpeg
 function escDraw(t: string): string {
   return t.replace(/\\/g, '\\\\').replace(/:/g, '\\:').replace(/'/g, "\\'").replace(/%/g, '\\%');
 }
 
-// Corta segmentos em vertical 1080x1920, com título opcional queimado embaixo.
+// --- SRT: parse e recorte por janela, com timestamps reajustados para 0 ---
+interface Cue { start: number; end: number; text: string; }
+
+function parseSrtTime(t: string): number {
+  const m = t.trim().match(/(\d+):(\d+):(\d+)[,.](\d+)/);
+  if (!m) return 0;
+  return (+m[1]) * 3600 + (+m[2]) * 60 + (+m[3]) + (+m[4]) / 1000;
+}
+function fmtSrtTime(sec: number): string {
+  if (sec < 0) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const mm = Math.floor((sec % 3600) / 60);
+  const ss = Math.floor(sec % 60);
+  const ms = Math.round((sec - Math.floor(sec)) * 1000);
+  const p = (n: number, l = 2) => String(n).padStart(l, '0');
+  return `${p(h)}:${p(mm)}:${p(ss)},${p(ms, 3)}`;
+}
+function parseSrt(content: string): Cue[] {
+  const blocks = content.replace(/\r/g, '').split(/\n\n+/);
+  const cues: Cue[] = [];
+  for (const b of blocks) {
+    const lines = b.split('\n').filter((l) => l.trim() !== '');
+    const timeLine = lines.find((l) => l.includes('-->'));
+    if (!timeLine) continue;
+    const [a, bb] = timeLine.split('-->');
+    const start = parseSrtTime(a);
+    const end = parseSrtTime(bb);
+    const text = lines.slice(lines.indexOf(timeLine) + 1).join(' ').replace(/<[^>]+>/g, '').trim();
+    if (text && end > start) cues.push({ start, end, text });
+  }
+  return cues;
+}
+// gera um SRT recortado à janela [ws, we], com tempos relativos a ws
+function sliceSrt(cues: Cue[], ws: number, we: number): string {
+  let idx = 1;
+  const out: string[] = [];
+  for (const c of cues) {
+    if (c.end <= ws || c.start >= we) continue;
+    const s = Math.max(0, c.start - ws);
+    const e = Math.min(we - ws, c.end - ws);
+    if (e <= s) continue;
+    out.push(String(idx++), `${fmtSrtTime(s)} --> ${fmtSrtTime(e)}`, c.text, '');
+  }
+  return out.join('\n');
+}
+
+// estilo das legendas (TikTok-like): grande, contorno forte, centro-baixo
+const SUB_STYLE = "FontName=DejaVu Sans,Fontsize=22,Bold=1,PrimaryColour=&H00FFFFFF,OutlineColour=&H00000000,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=170";
+
+// Corta segmentos em vertical 1080x1920 com legendas sincronizadas.
 export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result: unknown }> {
   const input = String(req.payload.input ?? 'source.mp4').trim();
   const vertical = req.payload.vertical !== false;
@@ -93,9 +138,19 @@ export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result
   const abs = path.join(dir, input);
   if (!fs.existsSync(abs)) throw new Error(`clip: arquivo de entrada não encontrado: ${input}`);
 
+  // carrega SRT (informado ou primeiro .srt do diretório) para legendas sincronizadas
+  let cues: Cue[] = [];
+  try {
+    const srtName = req.payload.srt ? String(req.payload.srt) : (await fsp.readdir(dir)).find((f) => f.endsWith('.srt'));
+    if (srtName && fs.existsSync(path.join(dir, srtName))) {
+      cues = parseSrt(await fsp.readFile(path.join(dir, srtName), 'utf8'));
+    }
+  } catch { /* sem legendas */ }
+
+  const crop = vertical ? 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' : 'scale=1080:-2';
   const outputs: { file: string; title?: string; start: number; end: number }[] = [];
 
-  for (let i = 0; i < Math.min(segments.length, 10); i++) {
+  for (let i = 0; i < Math.min(segments.length, 40); i++) {
     const seg = segments[i] || {};
     const start = toSeconds(seg.start);
     const end = toSeconds(seg.end);
@@ -103,15 +158,23 @@ export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result
     const out = `clip_${i + 1}.mp4`;
     const title = seg.title ? String(seg.title) : '';
 
-    let vf = vertical
-      ? 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920'
-      : 'scale=1080:-2';
-    if (title) {
-      const t = escDraw(title.slice(0, 90));
-      vf += `,drawtext=text='${t}':fontcolor=white:fontsize=48:box=1:boxcolor=black@0.5:boxborderw=12:x=(w-text_w)/2:y=h-260:line_spacing=8`;
+    let vf = crop;
+    // legendas sincronizadas se houver transcrição para a janela
+    let subFile = '';
+    if (cues.length) {
+      const slice = sliceSrt(cues, start, end);
+      if (slice.trim()) {
+        subFile = `clip_${i + 1}.srt`;
+        await fsp.writeFile(path.join(dir, subFile), slice, 'utf8');
+        vf += `,subtitles=${subFile}:force_style='${SUB_STYLE}'`;
+      }
+    }
+    // sem legendas → queima o título como fallback
+    if (!subFile && title) {
+      vf += `,drawtext=text='${escDraw(title.slice(0, 90))}':fontcolor=white:fontsize=46:box=1:boxcolor=black@0.5:boxborderw=14:x=(w-text_w)/2:y=h-260`;
     }
 
-    onChunk('stdout', `→ Corte ${i + 1}: ${start}s–${end}s\n`);
+    onChunk('stdout', `→ Corte ${i + 1}: ${start}s–${end}s${subFile ? ' (com legenda)' : ''}\n`);
     const code = await run('ffmpeg', [
       '-y', '-ss', String(start), '-to', String(end), '-i', input,
       '-vf', vf, '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23',
