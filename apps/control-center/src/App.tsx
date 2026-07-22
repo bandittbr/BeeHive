@@ -255,18 +255,19 @@ function HomeChat() {
   };
 
   const handleSend = async (text?: string) => {
-    if (!activeConversationId) {
-      // Create a new conversation first
-      if (!firstProjectId) return;
-      const title = `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-      const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
-      if (!conversation) return;
-      setActiveConversationId(conversation.id);
-      setStarted(true);
-    }
-
     const value = (text ?? input).trim();
     if (!value || sending) return;
+
+    // Persistência de conversa é opcional (backend pode não estar disponível);
+    // nunca bloqueia o envio.
+    if (!activeConversationId && firstProjectId) {
+      try {
+        const title = `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
+        const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
+        if (conversation) setActiveConversationId(conversation.id);
+      } catch { /* segue sem persistir */ }
+    }
+
     setInput('');
     setAttachedFiles([]);
     setStarted(true);
@@ -556,7 +557,7 @@ function ChatInputArea({
         </div>
 
         {/* Linha 2: anexar + modelo + raciocínio (esquerda) · enviar (direita) */}
-        <div className="input-controls-row" style={{ justifyContent: 'space-between', paddingTop: '4px' }}>
+        <div className="input-controls-row" style={{ justifyContent: 'space-between', paddingTop: '4px', background: 'transparent' }}>
           <div className="input-controls">
             {/* Anexar — só o ícone, sem borda */}
             <button
@@ -851,7 +852,7 @@ function ProjectChat({ project }: { project: Project }) {
             />
           </div>
           {/* Linha 2: enviar no canto direito */}
-          <div className="input-controls-row" style={{ justifyContent: 'flex-end', paddingTop: '4px' }}>
+          <div className="input-controls-row" style={{ justifyContent: 'flex-end', paddingTop: '4px', background: 'transparent' }}>
             <button className="chat-send-btn" onClick={handleSend} disabled={sending || !input.trim()} aria-label="Enviar">
               <Send size={18} />
             </button>
