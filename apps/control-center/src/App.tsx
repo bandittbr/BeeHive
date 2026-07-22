@@ -433,7 +433,7 @@ function HomeChat() {
   );
 }
 
-// Chat Input Area - OpenWork style: textarea grande, model picker agrupado por provider, reasoning effort, file attachments
+// Chat Input Area - campo único e funcional (estilo openwork/Claude): textarea + model picker + reasoning + anexos
 function ChatInputArea({
   input,
   setInput,
@@ -534,9 +534,7 @@ function ChatInputArea({
         </div>
       )}
 
-      {/* File Operations Input - removed, using Composer below */}
-
-      {/* Single unified input bubble - OpenWork style */}
+      {/* Single unified input bubble */}
       <div className="input-bubble">
         <div className="input-row">
           {/* Left: Attach button */}
@@ -547,16 +545,22 @@ function ChatInputArea({
             <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
           </div>
           
-          {/* Center: Composer (Lexical) - fills available space */}
+          {/* Center: campo de texto único, ligado ao estado e ao botão de enviar */}
           <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
-            <Composer
+            <textarea
+              className="chat-input-field"
               value={input}
-              onChange={setInput}
-              onSubmit={handleSend}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha)"
+              rows={1}
               disabled={sending}
-              placeholder="Digite sua mensagem..."
-              maxHeight={220}
-              showToolbar={false}
+              style={{
+                width: '100%', resize: 'none', border: 'none', outline: 'none',
+                background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
+                fontSize: '15px', lineHeight: '1.5', padding: '10px 6px',
+                maxHeight: '220px', minHeight: '24px', overflowY: 'auto',
+              }}
             />
           </div>
           
@@ -833,14 +837,20 @@ function ProjectChat({ project }: { project: Project }) {
         <div className="input-bubble">
           <div className="input-row">
             <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
-              <Composer
+              <textarea
+                className="chat-input-field"
                 value={input}
-                onChange={setInput}
-                onSubmit={handleSend}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sending && input.trim()) handleSend(); } }}
+                placeholder={`Enviar para ${project.name}... (Enter envia)`}
+                rows={1}
                 disabled={sending}
-                placeholder={`Enviar para ${project.name}... (Shift+Enter para nova linha)`}
-                maxHeight={180}
-                showToolbar={false}
+                style={{
+                  width: '100%', resize: 'none', border: 'none', outline: 'none',
+                  background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
+                  fontSize: '15px', lineHeight: '1.5', padding: '10px 6px',
+                  maxHeight: '180px', minHeight: '24px', overflowY: 'auto',
+                }}
               />
             </div>
             <div className="input-right">
