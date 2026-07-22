@@ -22,11 +22,19 @@ export interface WorkerJobResult {
   exitCode?: number;
 }
 
+// Garante que a URL tenha esquema (https://). Sem isso, o fetch vira caminho
+// relativo e bate no próprio site (Vercel), retornando 405 no POST.
+function normalizeUrl(raw: string): string {
+  let u = (raw || '').trim().replace(/\/+$/, '');
+  if (u && !/^https?:\/\//i.test(u)) u = 'https://' + u;
+  return u;
+}
+
 export function getWorkerConfig(): { url: string; token: string } {
   try {
     return {
-      url: localStorage.getItem(LS_URL) ?? '',
-      token: localStorage.getItem(LS_TOKEN) ?? '',
+      url: normalizeUrl(localStorage.getItem(LS_URL) ?? ''),
+      token: (localStorage.getItem(LS_TOKEN) ?? '').trim(),
     };
   } catch {
     return { url: '', token: '' };
@@ -35,7 +43,7 @@ export function getWorkerConfig(): { url: string; token: string } {
 
 export function setWorkerConfig(url: string, token: string): void {
   try {
-    localStorage.setItem(LS_URL, url.trim().replace(/\/$/, ''));
+    localStorage.setItem(LS_URL, normalizeUrl(url));
     localStorage.setItem(LS_TOKEN, token.trim());
   } catch {
     /* ignore */
@@ -57,7 +65,10 @@ export async function checkWorkerHealth(): Promise<boolean> {
   if (!url) return false;
   try {
     const res = await fetch(`${url}/health`);
-    return res.ok;
+    if (!res.ok) return false;
+    // Confirma que é o nosso worker (evita falso positivo ao bater no site).
+    const data = await res.json().catch(() => null);
+    return !!data && data.service === 'beehive-worker';
   } catch {
     return false;
   }
