@@ -540,9 +540,11 @@ function ChatInputArea({
         {/* Linha 1: campo de texto ocupa toda a largura */}
         <div style={{ padding: '14px 18px 6px' }}>
           <textarea
+            ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; } }}
             className="chat-input-field"
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; }}
             onKeyDown={handleKeyDown}
             placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha)"
             rows={1}
@@ -836,9 +838,11 @@ function ProjectChat({ project }: { project: Project }) {
           {/* Linha 1: texto */}
           <div style={{ padding: '14px 18px 6px' }}>
             <textarea
+              ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px'; } }}
               className="chat-input-field"
               value={input}
               onChange={(e) => setInput(e.target.value)}
+              onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 180) + 'px'; }}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sending && input.trim()) handleSend(); } }}
               placeholder={`Enviar para ${project.name}... (Enter envia)`}
               rows={1}
