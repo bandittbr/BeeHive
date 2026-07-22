@@ -534,48 +534,41 @@ function ChatInputArea({
         </div>
       )}
 
-      {/* Single unified input bubble */}
+      {/* Single unified input bubble — texto em cima, controles embaixo (estilo openwork/Claude) */}
       <div className="input-bubble">
-        <div className="input-row">
-          {/* Left: Attach button */}
-          <div className="input-left">
-            <button className="input-btn" onClick={() => fileInputRef.current?.click()} title="Anexar arquivo" aria-label="Anexar arquivo">
+        {/* Linha 1: campo de texto ocupa toda a largura */}
+        <div style={{ padding: '14px 18px 6px' }}>
+          <textarea
+            className="chat-input-field"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha)"
+            rows={1}
+            disabled={sending}
+            style={{
+              width: '100%', resize: 'none', border: 'none', outline: 'none',
+              background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
+              fontSize: '15px', lineHeight: '1.5', padding: '2px 0',
+              maxHeight: '220px', minHeight: '24px', overflowY: 'auto',
+            }}
+          />
+        </div>
+
+        {/* Linha 2: anexar + modelo + raciocínio (esquerda) · enviar (direita) */}
+        <div className="input-controls-row" style={{ justifyContent: 'space-between', paddingTop: '4px' }}>
+          <div className="input-controls">
+            {/* Anexar — só o ícone, sem borda */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Anexar arquivo"
+              aria-label="Anexar arquivo"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', borderRadius: 8 }}
+            >
               <FilePlus size={18} />
             </button>
             <input type="file" ref={fileInputRef} multiple onChange={e => e.target.files && handleFileAttach(e.target.files)} style={{ display: 'none' }} />
-          </div>
-          
-          {/* Center: campo de texto único, ligado ao estado e ao botão de enviar */}
-          <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
-            <textarea
-              className="chat-input-field"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha)"
-              rows={1}
-              disabled={sending}
-              style={{
-                width: '100%', resize: 'none', border: 'none', outline: 'none',
-                background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
-                fontSize: '15px', lineHeight: '1.5', padding: '10px 6px',
-                maxHeight: '220px', minHeight: '24px', overflowY: 'auto',
-              }}
-            />
-          </div>
-          
-          {/* Right: Send button */}
-          <div className="input-right">
-            <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
-              <Send size={18} />
-            </button>
-          </div>
-        </div>
-        
-        {/* Controls row below: Model + Reasoning */}
-        <div className="input-controls-row">
-          <div className="input-controls">
-            {/* Model Picker - usando novo componente ModelSelect */}
+
             <ModelSelect
               open={modelOpen}
               onOpenChange={setModelOpen}
@@ -584,8 +577,7 @@ function ChatInputArea({
               options={modelOptions}
               placeholder="Select model"
             />
-            
-            {/* Reasoning Effort - usando novo componente ReasoningEffortSelect */}
+
             <ReasoningEffortSelect
               value={reasoningEffort}
               label="Raciocínio"
@@ -593,6 +585,11 @@ function ChatInputArea({
               onChange={(v) => v && setReasoningEffort(v as 'default' | 'low' | 'medium' | 'high')}
             />
           </div>
+
+          {/* Enviar — no canto direito da linha de baixo */}
+          <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
+            <Send size={18} />
+          </button>
         </div>
       </div>
     </div>
@@ -835,29 +832,29 @@ function ProjectChat({ project }: { project: Project }) {
       </div>
       <div className="chat-input-area">
         <div className="input-bubble">
-          <div className="input-row">
-            <div className="input-center" style={{ flex: 1, minWidth: 0 }}>
-              <textarea
-                className="chat-input-field"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sending && input.trim()) handleSend(); } }}
-                placeholder={`Enviar para ${project.name}... (Enter envia)`}
-                rows={1}
-                disabled={sending}
-                style={{
-                  width: '100%', resize: 'none', border: 'none', outline: 'none',
-                  background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
-                  fontSize: '15px', lineHeight: '1.5', padding: '10px 6px',
-                  maxHeight: '180px', minHeight: '24px', overflowY: 'auto',
-                }}
-              />
-            </div>
-            <div className="input-right">
-              <button className="chat-send-btn" onClick={handleSend} disabled={sending || !input.trim()} aria-label="Enviar">
-                <Send size={18} />
-              </button>
-            </div>
+          {/* Linha 1: texto */}
+          <div style={{ padding: '14px 18px 6px' }}>
+            <textarea
+              className="chat-input-field"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (!sending && input.trim()) handleSend(); } }}
+              placeholder={`Enviar para ${project.name}... (Enter envia)`}
+              rows={1}
+              disabled={sending}
+              style={{
+                width: '100%', resize: 'none', border: 'none', outline: 'none',
+                background: 'transparent', color: 'var(--text)', fontFamily: 'var(--font)',
+                fontSize: '15px', lineHeight: '1.5', padding: '2px 0',
+                maxHeight: '180px', minHeight: '24px', overflowY: 'auto',
+              }}
+            />
+          </div>
+          {/* Linha 2: enviar no canto direito */}
+          <div className="input-controls-row" style={{ justifyContent: 'flex-end', paddingTop: '4px' }}>
+            <button className="chat-send-btn" onClick={handleSend} disabled={sending || !input.trim()} aria-label="Enviar">
+              <Send size={18} />
+            </button>
           </div>
         </div>
       </div>
