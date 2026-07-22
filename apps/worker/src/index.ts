@@ -1,14 +1,16 @@
 // BeeHive Cowork Nuvem — servidor do worker.
-// Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser) e
-// transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
+// Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes)
+// e transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
 import express from 'express';
 import cors from 'cors';
+import fs from 'node:fs';
 import { nanoid } from 'nanoid';
-import { ensureWorkspace, WORKSPACE_ROOT } from './workspace.js';
+import { ensureWorkspace, WORKSPACE_ROOT, resolveInWorkspace } from './workspace.js';
 import { runShell } from './executors/shell.js';
 import { writeFile, readFile } from './executors/files.js';
 import { runGit } from './executors/git.js';
 import { runBrowser } from './executors/browser.js';
+import { runYtFetch, runClip } from './executors/media.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -41,6 +43,20 @@ function authOk(req: express.Request): boolean {
 // --- health (usado pelo Railway healthcheck) ---
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'beehive-worker', workspace: WORKSPACE_ROOT, jobs: jobs.size });
+});
+
+// --- download de arquivos do workspace (clipes, etc). Token via header ou ?t= ---
+app.get('/files/:name(*)', (req, res) => {
+  const q = typeof req.query.t === 'string' ? req.query.t : '';
+  const ok = !AUTH_TOKEN || req.header('authorization') === `Bearer ${AUTH_TOKEN}` || q === AUTH_TOKEN;
+  if (!ok) return res.status(401).json({ error: 'unauthorized' });
+  try {
+    const abs = resolveInWorkspace(req.params.name);
+    if (!fs.existsSync(abs)) return res.status(404).json({ error: 'not found' });
+    res.sendFile(abs);
+  } catch {
+    res.status(400).json({ error: 'bad path' });
+  }
 });
 
 // --- criar job ---
@@ -119,6 +135,12 @@ async function execute(rec: JobRecord) {
         break;
       case 'browser':
         rec.result = (await runBrowser(rec.request, onChunk)).result;
+        break;
+      case 'ytFetch':
+        rec.result = (await runYtFetch(rec.request, onChunk)).result;
+        break;
+      case 'clip':
+        rec.result = (await runClip(rec.request, onChunk)).result;
         break;
       default:
         throw new Error(`tipo de job desconhecido: ${(rec.request as JobRequest).type}`);

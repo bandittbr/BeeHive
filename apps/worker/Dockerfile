@@ -5,8 +5,10 @@ FROM mcr.microsoft.com/playwright:v1.49.1-jammy
 
 WORKDIR /app
 
-# git é usado pelo executor git
-RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*
+# git (executor git), ffmpeg (cortes/montagem) e yt-dlp (baixar vídeos)
+RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg python3 python3-pip \
+  && rm -rf /var/lib/apt/lists/* \
+  && pip3 install --no-cache-dir yt-dlp
 
 COPY package.json ./
 RUN npm install --omit=dev --no-audit --no-fund \

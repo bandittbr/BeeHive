@@ -7,7 +7,9 @@ export type JobType =
   | 'writeFile' // escrever arquivo
   | 'readFile' // ler arquivo
   | 'git' // comando git (clone/commit/push...)
-  | 'browser'; // automação de navegador (Playwright)
+  | 'browser' // automação de navegador (Playwright)
+  | 'ytFetch' // baixar vídeo + transcrição (Cortes)
+  | 'clip'; // cortar trechos em vertical (Cortes)
 
 export interface JobRequest {
   type: JobType;
