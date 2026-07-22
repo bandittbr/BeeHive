@@ -27,6 +27,7 @@ import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
 import { planTask, runStep, type Plan, type PlanStep } from './services/orchestrator';
+import { generateContentPackage } from './services/contentPipeline';
 import { TaskPlan } from './components/chat/TaskPlan';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
@@ -1535,15 +1536,18 @@ function BizTypeSection({ type }: { type: BizTypeConfig }) {
   const accounts = bizAccounts.filter((b) => b.type === type.id);
   const Icon = type.icon;
 
-  const handleCreate = (name: string, field: string) => {
+  const handleCreate = (data: { name: string; field: string; description: string; postsPerDay: number }) => {
     const biz: BizAccount = {
       id: String(Date.now()),
       type: type.id,
-      name,
+      name: data.name,
       status: 'active',
       socialAccounts: [],
       createdAt: new Date().toISOString(),
-      ...(type.id === 'cortes' ? { postSchedule: field } : { niche: field }),
+      description: data.description || undefined,
+      postsPerDay: data.postsPerDay,
+      content: [],
+      ...(type.id === 'cortes' ? { postSchedule: data.field } : { niche: data.field }),
     };
     addBizAccount(biz);
     setAdding(false);
@@ -1577,25 +1581,35 @@ function BizTypeSection({ type }: { type: BizTypeConfig }) {
   );
 }
 
-function NewBizForm({ type, onCreate, onCancel }: { type: BizTypeConfig; onCreate: (name: string, field: string) => void; onCancel: () => void }) {
+function NewBizForm({ type, onCreate, onCancel }: { type: BizTypeConfig; onCreate: (data: { name: string; field: string; description: string; postsPerDay: number }) => void; onCancel: () => void }) {
   const [name, setName] = useState('');
   const [field, setField] = useState('');
+  const [description, setDescription] = useState('');
+  const [postsPerDay, setPostsPerDay] = useState(1);
 
   const submit = () => {
     if (!name.trim()) return;
-    onCreate(name.trim(), field.trim());
-    setName(''); setField('');
+    onCreate({ name: name.trim(), field: field.trim(), description: description.trim(), postsPerDay });
+    setName(''); setField(''); setDescription(''); setPostsPerDay(1);
   };
 
   return (
     <div className="biz-new-form">
       <div className="form-group">
         <label>Nome do negócio</label>
-        <input type="text" placeholder="Ex: Canal Cortes Podcast" value={name} onChange={(e) => setName(e.target.value)} />
+        <input type="text" placeholder="Ex: Chris Cortes Comédia" value={name} onChange={(e) => setName(e.target.value)} />
       </div>
       <div className="form-group">
         <label>{type.fieldLabel}</label>
         <input type="text" placeholder={type.fieldPlaceholder} value={field} onChange={(e) => setField(e.target.value)} />
+      </div>
+      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+        <label>Descrição / diretrizes de conteúdo</label>
+        <textarea rows={2} placeholder="Ex: histórias de terror curtas, tom sombrio, para público jovem..." value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>Postagens por dia</label>
+        <input type="number" min={1} max={20} value={postsPerDay} onChange={(e) => setPostsPerDay(Math.max(1, Number(e.target.value) || 1))} />
       </div>
       <div className="biz-new-form-actions">
         <button className="btn-primary" onClick={submit}>Salvar</button>
@@ -1610,11 +1624,29 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
   const [addingSocial, setAddingSocial] = useState(false);
   const [platform, setPlatform] = useState<SocialAccount['platform']>('instagram');
   const [handle, setHandle] = useState('');
+  const [generating, setGenerating] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
 
   const submitSocial = () => {
     if (!handle.trim()) return;
     addSocialAccount(biz.id, { id: String(Date.now()), platform, handle: handle.trim() });
     setHandle(''); setAddingSocial(false);
+  };
+
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      const pkg = await generateContentPackage({
+        type: biz.type,
+        niche: biz.niche || biz.postSchedule || biz.name,
+        description: biz.description,
+      });
+      updateBizAccount(biz.id, { content: [pkg, ...(biz.content || [])] });
+      setExpanded(pkg.id);
+    } finally {
+      setGenerating(false);
+    }
   };
 
   return (
@@ -1652,6 +1684,50 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
       ) : (
         <button className="biz-add-social-btn" onClick={() => setAddingSocial(true)}><Plus size={12} /> Rede social</button>
       )}
+
+      {/* Conteúdo gerado */}
+      <div style={{ marginTop: 12, borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Conteúdo {biz.postsPerDay ? `· ${biz.postsPerDay}/dia` : ''}
+          </span>
+          <button
+            onClick={generate}
+            disabled={generating}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: generating ? 'default' : 'pointer', color: 'white', background: color, opacity: generating ? 0.6 : 1 }}
+          >
+            {generating ? <Loader2 size={12} className="spin" /> : <Sparkles size={12} />}
+            {generating ? 'Gerando...' : 'Gerar conteúdo'}
+          </button>
+        </div>
+
+        {(!biz.content || biz.content.length === 0) ? (
+          <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Nenhum conteúdo gerado ainda.</p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {biz.content.map((c) => (
+              <div key={c.id} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '8px 10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer' }} onClick={() => setExpanded(expanded === c.id ? null : c.id)}>
+                  <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || c.idea || 'Conteúdo'}</span>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{expanded === c.id ? '▲' : '▼'}</span>
+                </div>
+                {expanded === c.id && (
+                  <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {c.idea && <div><strong style={{ color: 'var(--text)' }}>Ideia:</strong> {c.idea}</div>}
+                    {c.script && <div><strong style={{ color: 'var(--text)' }}>Roteiro:</strong><div style={{ whiteSpace: 'pre-wrap', marginTop: 2 }}>{c.script}</div></div>}
+                    {c.description && <div><strong style={{ color: 'var(--text)' }}>Descrição:</strong> {c.description}</div>}
+                    {c.hashtags.length > 0 && <div style={{ color: 'var(--primary-light)' }}>{c.hashtags.map((h) => `#${h}`).join(' ')}</div>}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      <span style={{ fontSize: 10, padding: '1px 7px', borderRadius: 999, background: 'var(--surface-2)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>{c.status}</span>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>vídeo e postagem automáticos — em construção</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <button className="biz-delete-btn" onClick={onDelete}>Remover negócio</button>
     </div>
