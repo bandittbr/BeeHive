@@ -1,7 +1,7 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, Youtube, Check, Clock } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
@@ -314,7 +314,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
                   title="Agendar todos nos horários do negócio"
                   style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: schedBusy ? 'default' : 'pointer', color: 'white', background: color, opacity: schedBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}
                 >
-                  {schedBusy ? <Loader2 size={12} className="spin" /> : <Clock size={12} />}
+                  {schedBusy ? <Loader2 size={12} className="spin" /> : <Calendar size={12} />}
                   {schedBusy ? 'Agendando...' : 'Agendar postagens'}
                 </button>
               </div>
@@ -330,7 +330,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
                     <div style={{ padding: '0 8px 8px' }}>
                       {pub[i]?.url ? (
                         <a href={pub[i].url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#22c55e', textDecoration: 'none' }}>
-                          <Check size={12} /> Publicado
+                          <CheckCircle2 size={12} /> Publicado
                         </a>
                       ) : (
                         <button
@@ -339,7 +339,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
                           title="Publicar no YouTube"
                           style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: pub[i]?.busy ? 'default' : 'pointer', width: '100%', justifyContent: 'center' }}
                         >
-                          {pub[i]?.busy ? <Loader2 size={12} className="spin" /> : <Youtube size={12} color="#ef4444" />}
+                          {pub[i]?.busy ? <Loader2 size={12} className="spin" /> : <Video size={12} color="#ef4444" />}
                           {pub[i]?.busy ? 'Publicando...' : 'YouTube'}
                         </button>
                       )}
