@@ -220,7 +220,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
       if (res.error) setCortesErr(res.error);
       setCortesClips(res.clips);
     } finally {
-      setCortesBusy(false); setCortesMsgSafe(setCortesMsg);
+      setCortesBusy(false); setCortesMsg('');
     }
   };
 
