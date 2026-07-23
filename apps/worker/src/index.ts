@@ -1,6 +1,7 @@
 // BeeHive Cowork Nuvem — servidor do worker.
 // Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes/publish)
 // e transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
+// Também roda o AGENDADOR: publica posts agendados sozinho, sem depender do navegador.
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
@@ -12,6 +13,7 @@ import { runGit } from './executors/git.js';
 import { runBrowser } from './executors/browser.js';
 import { runYtFetch, runClip } from './executors/media.js';
 import { runPublishYoutube } from './executors/publish.js';
+import { loadStore, saveStore, setYoutubeCreds, hasYoutubeCreds, addPost, removePost } from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -58,6 +60,48 @@ app.get('/files/:name(*)', (req, res) => {
   } catch {
     res.status(400).json({ error: 'bad path' });
   }
+});
+
+// --- credenciais do YouTube no servidor (para postagem automática) ---
+app.post('/creds/youtube', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const b = req.body as { clientId?: string; clientSecret?: string; refreshToken?: string; privacyStatus?: string };
+  if (!b?.clientId || !b?.clientSecret || !b?.refreshToken) return res.status(400).json({ error: 'clientId, clientSecret e refreshToken são obrigatórios' });
+  const privacyStatus = ['public', 'unlisted', 'private'].includes(String(b.privacyStatus)) ? (b.privacyStatus as 'public' | 'unlisted' | 'private') : 'public';
+  setYoutubeCreds({ clientId: b.clientId, clientSecret: b.clientSecret, refreshToken: b.refreshToken, privacyStatus });
+  res.json({ ok: true });
+});
+
+app.get('/creds/youtube', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ configured: hasYoutubeCreds() });
+});
+
+// --- agendamento de posts ---
+app.post('/schedule', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const b = req.body as { file?: string; title?: string; description?: string; tags?: unknown; at?: number };
+  if (!b?.file || !b?.at) return res.status(400).json({ error: 'file e at (epoch ms) são obrigatórios' });
+  const post = addPost({
+    platform: 'youtube',
+    file: String(b.file),
+    title: String(b.title ?? 'Novo vídeo').slice(0, 100),
+    description: String(b.description ?? ''),
+    tags: Array.isArray(b.tags) ? (b.tags as unknown[]).map((t) => String(t)).slice(0, 25) : [],
+    at: Number(b.at),
+  });
+  res.json({ ok: true, post });
+});
+
+app.get('/schedule', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ posts: loadStore().posts.sort((a, b) => a.at - b.at) });
+});
+
+app.delete('/schedule/:id', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const ok = removePost(req.params.id);
+  res.json({ ok });
 });
 
 // --- criar job ---
@@ -162,6 +206,51 @@ async function execute(rec: JobRecord) {
   }
 }
 
+// --- AGENDADOR: publica posts vencidos automaticamente ---
+let ticking = false;
+async function schedulerTick() {
+  if (ticking) return;
+  ticking = true;
+  try {
+    const data = loadStore();
+    if (!data.youtube) return;
+    const now = Date.now();
+    const due = data.posts.filter((p) => p.status === 'pending' && p.at <= now);
+    for (const post of due) {
+      post.status = 'publishing';
+      saveStore(data);
+      try {
+        const req = {
+          type: 'publishYoutube',
+          payload: {
+            file: post.file,
+            title: post.title,
+            description: post.description,
+            tags: post.tags,
+            privacyStatus: data.youtube.privacyStatus ?? 'public',
+            clientId: data.youtube.clientId,
+            clientSecret: data.youtube.clientSecret,
+            refreshToken: data.youtube.refreshToken,
+          },
+        } as JobRequest;
+        const out = await runPublishYoutube(req, () => {});
+        const r = out.result as { url?: string } | undefined;
+        post.status = 'done';
+        post.url = r?.url;
+        console.log(`[scheduler] publicado ${post.id} → ${post.url ?? ''}`);
+      } catch (e) {
+        post.status = 'error';
+        post.error = e instanceof Error ? e.message : String(e);
+        console.error(`[scheduler] erro em ${post.id}: ${post.error}`);
+      }
+      saveStore(data);
+    }
+  } finally {
+    ticking = false;
+  }
+}
+setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
+
 app.listen(PORT, () => {
-  console.log(`[beehive-worker] ouvindo na porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'}`);
+  console.log(`[beehive-worker] ouvindo na porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'} · agendador on`);
 });
