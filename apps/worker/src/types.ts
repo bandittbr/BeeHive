@@ -10,7 +10,8 @@ export type JobType =
   | 'clip'
   | 'publishYoutube'
   | 'publishInstagram'
-  | 'publishFacebook';
+  | 'publishFacebook'
+  | 'publishTiktok';
 
 export interface JobRequest {
   type: JobType;

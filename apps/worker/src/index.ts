@@ -13,6 +13,7 @@ import { runBrowser } from './executors/browser.js';
 import { runYtFetch, runClip } from './executors/media.js';
 import { runPublishYoutube } from './executors/publish.js';
 import { runPublishInstagram, runPublishFacebook } from './executors/publishMeta.js';
+import { runPublishTiktok } from './executors/publishTiktok.js';
 import {
   getYoutubeCreds, setYoutubeCreds, hasYoutubeCreds,
   getPlatformCreds, setPlatformCreds, hasPlatformCreds,
@@ -186,6 +187,7 @@ async function execute(rec: JobRecord) {
       case 'publishYoutube': rec.result = (await runPublishYoutube(rec.request, onChunk)).result; break;
       case 'publishInstagram': rec.result = (await runPublishInstagram(rec.request, onChunk)).result; break;
       case 'publishFacebook': rec.result = (await runPublishFacebook(rec.request, onChunk)).result; break;
+      case 'publishTiktok': rec.result = (await runPublishTiktok(rec.request, onChunk)).result; break;
       default:
         throw new Error(`tipo de job desconhecido: ${(rec.request as JobRequest).type}`);
     }
@@ -231,6 +233,14 @@ async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
     if (!c) throw new Error('Credenciais do Facebook não configuradas');
     const out = await runPublishFacebook({ type: 'publishFacebook', payload: {
       file: post.file, caption: buildCaption(post), pageId: c.pageId, accessToken: c.accessToken,
+    } } as JobRequest, noop);
+    return out.result as { url?: string };
+  }
+  if (post.platform === 'tiktok') {
+    const c = await getPlatformCreds('tiktok');
+    if (!c) throw new Error('Credenciais do TikTok não configuradas');
+    const out = await runPublishTiktok({ type: 'publishTiktok', payload: {
+      file: post.file, title: buildCaption(post), clientKey: c.clientKey, clientSecret: c.clientSecret, refreshToken: c.refreshToken, privacyLevel: c.privacyLevel,
     } } as JobRequest, noop);
     return out.result as { url?: string };
   }
