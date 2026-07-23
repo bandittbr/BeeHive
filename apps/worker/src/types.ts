@@ -1,16 +1,16 @@
 // Contrato de jobs entre o orquestrador (frontend) e o worker (nuvem).
-// Mantido simples e estável: o orquestrador despacha um Job, o worker executa
-// e emite JobEvents (stdout/stderr/status) via SSE.
 
 export type JobType =
-  | 'shell' // executar comando no terminal
-  | 'writeFile' // escrever arquivo
-  | 'readFile' // ler arquivo
-  | 'git' // comando git (clone/commit/push...)
-  | 'browser' // automação de navegador (Playwright)
-  | 'ytFetch' // baixar vídeo + transcrição (Cortes)
-  | 'clip' // cortar trechos em vertical (Cortes)
-  | 'publishYoutube'; // publicar vídeo no YouTube (API oficial)
+  | 'shell'
+  | 'writeFile'
+  | 'readFile'
+  | 'git'
+  | 'browser'
+  | 'ytFetch'
+  | 'clip'
+  | 'publishYoutube'
+  | 'publishInstagram'
+  | 'publishFacebook';
 
 export interface JobRequest {
   type: JobType;
@@ -28,7 +28,6 @@ export interface JobEvent {
   kind: 'status' | 'stdout' | 'stderr' | 'result';
   status?: JobStatus;
   data?: string;
-  /** resultado estruturado quando kind === 'result' */
   result?: unknown;
   ts: number;
 }
@@ -40,7 +39,7 @@ export interface JobRecord {
   createdAt: number;
   finishedAt?: number;
   exitCode?: number;
-  output: string; // stdout+stderr acumulados
+  output: string;
   result?: unknown;
   error?: string;
 }

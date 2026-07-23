@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_ROOT } from './workspace.js';
 
+export type PlatformId = 'youtube' | 'instagram' | 'facebook' | 'tiktok';
+
 export interface YoutubeCreds {
   clientId: string;
   clientSecret: string;
@@ -15,7 +17,7 @@ export interface YoutubeCreds {
 
 export interface ScheduledPost {
   id: string;
-  platform: 'youtube';
+  platform: PlatformId;
   file: string;
   title: string;
   description: string;
@@ -45,12 +47,13 @@ function sbHeaders(extra: Record<string, string> = {}): Record<string, string> {
   };
 }
 const CREDS = `${SUPABASE_URL}/rest/v1/beehive_youtube_creds`;
+const PCREDS = `${SUPABASE_URL}/rest/v1/beehive_platform_creds`;
 const POSTS = `${SUPABASE_URL}/rest/v1/beehive_posts`;
 
 function rowToPost(r: any): ScheduledPost {
   return {
     id: String(r.id),
-    platform: 'youtube',
+    platform: (r.platform ?? 'youtube') as PlatformId,
     file: r.file,
     title: r.title ?? '',
     description: r.description ?? '',
@@ -65,7 +68,7 @@ function rowToPost(r: any): ScheduledPost {
 
 // ---------- Arquivo (fallback) ----------
 const FILE = path.join(WORKSPACE_ROOT, '.beehive-store.json');
-interface FileData { youtube?: YoutubeCreds; posts: ScheduledPost[]; }
+interface FileData { youtube?: YoutubeCreds; platformCreds?: Record<string, Record<string, unknown>>; posts: ScheduledPost[]; }
 function fileLoad(): FileData {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8')) as FileData;
@@ -82,7 +85,7 @@ function fileSave(d: FileData): void {
   } catch { /* ignore */ }
 }
 
-// ---------- API pública (assíncrona) ----------
+// ---------- YouTube creds ----------
 export async function getYoutubeCreds(): Promise<YoutubeCreds | null> {
   if (useSupabase) {
     const res = await fetch(`${CREDS}?id=eq.1&select=*`, { headers: sbHeaders() });
@@ -114,6 +117,38 @@ export async function hasYoutubeCreds(): Promise<boolean> {
   return !!(c && c.clientId && c.clientSecret && c.refreshToken);
 }
 
+// ---------- Credenciais genéricas por rede (instagram/facebook/tiktok) ----------
+export async function getPlatformCreds(platform: string): Promise<Record<string, unknown> | null> {
+  if (useSupabase) {
+    const res = await fetch(`${PCREDS}?platform=eq.${encodeURIComponent(platform)}&select=data`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0]?.data ?? null;
+  }
+  return fileLoad().platformCreds?.[platform] ?? null;
+}
+
+export async function setPlatformCreds(platform: string, data: Record<string, unknown>): Promise<void> {
+  if (useSupabase) {
+    await fetch(PCREDS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ platform, data, updated_at: new Date().toISOString() }),
+    });
+    return;
+  }
+  const d = fileLoad();
+  d.platformCreds = d.platformCreds ?? {};
+  d.platformCreds[platform] = data;
+  fileSave(d);
+}
+
+export async function hasPlatformCreds(platform: string): Promise<boolean> {
+  const c = await getPlatformCreds(platform);
+  return !!c && Object.keys(c).length > 0;
+}
+
+// ---------- Posts ----------
 export async function listPosts(): Promise<ScheduledPost[]> {
   if (useSupabase) {
     const res = await fetch(`${POSTS}?select=*&order=at.asc`, { headers: sbHeaders() });

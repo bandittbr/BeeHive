@@ -1,8 +1,6 @@
 // BeeHive Cowork Nuvem — servidor do worker.
-// Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes/publish)
-// e transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
-// Também roda o AGENDADOR: publica posts agendados sozinho, sem depender do navegador.
-// Persistência via Supabase (se configurado) ou arquivo JSON no workspace.
+// Executa jobs (shell/files/git/browser/cortes/publish) e roda o AGENDADOR, que
+// publica posts agendados sozinho em cada rede. Persistência: Supabase ou arquivo.
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
@@ -14,11 +12,18 @@ import { runGit } from './executors/git.js';
 import { runBrowser } from './executors/browser.js';
 import { runYtFetch, runClip } from './executors/media.js';
 import { runPublishYoutube } from './executors/publish.js';
-import { getYoutubeCreds, setYoutubeCreds, hasYoutubeCreds, listPosts, getDuePosts, addPost, updatePost, removePost, storageMode } from './store.js';
+import { runPublishInstagram, runPublishFacebook } from './executors/publishMeta.js';
+import {
+  getYoutubeCreds, setYoutubeCreds, hasYoutubeCreds,
+  getPlatformCreds, setPlatformCreds, hasPlatformCreds,
+  listPosts, getDuePosts, addPost, updatePost, removePost, storageMode,
+  type ScheduledPost, type PlatformId,
+} from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const AUTH_TOKEN = process.env.WORKER_TOKEN ?? '';
+const PLATFORMS: PlatformId[] = ['youtube', 'instagram', 'facebook', 'tiktok'];
 
 ensureWorkspace();
 
@@ -39,12 +44,12 @@ function emit(jobId: string, e: Omit<JobEvent, 'jobId' | 'ts'>) {
 
 // --- auth ---
 function authOk(req: express.Request): boolean {
-  if (!AUTH_TOKEN) return true; // sem token configurado = aberto (apenas dev)
+  if (!AUTH_TOKEN) return true;
   const header = req.header('authorization') ?? '';
   return header === `Bearer ${AUTH_TOKEN}`;
 }
 
-// --- health (usado pelo Railway healthcheck) ---
+// --- health ---
 app.get('/health', (_req, res) => {
   res.json({ ok: true, service: 'beehive-worker', workspace: WORKSPACE_ROOT, jobs: jobs.size, storage: storageMode() });
 });
@@ -63,7 +68,7 @@ app.get('/files/:name(*)', (req, res) => {
   }
 });
 
-// --- credenciais do YouTube no servidor (para postagem automática) ---
+// --- credenciais do YouTube (formato específico + privacidade) ---
 app.post('/creds/youtube', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const b = req.body as { clientId?: string; clientSecret?: string; refreshToken?: string; privacyStatus?: string };
@@ -78,13 +83,29 @@ app.get('/creds/youtube', async (req, res) => {
   res.json({ configured: await hasYoutubeCreds() });
 });
 
+// --- credenciais genéricas por rede (instagram/facebook/tiktok) ---
+app.post('/creds/:platform', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const platform = (req.params as Record<string, string>).platform;
+  const data = req.body;
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return res.status(400).json({ error: 'corpo deve ser um objeto com as credenciais' });
+  await setPlatformCreds(platform, data as Record<string, unknown>);
+  res.json({ ok: true });
+});
+
+app.get('/creds/:platform', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ configured: await hasPlatformCreds((req.params as Record<string, string>).platform) });
+});
+
 // --- agendamento de posts ---
 app.post('/schedule', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  const b = req.body as { file?: string; title?: string; description?: string; tags?: unknown; at?: number };
+  const b = req.body as { file?: string; title?: string; description?: string; tags?: unknown; at?: number; platform?: string };
   if (!b?.file || !b?.at) return res.status(400).json({ error: 'file e at (epoch ms) são obrigatórios' });
+  const platform = (PLATFORMS as string[]).includes(String(b.platform)) ? (b.platform as PlatformId) : 'youtube';
   const post = await addPost({
-    platform: 'youtube',
+    platform,
     file: String(b.file),
     title: String(b.title ?? 'Novo vídeo').slice(0, 100),
     description: String(b.description ?? ''),
@@ -110,17 +131,13 @@ app.post('/jobs', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const request = req.body as JobRequest;
   if (!request || !request.type) return res.status(400).json({ error: 'type é obrigatório' });
-
   const id = nanoid();
   const rec: JobRecord = { id, request, status: 'queued', createdAt: Date.now(), output: '' };
   jobs.set(id, rec);
-
-  // executa em background; o cliente acompanha por /jobs/:id/events ou faz poll em /jobs/:id
   void execute(rec);
   res.json({ id, status: rec.status });
 });
 
-// --- consultar job (poll) ---
 app.get('/jobs/:id', (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const rec = jobs.get(req.params.id);
@@ -128,26 +145,17 @@ app.get('/jobs/:id', (req, res) => {
   res.json(rec);
 });
 
-// --- stream de eventos (SSE) ---
 app.get('/jobs/:id/events', (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const rec = jobs.get(req.params.id);
   if (!rec) return res.status(404).json({ error: 'not found' });
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    Connection: 'keep-alive',
-  });
+  res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache', Connection: 'keep-alive' });
   const send = (e: JobEvent) => res.write(`data: ${JSON.stringify(e)}\n\n`);
-  // replay do estado atual
   send({ jobId: rec.id, kind: 'status', status: rec.status, ts: Date.now() });
   if (rec.output) send({ jobId: rec.id, kind: 'stdout', data: rec.output, ts: Date.now() });
-
   const set = listeners.get(rec.id) ?? new Set();
   set.add(send);
   listeners.set(rec.id, set);
-
   req.on('close', () => set.delete(send));
 });
 
@@ -156,46 +164,32 @@ async function execute(rec: JobRecord) {
   rec.status = 'running';
   emit(rec.id, { kind: 'status', status: 'running' });
   const onChunk = (kind: 'stdout' | 'stderr', data: string) => emit(rec.id, { kind, data });
-
   try {
     switch (rec.request.type) {
       case 'shell': {
         const out = await runShell(rec.request, onChunk);
-        rec.exitCode = out.exitCode;
-        rec.result = out.result;
+        rec.exitCode = out.exitCode; rec.result = out.result;
         if (out.exitCode !== 0) throw new Error(`exit code ${out.exitCode}`);
         break;
       }
       case 'git': {
         const out = await runGit(rec.request, onChunk);
-        rec.exitCode = out.exitCode;
-        rec.result = out.result;
+        rec.exitCode = out.exitCode; rec.result = out.result;
         if (out.exitCode !== 0) throw new Error(`git exit code ${out.exitCode}`);
         break;
       }
-      case 'writeFile':
-        rec.result = (await writeFile(rec.request)).result;
-        break;
-      case 'readFile':
-        rec.result = (await readFile(rec.request)).result;
-        break;
-      case 'browser':
-        rec.result = (await runBrowser(rec.request, onChunk)).result;
-        break;
-      case 'ytFetch':
-        rec.result = (await runYtFetch(rec.request, onChunk)).result;
-        break;
-      case 'clip':
-        rec.result = (await runClip(rec.request, onChunk)).result;
-        break;
-      case 'publishYoutube':
-        rec.result = (await runPublishYoutube(rec.request, onChunk)).result;
-        break;
+      case 'writeFile': rec.result = (await writeFile(rec.request)).result; break;
+      case 'readFile': rec.result = (await readFile(rec.request)).result; break;
+      case 'browser': rec.result = (await runBrowser(rec.request, onChunk)).result; break;
+      case 'ytFetch': rec.result = (await runYtFetch(rec.request, onChunk)).result; break;
+      case 'clip': rec.result = (await runClip(rec.request, onChunk)).result; break;
+      case 'publishYoutube': rec.result = (await runPublishYoutube(rec.request, onChunk)).result; break;
+      case 'publishInstagram': rec.result = (await runPublishInstagram(rec.request, onChunk)).result; break;
+      case 'publishFacebook': rec.result = (await runPublishFacebook(rec.request, onChunk)).result; break;
       default:
         throw new Error(`tipo de job desconhecido: ${(rec.request as JobRequest).type}`);
     }
-    rec.status = 'done';
-    rec.finishedAt = Date.now();
+    rec.status = 'done'; rec.finishedAt = Date.now();
     emit(rec.id, { kind: 'result', result: rec.result });
     emit(rec.id, { kind: 'status', status: 'done' });
   } catch (err) {
@@ -207,35 +201,54 @@ async function execute(rec: JobRecord) {
   }
 }
 
-// --- AGENDADOR: publica posts vencidos automaticamente ---
+// --- AGENDADOR ---
+function buildCaption(post: ScheduledPost): string {
+  const tags = post.tags.map((t) => `#${t}`).join(' ');
+  return [post.title, post.description, tags].filter(Boolean).join('\n\n').slice(0, 2200);
+}
+
+async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
+  const noop = () => {};
+  if (post.platform === 'youtube') {
+    const c = await getYoutubeCreds();
+    if (!c) throw new Error('Credenciais do YouTube não configuradas');
+    const out = await runPublishYoutube({ type: 'publishYoutube', payload: {
+      file: post.file, title: post.title, description: post.description, tags: post.tags,
+      privacyStatus: c.privacyStatus ?? 'public', clientId: c.clientId, clientSecret: c.clientSecret, refreshToken: c.refreshToken,
+    } } as JobRequest, noop);
+    return out.result as { url?: string };
+  }
+  if (post.platform === 'instagram') {
+    const c = await getPlatformCreds('instagram');
+    if (!c) throw new Error('Credenciais do Instagram não configuradas');
+    const out = await runPublishInstagram({ type: 'publishInstagram', payload: {
+      file: post.file, caption: buildCaption(post), igUserId: c.igUserId, accessToken: c.accessToken,
+    } } as JobRequest, noop);
+    return out.result as { url?: string };
+  }
+  if (post.platform === 'facebook') {
+    const c = await getPlatformCreds('facebook');
+    if (!c) throw new Error('Credenciais do Facebook não configuradas');
+    const out = await runPublishFacebook({ type: 'publishFacebook', payload: {
+      file: post.file, caption: buildCaption(post), pageId: c.pageId, accessToken: c.accessToken,
+    } } as JobRequest, noop);
+    return out.result as { url?: string };
+  }
+  throw new Error(`Publicação em ${post.platform} ainda não suportada`);
+}
+
 let ticking = false;
 async function schedulerTick() {
   if (ticking) return;
   ticking = true;
   try {
-    const creds = await getYoutubeCreds();
-    if (!creds) return;
     const due = await getDuePosts(Date.now());
     for (const post of due) {
       await updatePost(post.id, { status: 'publishing' });
       try {
-        const req = {
-          type: 'publishYoutube',
-          payload: {
-            file: post.file,
-            title: post.title,
-            description: post.description,
-            tags: post.tags,
-            privacyStatus: creds.privacyStatus ?? 'public',
-            clientId: creds.clientId,
-            clientSecret: creds.clientSecret,
-            refreshToken: creds.refreshToken,
-          },
-        } as JobRequest;
-        const out = await runPublishYoutube(req, () => {});
-        const r = out.result as { url?: string } | undefined;
+        const r = await publishPost(post);
         await updatePost(post.id, { status: 'done', url: r?.url });
-        console.log(`[scheduler] publicado ${post.id} → ${r?.url ?? ''}`);
+        console.log(`[scheduler] publicado ${post.platform} ${post.id} → ${r?.url ?? ''}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         await updatePost(post.id, { status: 'error', error: msg });
@@ -251,5 +264,5 @@ async function schedulerTick() {
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
 
 app.listen(PORT, () => {
-  console.log(`[beehive-worker] ouvindo na porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'} · storage=${storageMode()} · agendador on`);
+  console.log(`[beehive-worker] porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'} · storage=${storageMode()} · agendador on`);
 });
