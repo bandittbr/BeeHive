@@ -6,7 +6,7 @@ import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
-import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds } from '../../services/credentials';
+import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds, hasTiktokCreds } from '../../services/credentials';
 import { computeSlots, schedulePost, type PlatformId } from '../../services/scheduler';
 import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
@@ -180,6 +180,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
     if (hasYoutubeCreds()) networks.push('youtube');
     if (hasInstagramCreds()) networks.push('instagram');
     if (hasFacebookCreds()) networks.push('facebook');
+    if (hasTiktokCreds()) networks.push('tiktok');
     if (networks.length === 0) { setSchedMsg('Configure ao menos uma rede em Settings → Conexões (e clique em "Ativar").'); return; }
     setSchedBusy(true); setSchedMsg('Agendando...');
     const slots = computeSlots(cortesClips.length, [biz.postSchedule || ''], biz.postsPerDay || 1);
