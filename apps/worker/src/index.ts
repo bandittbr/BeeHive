@@ -2,6 +2,7 @@
 // Recebe jobs do orquestrador, executa de verdade (shell/files/git/browser/cortes/publish)
 // e transmite eventos por SSE. Fila simples em memória (1 job por vez por padrão).
 // Também roda o AGENDADOR: publica posts agendados sozinho, sem depender do navegador.
+// Persistência via Supabase (se configurado) ou arquivo JSON no workspace.
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
@@ -13,7 +14,7 @@ import { runGit } from './executors/git.js';
 import { runBrowser } from './executors/browser.js';
 import { runYtFetch, runClip } from './executors/media.js';
 import { runPublishYoutube } from './executors/publish.js';
-import { loadStore, saveStore, setYoutubeCreds, hasYoutubeCreds, addPost, removePost } from './store.js';
+import { getYoutubeCreds, setYoutubeCreds, hasYoutubeCreds, listPosts, getDuePosts, addPost, updatePost, removePost, storageMode } from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -45,7 +46,7 @@ function authOk(req: express.Request): boolean {
 
 // --- health (usado pelo Railway healthcheck) ---
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'beehive-worker', workspace: WORKSPACE_ROOT, jobs: jobs.size });
+  res.json({ ok: true, service: 'beehive-worker', workspace: WORKSPACE_ROOT, jobs: jobs.size, storage: storageMode() });
 });
 
 // --- download de arquivos do workspace (clipes, etc). Token via header ou ?t= ---
@@ -63,26 +64,26 @@ app.get('/files/:name(*)', (req, res) => {
 });
 
 // --- credenciais do YouTube no servidor (para postagem automática) ---
-app.post('/creds/youtube', (req, res) => {
+app.post('/creds/youtube', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const b = req.body as { clientId?: string; clientSecret?: string; refreshToken?: string; privacyStatus?: string };
   if (!b?.clientId || !b?.clientSecret || !b?.refreshToken) return res.status(400).json({ error: 'clientId, clientSecret e refreshToken são obrigatórios' });
   const privacyStatus = ['public', 'unlisted', 'private'].includes(String(b.privacyStatus)) ? (b.privacyStatus as 'public' | 'unlisted' | 'private') : 'public';
-  setYoutubeCreds({ clientId: b.clientId, clientSecret: b.clientSecret, refreshToken: b.refreshToken, privacyStatus });
+  await setYoutubeCreds({ clientId: b.clientId, clientSecret: b.clientSecret, refreshToken: b.refreshToken, privacyStatus });
   res.json({ ok: true });
 });
 
-app.get('/creds/youtube', (req, res) => {
+app.get('/creds/youtube', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  res.json({ configured: hasYoutubeCreds() });
+  res.json({ configured: await hasYoutubeCreds() });
 });
 
 // --- agendamento de posts ---
-app.post('/schedule', (req, res) => {
+app.post('/schedule', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const b = req.body as { file?: string; title?: string; description?: string; tags?: unknown; at?: number };
   if (!b?.file || !b?.at) return res.status(400).json({ error: 'file e at (epoch ms) são obrigatórios' });
-  const post = addPost({
+  const post = await addPost({
     platform: 'youtube',
     file: String(b.file),
     title: String(b.title ?? 'Novo vídeo').slice(0, 100),
@@ -93,14 +94,14 @@ app.post('/schedule', (req, res) => {
   res.json({ ok: true, post });
 });
 
-app.get('/schedule', (req, res) => {
+app.get('/schedule', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  res.json({ posts: loadStore().posts.sort((a, b) => a.at - b.at) });
+  res.json({ posts: await listPosts() });
 });
 
-app.delete('/schedule/:id', (req, res) => {
+app.delete('/schedule/:id', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  const ok = removePost(req.params.id);
+  const ok = await removePost(req.params.id);
   res.json({ ok });
 });
 
@@ -212,13 +213,11 @@ async function schedulerTick() {
   if (ticking) return;
   ticking = true;
   try {
-    const data = loadStore();
-    if (!data.youtube) return;
-    const now = Date.now();
-    const due = data.posts.filter((p) => p.status === 'pending' && p.at <= now);
+    const creds = await getYoutubeCreds();
+    if (!creds) return;
+    const due = await getDuePosts(Date.now());
     for (const post of due) {
-      post.status = 'publishing';
-      saveStore(data);
+      await updatePost(post.id, { status: 'publishing' });
       try {
         const req = {
           type: 'publishYoutube',
@@ -227,24 +226,24 @@ async function schedulerTick() {
             title: post.title,
             description: post.description,
             tags: post.tags,
-            privacyStatus: data.youtube.privacyStatus ?? 'public',
-            clientId: data.youtube.clientId,
-            clientSecret: data.youtube.clientSecret,
-            refreshToken: data.youtube.refreshToken,
+            privacyStatus: creds.privacyStatus ?? 'public',
+            clientId: creds.clientId,
+            clientSecret: creds.clientSecret,
+            refreshToken: creds.refreshToken,
           },
         } as JobRequest;
         const out = await runPublishYoutube(req, () => {});
         const r = out.result as { url?: string } | undefined;
-        post.status = 'done';
-        post.url = r?.url;
-        console.log(`[scheduler] publicado ${post.id} → ${post.url ?? ''}`);
+        await updatePost(post.id, { status: 'done', url: r?.url });
+        console.log(`[scheduler] publicado ${post.id} → ${r?.url ?? ''}`);
       } catch (e) {
-        post.status = 'error';
-        post.error = e instanceof Error ? e.message : String(e);
-        console.error(`[scheduler] erro em ${post.id}: ${post.error}`);
+        const msg = e instanceof Error ? e.message : String(e);
+        await updatePost(post.id, { status: 'error', error: msg });
+        console.error(`[scheduler] erro em ${post.id}: ${msg}`);
       }
-      saveStore(data);
     }
+  } catch (e) {
+    console.error('[scheduler] tick falhou:', e instanceof Error ? e.message : e);
   } finally {
     ticking = false;
   }
@@ -252,5 +251,5 @@ async function schedulerTick() {
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
 
 app.listen(PORT, () => {
-  console.log(`[beehive-worker] ouvindo na porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'} · agendador on`);
+  console.log(`[beehive-worker] ouvindo na porta ${PORT} · workspace=${WORKSPACE_ROOT} · auth=${AUTH_TOKEN ? 'on' : 'off'} · storage=${storageMode()} · agendador on`);
 });
