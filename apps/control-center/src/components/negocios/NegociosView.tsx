@@ -1,10 +1,12 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, Youtube, Check } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
+import { publishToYoutube } from '../../services/publish';
+import { hasYoutubeCreds } from '../../services/credentials';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -162,6 +164,24 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
   const [cortesMsg, setCortesMsg] = useState('');
   const [cortesErr, setCortesErr] = useState('');
   const [cortesClips, setCortesClips] = useState<CorteClip[]>([]);
+  // publicação por clipe (índice → estado)
+  const [pub, setPub] = useState<Record<number, { busy?: boolean; url?: string; err?: string }>>({});
+
+  const publishClip = async (i: number, c: CorteClip) => {
+    if (pub[i]?.busy) return;
+    if (!hasYoutubeCreds()) {
+      setPub((s) => ({ ...s, [i]: { err: 'Cadastre o YouTube em Settings → Conexões.' } }));
+      return;
+    }
+    setPub((s) => ({ ...s, [i]: { busy: true } }));
+    const res = await publishToYoutube({
+      file: c.file,
+      title: c.title || `${biz.name} — corte ${i + 1}`,
+      description: biz.description || '',
+      tags: (biz.niche || biz.name).split(/[\s,]+/).filter(Boolean).slice(0, 10),
+    });
+    setPub((s) => ({ ...s, [i]: res.ok ? { url: res.url } : { err: res.error } }));
+  };
 
   const runCortes = async () => {
     if (cortesBusy || !cortesUrl.trim()) return;
@@ -197,7 +217,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
     }
   };
 
-  const sectionLabel: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' };
+  const sectionLabel = (t: string) => ({ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' } as React.CSSProperties);
 
   return (
     <div className="biz-account-card" style={{ '--biz-color': color } as React.CSSProperties}>
@@ -238,7 +258,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
       {/* Cortes: baixar vídeo grande → cortar em vertical com legenda */}
       {biz.type === 'cortes' && (
         <div style={{ marginTop: 14, borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
-          <span style={sectionLabel}>Gerar cortes de um vídeo</span>
+          <span style={sectionLabel('')}>Gerar cortes de um vídeo</span>
           <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
             <input
               type="text"
@@ -269,6 +289,24 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
                       <span style={{ flex: 1, fontSize: 10.5, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.title || `Corte ${i + 1}`}</span>
                       <a href={c.url} download title="Baixar" style={{ color: 'var(--text-muted)', display: 'flex' }}><Download size={13} /></a>
                     </div>
+                    <div style={{ padding: '0 8px 8px' }}>
+                      {pub[i]?.url ? (
+                        <a href={pub[i].url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10.5, color: '#22c55e', textDecoration: 'none' }}>
+                          <Check size={12} /> Publicado
+                        </a>
+                      ) : (
+                        <button
+                          onClick={() => publishClip(i, c)}
+                          disabled={pub[i]?.busy}
+                          title="Publicar no YouTube"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 10.5, padding: '4px 8px', borderRadius: 6, border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-secondary)', cursor: pub[i]?.busy ? 'default' : 'pointer', width: '100%', justifyContent: 'center' }}
+                        >
+                          {pub[i]?.busy ? <Loader2 size={12} className="spin" /> : <Youtube size={12} color="#ef4444" />}
+                          {pub[i]?.busy ? 'Publicando...' : 'YouTube'}
+                        </button>
+                      )}
+                      {pub[i]?.err && <p style={{ fontSize: 10, color: 'var(--danger)', marginTop: 4 }}>{pub[i].err}</p>}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -280,7 +318,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
       {/* Conteúdo gerado (roteiro/título/hashtags) */}
       <div style={{ marginTop: 14, borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <span style={sectionLabel}>Conteúdo {biz.postsPerDay ? `· ${biz.postsPerDay}/dia` : ''}</span>
+          <span style={sectionLabel('')}>Conteúdo {biz.postsPerDay ? `· ${biz.postsPerDay}/dia` : ''}</span>
           <button
             onClick={generate}
             disabled={generating}
