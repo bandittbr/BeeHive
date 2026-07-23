@@ -2,7 +2,7 @@ import { useState } from "react";
 import { 
   ArrowLeft, ChevronDown, X, Cpu, SlidersHorizontal, Paintbrush, 
   Terminal, Puzzle, Sparkles, Shield, Zap, RefreshCcw, Wrench,
-  Bug, Network, BarChart3, Cloud, Share2, Settings as SettingsIcon
+  Bug, Network, BarChart3, Cloud, Settings as SettingsIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,7 +31,7 @@ export function getSettingsTabIcon(tab: SettingsTab) {
     case "appearance": return Paintbrush;
     case "extensions": return Puzzle;
     case "cowork": return Cloud;
-    case "connections": return Share2;
+    case "connections": return Network;
     case "environment": return Terminal;
     case "mcp": return Network;
     case "skills": return Sparkles;
