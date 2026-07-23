@@ -8,6 +8,7 @@ import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
 import { hasYoutubeCreds } from '../../services/credentials';
 import { computeSlots, schedulePost } from '../../services/scheduler';
+import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -55,6 +56,8 @@ export function NegociosView() {
           <p>Seus negócios digitais autônomos — cortes, criação de conteúdo e afiliados</p>
         </div>
       </div>
+
+      <ScheduleView />
 
       <div className="biz-types">
         {BIZ_TYPES.map((type) => <BizTypeSection key={type.id} type={type} />)}
@@ -217,7 +220,7 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
       if (res.error) setCortesErr(res.error);
       setCortesClips(res.clips);
     } finally {
-      setCortesBusy(false); setCortesMsg('');
+      setCortesBusy(false); setCortesMsgSafe(setCortesMsg);
     }
   };
 
