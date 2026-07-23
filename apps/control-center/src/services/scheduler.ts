@@ -84,14 +84,66 @@ export async function isPlatformEnabled(platform: string): Promise<boolean> {
   }
 }
 
-export async function schedulePost(p: { file: string; title: string; description?: string; tags?: string[]; at: number; platform?: PlatformId }): Promise<{ ok: boolean; error?: string }> {
+// ---------- Apps OAuth + contas conectadas (multi-conta) ----------
+export interface ConnectedAccount { id: string; platform: string; accountId: string; displayName?: string; }
+
+export async function setOauthApp(platform: string, creds: { clientId: string; clientSecret: string; scopes?: string }): Promise<{ ok: boolean; error?: string }> {
+  if (!isWorkerConfigured()) return { ok: false, error: 'Configure o Cowork Nuvem (worker) em Settings.' };
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/oauth/apps/${platform}`, { method: 'POST', headers: headers(), body: JSON.stringify(creds) });
+    if (!res.ok) return { ok: false, error: `Worker respondeu ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function isOauthAppConfigured(platform: string): Promise<boolean> {
+  if (!isWorkerConfigured()) return false;
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/oauth/apps/${platform}`, { headers: headers() });
+    if (!res.ok) return false;
+    const data = await res.json().catch(() => null);
+    return !!data?.configured;
+  } catch { return false; }
+}
+
+export async function listAccounts(platform?: string): Promise<ConnectedAccount[]> {
+  if (!isWorkerConfigured()) return [];
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/accounts${platform ? `?platform=${platform}` : ''}`, { headers: headers() });
+    if (!res.ok) return [];
+    const data = await res.json().catch(() => null);
+    return Array.isArray(data?.accounts) ? data.accounts : [];
+  } catch { return []; }
+}
+
+export async function disconnectAccount(id: string): Promise<boolean> {
+  if (!isWorkerConfigured()) return false;
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/accounts/${encodeURIComponent(id)}`, { method: 'DELETE', headers: headers() });
+    return res.ok;
+  } catch { return false; }
+}
+
+// URL para abrir o fluxo OAuth num popup (token vai na query pois é redirect de navegador).
+export function oauthStartUrl(platform: string): string {
+  const { url, token } = getWorkerConfig();
+  return `${url}/oauth/${platform}/start${token ? `?t=${encodeURIComponent(token)}` : ''}`;
+}
+
+export async function schedulePost(p: { file: string; title: string; description?: string; tags?: string[]; at: number; platform?: PlatformId; accountId?: string }): Promise<{ ok: boolean; error?: string }> {
   if (!isWorkerConfigured()) return { ok: false, error: 'Worker não configurado.' };
   const { url } = getWorkerConfig();
   try {
     const res = await fetch(`${url}/schedule`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ file: p.file, title: p.title, description: p.description ?? '', tags: p.tags ?? [], at: p.at, platform: p.platform ?? 'youtube' }),
+      body: JSON.stringify({ file: p.file, title: p.title, description: p.description ?? '', tags: p.tags ?? [], at: p.at, platform: p.platform ?? 'youtube', accountId: p.accountId }),
     });
     if (!res.ok) return { ok: false, error: `Worker respondeu ${res.status}` };
     return { ok: true };

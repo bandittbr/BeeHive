@@ -1,14 +1,16 @@
 // Conexões: credenciais das redes sociais para postagem automática.
-// YouTube (OAuth2) + Instagram/Facebook/TikTok. As credenciais são salvas
-// localmente e enviadas ao worker ("Ativar") para ele postar sozinho.
+// YouTube (OAuth2) + Instagram/Facebook (Meta) + TikTok multi-conta (OAuth).
 import { useState, useEffect } from "react";
 import { Video, CheckCircle2, Zap, Loader2 } from "lucide-react";
 import {
   getYoutubeCreds, setYoutubeCreds, type Privacy,
   getInstagramCreds, setInstagramCreds, getFacebookCreds, setFacebookCreds,
-  getTiktokCreds, setTiktokCreds,
 } from "@/services/credentials";
-import { enableAutoPosting, isAutoPostingEnabled, enablePlatform, isPlatformEnabled } from "@/services/scheduler";
+import {
+  enableAutoPosting, isAutoPostingEnabled, enablePlatform, isPlatformEnabled,
+  setOauthApp, isOauthAppConfigured, listAccounts, disconnectAccount, oauthStartUrl,
+  type ConnectedAccount,
+} from "@/services/scheduler";
 
 const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
 
@@ -48,20 +50,7 @@ export function ConnectionsView() {
         get={() => { const c = getFacebookCreds(); return { pageId: c.pageId, accessToken: c.accessToken }; }}
         set={(v) => setFacebookCreds({ pageId: v.pageId, accessToken: v.accessToken })}
       />
-      <MetaCard
-        title="TikTok"
-        platform="tiktok"
-        Icon={Video}
-        color="text-foreground"
-        fields={[
-          { key: "clientKey", label: "Client Key", placeholder: "aw...", type: "text" },
-          { key: "clientSecret", label: "Client Secret", placeholder: "...", type: "password" },
-          { key: "refreshToken", label: "Refresh Token", placeholder: "...", type: "password" },
-          { key: "privacyLevel", label: "Privacidade (SELF_ONLY até auditar o app)", placeholder: "SELF_ONLY", type: "text" },
-        ]}
-        get={() => { const c = getTiktokCreds(); return { clientKey: c.clientKey, clientSecret: c.clientSecret, refreshToken: c.refreshToken, privacyLevel: c.privacyLevel || "SELF_ONLY" }; }}
-        set={(v) => setTiktokCreds({ clientKey: v.clientKey, clientSecret: v.clientSecret, refreshToken: v.refreshToken, privacyLevel: v.privacyLevel })}
-      />
+      <TiktokConnect />
 
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-4">
         <CheckCircle2 size={16} className="mt-0.5 text-primary shrink-0" />
@@ -70,8 +59,8 @@ export function ConnectionsView() {
           <p>1. Crie um app em developers.facebook.com e ligue sua <strong>Página do Facebook</strong> a uma conta <strong>Instagram Profissional</strong>.</p>
           <p>2. No Graph API Explorer, gere um <strong>token de acesso da Página</strong> (long-lived) com as permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_basic</code> e <code>instagram_content_publish</code>.</p>
           <p>3. Pegue o <strong>ID da Página</strong> e o <strong>ig_user_id</strong> (Instagram Business ID) e cole acima. Publicar para outras contas exige revisão do app pela Meta.</p>
-          <p className="font-medium text-foreground pt-1">TikTok:</p>
-          <p>App em developers.tiktok.com com a <strong>Content Posting API</strong> e escopo <code>video.publish</code>. Cole Client Key/Secret e o Refresh Token da conta. Antes da auditoria do app, os posts saem como <strong>SELF_ONLY</strong> (privados).</p>
+          <p className="font-medium text-foreground pt-1">TikTok (multi-conta):</p>
+          <p>App em developers.tiktok.com com a <strong>Content Posting API</strong>, escopo <code>video.publish</code> e a <strong>Redirect URI</strong> = a URL do seu worker + <code>/oauth/tiktok/callback</code>. Salve o Client Key/Secret e conecte cada conta.</p>
         </div>
       </div>
     </div>
@@ -214,6 +203,90 @@ function MetaCard({ title, platform, Icon, color, fields, get, set }: {
         </button>
       </div>
       {err && <p className="mt-2 text-xs text-red-500">{err}</p>}
+    </div>
+  );
+}
+
+// TikTok multi-conta: configura o app OAuth uma vez e conecta várias contas.
+function TiktokConnect() {
+  const [clientKey, setClientKey] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+  const [saved, setSaved] = useState(false);
+  const [appOk, setAppOk] = useState(false);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
+  const [err, setErr] = useState("");
+
+  const reload = async () => {
+    setAppOk(await isOauthAppConfigured("tiktok"));
+    setAccounts(await listAccounts("tiktok"));
+  };
+  useEffect(() => { reload(); }, []);
+  useEffect(() => {
+    const onMsg = (e: MessageEvent) => { if ((e.data as { beehiveOauth?: boolean })?.beehiveOauth) reload(); };
+    window.addEventListener("message", onMsg);
+    return () => window.removeEventListener("message", onMsg);
+  }, []);
+
+  const saveApp = async () => {
+    setErr("");
+    const res = await setOauthApp("tiktok", { clientId: clientKey.trim(), clientSecret: clientSecret.trim() });
+    if (res.ok) { setSaved(true); setAppOk(true); setTimeout(() => setSaved(false), 2000); }
+    else setErr(res.error ?? "Falha ao salvar o app.");
+  };
+
+  const connect = () => {
+    const w = window.open(oauthStartUrl("tiktok"), "beehive_oauth", "width=600,height=820");
+    if (!w) setErr("Permita popups para conectar a conta.");
+    const iv = setInterval(async () => { if (w && w.closed) { clearInterval(iv); reload(); } }, 1000);
+  };
+
+  const remove = async (id: string) => {
+    if (await disconnectAccount(id)) setAccounts((a) => a.filter((x) => x.id !== id));
+  };
+
+  return (
+    <div className="rounded-lg border border-border p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <Video size={16} className="text-foreground" />
+        <h3 className="text-sm font-semibold">TikTok</h3>
+        {appOk && <span className="flex items-center gap-1 text-xs text-green-500"><CheckCircle2 size={12} /> app configurado</span>}
+      </div>
+
+      <div className="space-y-3">
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Client Key (do app TikTok)</label>
+          <input type="text" value={clientKey} onChange={(e) => setClientKey(e.target.value)} placeholder="aw..." className={inputCls} />
+        </div>
+        <div className="space-y-1.5">
+          <label className="text-sm font-medium">Client Secret</label>
+          <input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder="..." className={inputCls} />
+        </div>
+      </div>
+
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <button onClick={saveApp} className="flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground">
+          {saved ? (<><CheckCircle2 size={14} /> Salvo!</>) : "Salvar app"}
+        </button>
+        <button onClick={connect} disabled={!appOk} title={appOk ? "" : "Salve o app primeiro"} className="flex items-center gap-2 rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">
+          <Zap size={14} /> Conectar conta
+        </button>
+      </div>
+      {err && <p className="mt-2 text-xs text-red-500">{err}</p>}
+
+      {accounts.length > 0 && (
+        <div className="mt-3 space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">{accounts.length} conta(s) conectada(s):</p>
+          {accounts.map((a) => (
+            <div key={a.id} className="flex items-center justify-between rounded-lg border border-border bg-muted/20 px-3 py-2">
+              <span className="text-sm">{a.displayName || a.accountId}</span>
+              <button onClick={() => remove(a.id)} className="text-xs text-red-500 hover:underline">Desconectar</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Salve o Client Key/Secret do seu app TikTok (uma vez), depois clique em <strong>Conectar conta</strong> para cada perfil — cada um autoriza e fica salvo. O agendamento posta em todas as contas conectadas.
+      </p>
     </div>
   );
 }
