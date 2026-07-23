@@ -6,8 +6,8 @@ import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
-import { hasYoutubeCreds } from '../../services/credentials';
-import { computeSlots, schedulePost } from '../../services/scheduler';
+import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds } from '../../services/credentials';
+import { computeSlots, schedulePost, type PlatformId } from '../../services/scheduler';
 import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
@@ -176,23 +176,31 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
 
   const scheduleAll = async () => {
     if (schedBusy || cortesClips.length === 0) return;
-    if (!hasYoutubeCreds()) { setSchedMsg('Cadastre o YouTube em Settings → Conexões (e clique em "Ativar postagem automática").'); return; }
+    const networks: PlatformId[] = [];
+    if (hasYoutubeCreds()) networks.push('youtube');
+    if (hasInstagramCreds()) networks.push('instagram');
+    if (hasFacebookCreds()) networks.push('facebook');
+    if (networks.length === 0) { setSchedMsg('Configure ao menos uma rede em Settings → Conexões (e clique em "Ativar").'); return; }
     setSchedBusy(true); setSchedMsg('Agendando...');
     const slots = computeSlots(cortesClips.length, [biz.postSchedule || ''], biz.postsPerDay || 1);
-    let ok = 0;
+    let ok = 0, total = 0;
     for (let i = 0; i < cortesClips.length; i++) {
       const c = cortesClips[i];
-      const res = await schedulePost({
-        file: c.file,
-        title: c.title || `${biz.name} — corte ${i + 1}`,
-        description: biz.description || '',
-        tags: (biz.niche || biz.name).split(/[\s,]+/).filter(Boolean).slice(0, 10),
-        at: slots[i] ?? Date.now(),
-      });
-      if (res.ok) ok++;
+      for (const net of networks) {
+        total++;
+        const res = await schedulePost({
+          file: c.file,
+          title: c.title || `${biz.name} — corte ${i + 1}`,
+          description: biz.description || '',
+          tags: (biz.niche || biz.name).split(/[\s,]+/).filter(Boolean).slice(0, 10),
+          at: slots[i] ?? Date.now(),
+          platform: net,
+        });
+        if (res.ok) ok++;
+      }
     }
     const first = slots[0] ? new Date(slots[0]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-    setSchedMsg(`${ok}/${cortesClips.length} agendado(s). Primeiro: ${first}. O servidor publica sozinho.`);
+    setSchedMsg(`${ok}/${total} agendado(s) em ${networks.length} rede(s). Primeiro: ${first}. O servidor publica sozinho.`);
     setSchedBusy(false);
   };
 
