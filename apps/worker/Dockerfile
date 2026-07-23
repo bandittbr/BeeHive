@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg pyth
   && pip3 install --no-cache-dir yt-dlp
 
 COPY package.json ./
-RUN npm install --omit=dev --no-audit --no-fund \
-  && npm install --no-save typescript@5.7.3 tsx@4.19.2
+# instala TODAS as deps (incluindo @types e typescript) para o `tsc` compilar.
+# Sem isso (--omit=dev), o build falha por falta dos tipos de node/express/fetch.
+RUN npm install --no-audit --no-fund
 
 COPY tsconfig.json ./
 COPY src ./src
