@@ -1,7 +1,7 @@
 // Conexões: credenciais das redes sociais para postagem automática.
 // Começa pelo YouTube (OAuth2). O usuário cola clientId/secret/refreshToken.
 import { useState, useEffect } from "react";
-import { Youtube, Info, CheckCircle2, Zap, Loader2 } from "lucide-react";
+import { Video, CheckCircle2, Zap, Loader2 } from "lucide-react";
 import { getYoutubeCreds, setYoutubeCreds, type Privacy } from "@/services/credentials";
 import { enableAutoPosting, isAutoPostingEnabled } from "@/services/scheduler";
 
@@ -40,7 +40,7 @@ export function ConnectionsView() {
   return (
     <div className="space-y-6 max-w-xl">
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/30 p-4">
-        <Youtube size={18} className="mt-0.5 text-red-500" />
+        <Video size={18} className="mt-0.5 text-red-500" />
         <div className="text-sm text-muted-foreground">
           Cadastre as credenciais para o BeeHive publicar sozinho no seu canal. Só precisa fazer isso uma vez.
           Instagram, TikTok e Facebook entram em seguida com o mesmo esquema.
@@ -49,7 +49,7 @@ export function ConnectionsView() {
 
       <div className="rounded-lg border border-border p-4">
         <div className="flex items-center gap-2 mb-3">
-          <Youtube size={16} className="text-red-500" />
+          <Video size={16} className="text-red-500" />
           <h3 className="text-sm font-semibold">YouTube</h3>
         </div>
 
@@ -99,7 +99,7 @@ export function ConnectionsView() {
       </div>
 
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-4">
-        <Info size={16} className="mt-0.5 text-primary shrink-0" />
+        <CheckCircle2 size={16} className="mt-0.5 text-primary shrink-0" />
         <div className="text-xs text-muted-foreground space-y-1.5">
           <p className="font-medium text-foreground">Como conseguir (uma vez só):</p>
           <p>1. Em console.cloud.google.com, crie um projeto e ative a <strong>YouTube Data API v3</strong>.</p>
