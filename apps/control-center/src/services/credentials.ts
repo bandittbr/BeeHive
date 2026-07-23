@@ -82,3 +82,22 @@ export function hasFacebookCreds(): boolean {
   const c = getFacebookCreds();
   return !!(c.pageId && c.accessToken);
 }
+
+// ---------- TikTok (Content Posting API) ----------
+export interface TiktokCreds { clientKey: string; clientSecret: string; refreshToken: string; privacyLevel?: string; }
+const LS_TT = 'beehive.creds.tiktok';
+const EMPTY_TT: TiktokCreds = { clientKey: '', clientSecret: '', refreshToken: '', privacyLevel: 'SELF_ONLY' };
+
+export function getTiktokCreds(): TiktokCreds {
+  try {
+    const raw = localStorage.getItem(LS_TT);
+    return raw ? { ...EMPTY_TT, ...(JSON.parse(raw) as Partial<TiktokCreds>) } : { ...EMPTY_TT };
+  } catch { return { ...EMPTY_TT }; }
+}
+export function setTiktokCreds(c: TiktokCreds): void {
+  try { localStorage.setItem(LS_TT, JSON.stringify({ clientKey: c.clientKey.trim(), clientSecret: c.clientSecret.trim(), refreshToken: c.refreshToken.trim(), privacyLevel: c.privacyLevel || 'SELF_ONLY' })); } catch { /* ignore */ }
+}
+export function hasTiktokCreds(): boolean {
+  const c = getTiktokCreds();
+  return !!(c.clientKey && c.clientSecret && c.refreshToken);
+}

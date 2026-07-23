@@ -1,11 +1,12 @@
 // Conexões: credenciais das redes sociais para postagem automática.
-// YouTube (OAuth2) + Instagram/Facebook (Meta Graph API). As credenciais são
-// salvas localmente e enviadas ao worker ("Ativar") para ele postar sozinho.
+// YouTube (OAuth2) + Instagram/Facebook/TikTok. As credenciais são salvas
+// localmente e enviadas ao worker ("Ativar") para ele postar sozinho.
 import { useState, useEffect } from "react";
 import { Video, CheckCircle2, Zap, Loader2 } from "lucide-react";
 import {
   getYoutubeCreds, setYoutubeCreds, type Privacy,
   getInstagramCreds, setInstagramCreds, getFacebookCreds, setFacebookCreds,
+  getTiktokCreds, setTiktokCreds,
 } from "@/services/credentials";
 import { enableAutoPosting, isAutoPostingEnabled, enablePlatform, isPlatformEnabled } from "@/services/scheduler";
 
@@ -47,6 +48,20 @@ export function ConnectionsView() {
         get={() => { const c = getFacebookCreds(); return { pageId: c.pageId, accessToken: c.accessToken }; }}
         set={(v) => setFacebookCreds({ pageId: v.pageId, accessToken: v.accessToken })}
       />
+      <MetaCard
+        title="TikTok"
+        platform="tiktok"
+        Icon={Video}
+        color="text-foreground"
+        fields={[
+          { key: "clientKey", label: "Client Key", placeholder: "aw...", type: "text" },
+          { key: "clientSecret", label: "Client Secret", placeholder: "...", type: "password" },
+          { key: "refreshToken", label: "Refresh Token", placeholder: "...", type: "password" },
+          { key: "privacyLevel", label: "Privacidade (SELF_ONLY até auditar o app)", placeholder: "SELF_ONLY", type: "text" },
+        ]}
+        get={() => { const c = getTiktokCreds(); return { clientKey: c.clientKey, clientSecret: c.clientSecret, refreshToken: c.refreshToken, privacyLevel: c.privacyLevel || "SELF_ONLY" }; }}
+        set={(v) => setTiktokCreds({ clientKey: v.clientKey, clientSecret: v.clientSecret, refreshToken: v.refreshToken, privacyLevel: v.privacyLevel })}
+      />
 
       <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 p-4">
         <CheckCircle2 size={16} className="mt-0.5 text-primary shrink-0" />
@@ -55,6 +70,8 @@ export function ConnectionsView() {
           <p>1. Crie um app em developers.facebook.com e ligue sua <strong>Página do Facebook</strong> a uma conta <strong>Instagram Profissional</strong>.</p>
           <p>2. No Graph API Explorer, gere um <strong>token de acesso da Página</strong> (long-lived) com as permissões <code>pages_show_list</code>, <code>pages_read_engagement</code>, <code>pages_manage_posts</code>, <code>instagram_basic</code> e <code>instagram_content_publish</code>.</p>
           <p>3. Pegue o <strong>ID da Página</strong> e o <strong>ig_user_id</strong> (Instagram Business ID) e cole acima. Publicar para outras contas exige revisão do app pela Meta.</p>
+          <p className="font-medium text-foreground pt-1">TikTok:</p>
+          <p>App em developers.tiktok.com com a <strong>Content Posting API</strong> e escopo <code>video.publish</code>. Cole Client Key/Secret e o Refresh Token da conta. Antes da auditoria do app, os posts saem como <strong>SELF_ONLY</strong> (privados).</p>
         </div>
       </div>
     </div>
