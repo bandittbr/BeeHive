@@ -55,7 +55,7 @@ app.get('/files/:name(*)', (req, res) => {
   const ok = !AUTH_TOKEN || req.header('authorization') === `Bearer ${AUTH_TOKEN}` || q === AUTH_TOKEN;
   if (!ok) return res.status(401).json({ error: 'unauthorized' });
   try {
-    const abs = resolveInWorkspace(req.params.name);
+    const abs = resolveInWorkspace((req.params as Record<string, string>).name);
     if (!fs.existsSync(abs)) return res.status(404).json({ error: 'not found' });
     res.sendFile(abs);
   } catch {
