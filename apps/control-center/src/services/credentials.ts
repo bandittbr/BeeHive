@@ -44,3 +44,41 @@ export function hasYoutubeCreds(): boolean {
   const c = getYoutubeCreds();
   return !!(c.clientId && c.clientSecret && c.refreshToken);
 }
+
+// ---------- Instagram (Reels via Graph API) ----------
+export interface InstagramCreds { igUserId: string; accessToken: string; }
+const LS_IG = 'beehive.creds.instagram';
+const EMPTY_IG: InstagramCreds = { igUserId: '', accessToken: '' };
+
+export function getInstagramCreds(): InstagramCreds {
+  try {
+    const raw = localStorage.getItem(LS_IG);
+    return raw ? { ...EMPTY_IG, ...(JSON.parse(raw) as Partial<InstagramCreds>) } : { ...EMPTY_IG };
+  } catch { return { ...EMPTY_IG }; }
+}
+export function setInstagramCreds(c: InstagramCreds): void {
+  try { localStorage.setItem(LS_IG, JSON.stringify({ igUserId: c.igUserId.trim(), accessToken: c.accessToken.trim() })); } catch { /* ignore */ }
+}
+export function hasInstagramCreds(): boolean {
+  const c = getInstagramCreds();
+  return !!(c.igUserId && c.accessToken);
+}
+
+// ---------- Facebook (vídeo na Página via Graph API) ----------
+export interface FacebookCreds { pageId: string; accessToken: string; }
+const LS_FB = 'beehive.creds.facebook';
+const EMPTY_FB: FacebookCreds = { pageId: '', accessToken: '' };
+
+export function getFacebookCreds(): FacebookCreds {
+  try {
+    const raw = localStorage.getItem(LS_FB);
+    return raw ? { ...EMPTY_FB, ...(JSON.parse(raw) as Partial<FacebookCreds>) } : { ...EMPTY_FB };
+  } catch { return { ...EMPTY_FB }; }
+}
+export function setFacebookCreds(c: FacebookCreds): void {
+  try { localStorage.setItem(LS_FB, JSON.stringify({ pageId: c.pageId.trim(), accessToken: c.accessToken.trim() })); } catch { /* ignore */ }
+}
+export function hasFacebookCreds(): boolean {
+  const c = getFacebookCreds();
+  return !!(c.pageId && c.accessToken);
+}

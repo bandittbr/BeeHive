@@ -3,9 +3,11 @@
 import { getWorkerConfig, isWorkerConfigured } from './worker';
 import { getYoutubeCreds, hasYoutubeCreds } from './credentials';
 
+export type PlatformId = 'youtube' | 'instagram' | 'facebook' | 'tiktok';
+
 export interface ScheduledPost {
   id: string;
-  platform: 'youtube';
+  platform: PlatformId;
   file: string;
   title: string;
   description: string;
@@ -56,14 +58,40 @@ export async function isAutoPostingEnabled(): Promise<boolean> {
   }
 }
 
-export async function schedulePost(p: { file: string; title: string; description?: string; tags?: string[]; at: number }): Promise<{ ok: boolean; error?: string }> {
+// Ativa uma rede genérica (instagram/facebook/...) enviando suas credenciais ao servidor.
+export async function enablePlatform(platform: string, creds: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  if (!isWorkerConfigured()) return { ok: false, error: 'Configure o Cowork Nuvem (worker) em Settings.' };
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/creds/${platform}`, { method: 'POST', headers: headers(), body: JSON.stringify(creds) });
+    if (!res.ok) return { ok: false, error: `Worker respondeu ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+export async function isPlatformEnabled(platform: string): Promise<boolean> {
+  if (!isWorkerConfigured()) return false;
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/creds/${platform}`, { headers: headers() });
+    if (!res.ok) return false;
+    const data = await res.json().catch(() => null);
+    return !!data?.configured;
+  } catch {
+    return false;
+  }
+}
+
+export async function schedulePost(p: { file: string; title: string; description?: string; tags?: string[]; at: number; platform?: PlatformId }): Promise<{ ok: boolean; error?: string }> {
   if (!isWorkerConfigured()) return { ok: false, error: 'Worker não configurado.' };
   const { url } = getWorkerConfig();
   try {
     const res = await fetch(`${url}/schedule`, {
       method: 'POST',
       headers: headers(),
-      body: JSON.stringify({ file: p.file, title: p.title, description: p.description ?? '', tags: p.tags ?? [], at: p.at }),
+      body: JSON.stringify({ file: p.file, title: p.title, description: p.description ?? '', tags: p.tags ?? [], at: p.at, platform: p.platform ?? 'youtube' }),
     });
     if (!res.ok) return { ok: false, error: `Worker respondeu ${res.status}` };
     return { ok: true };
