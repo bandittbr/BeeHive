@@ -1,7 +1,5 @@
-// Armazenamento do worker: fila de posts agendados + credenciais das redes.
-// Usa Supabase (REST/PostgREST com service_role) quando SUPABASE_URL e
-// SUPABASE_SERVICE_KEY estão definidos; senão cai num arquivo JSON no workspace.
-// A API é assíncrona para funcionar igual nos dois modos.
+// Armazenamento do worker: fila de posts + credenciais + contas OAuth conectadas.
+// Usa Supabase (PostgREST/service_role) quando configurado; senão arquivo JSON.
 import fs from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_ROOT } from './workspace.js';
@@ -22,11 +20,30 @@ export interface ScheduledPost {
   title: string;
   description: string;
   tags: string[];
-  at: number; // epoch ms em que deve ser publicado
+  at: number;
   status: 'pending' | 'publishing' | 'done' | 'error';
   url?: string;
   error?: string;
   createdAt: number;
+  accountId?: string;
+}
+
+export interface OauthApp {
+  clientId: string;
+  clientSecret: string;
+  redirectUri?: string;
+  scopes?: string;
+}
+
+export interface ConnectedAccount {
+  id: string;            // `${platform}:${accountId}`
+  platform: string;
+  accountId: string;
+  displayName?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  extra?: Record<string, unknown>;
 }
 
 const SUPABASE_URL = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '');
@@ -37,18 +54,14 @@ export function storageMode(): 'supabase' | 'file' {
   return useSupabase ? 'supabase' : 'file';
 }
 
-// ---------- Supabase (PostgREST) ----------
 function sbHeaders(extra: Record<string, string> = {}): Record<string, string> {
-  return {
-    apikey: SUPABASE_KEY,
-    authorization: `Bearer ${SUPABASE_KEY}`,
-    'content-type': 'application/json',
-    ...extra,
-  };
+  return { apikey: SUPABASE_KEY, authorization: `Bearer ${SUPABASE_KEY}`, 'content-type': 'application/json', ...extra };
 }
 const CREDS = `${SUPABASE_URL}/rest/v1/beehive_youtube_creds`;
 const PCREDS = `${SUPABASE_URL}/rest/v1/beehive_platform_creds`;
 const POSTS = `${SUPABASE_URL}/rest/v1/beehive_posts`;
+const OAUTH = `${SUPABASE_URL}/rest/v1/beehive_oauth_apps`;
+const ACCOUNTS = `${SUPABASE_URL}/rest/v1/beehive_accounts`;
 
 function rowToPost(r: any): ScheduledPost {
   return {
@@ -63,26 +76,40 @@ function rowToPost(r: any): ScheduledPost {
     url: r.url ?? undefined,
     error: r.error ?? undefined,
     createdAt: Number(r.created_at),
+    accountId: r.account_id ?? undefined,
+  };
+}
+function rowToAccount(r: any): ConnectedAccount {
+  return {
+    id: String(r.id),
+    platform: r.platform,
+    accountId: r.account_id,
+    displayName: r.display_name ?? undefined,
+    accessToken: r.access_token ?? undefined,
+    refreshToken: r.refresh_token ?? undefined,
+    expiresAt: r.expires_at ? Number(r.expires_at) : undefined,
+    extra: r.extra ?? undefined,
   };
 }
 
-// ---------- Arquivo (fallback) ----------
+// ---------- arquivo (fallback) ----------
 const FILE = path.join(WORKSPACE_ROOT, '.beehive-store.json');
-interface FileData { youtube?: YoutubeCreds; platformCreds?: Record<string, Record<string, unknown>>; posts: ScheduledPost[]; }
+interface FileData {
+  youtube?: YoutubeCreds;
+  platformCreds?: Record<string, Record<string, unknown>>;
+  oauthApps?: Record<string, OauthApp>;
+  accounts?: Record<string, ConnectedAccount>;
+  posts: ScheduledPost[];
+}
 function fileLoad(): FileData {
   try {
     const d = JSON.parse(fs.readFileSync(FILE, 'utf8')) as FileData;
     if (!Array.isArray(d.posts)) d.posts = [];
     return d;
-  } catch {
-    return { posts: [] };
-  }
+  } catch { return { posts: [] }; }
 }
 function fileSave(d: FileData): void {
-  try {
-    fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(d, null, 2), 'utf8');
-  } catch { /* ignore */ }
+  try { fs.mkdirSync(WORKSPACE_ROOT, { recursive: true }); fs.writeFileSync(FILE, JSON.stringify(d, null, 2), 'utf8'); } catch { /* ignore */ }
 }
 
 // ---------- YouTube creds ----------
@@ -97,27 +124,20 @@ export async function getYoutubeCreds(): Promise<YoutubeCreds | null> {
   }
   return fileLoad().youtube ?? null;
 }
-
 export async function setYoutubeCreds(c: YoutubeCreds): Promise<void> {
   if (useSupabase) {
-    await fetch(CREDS, {
-      method: 'POST',
-      headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ id: 1, client_id: c.clientId, client_secret: c.clientSecret, refresh_token: c.refreshToken, privacy_status: c.privacyStatus ?? 'public', updated_at: new Date().toISOString() }),
-    });
+    await fetch(CREDS, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ id: 1, client_id: c.clientId, client_secret: c.clientSecret, refresh_token: c.refreshToken, privacy_status: c.privacyStatus ?? 'public', updated_at: new Date().toISOString() }) });
     return;
   }
-  const d = fileLoad();
-  d.youtube = c;
-  fileSave(d);
+  const d = fileLoad(); d.youtube = c; fileSave(d);
 }
-
 export async function hasYoutubeCreds(): Promise<boolean> {
   const c = await getYoutubeCreds();
   return !!(c && c.clientId && c.clientSecret && c.refreshToken);
 }
 
-// ---------- Credenciais genéricas por rede (instagram/facebook/tiktok) ----------
+// ---------- creds genéricas por rede ----------
 export async function getPlatformCreds(platform: string): Promise<Record<string, unknown> | null> {
   if (useSupabase) {
     const res = await fetch(`${PCREDS}?platform=eq.${encodeURIComponent(platform)}&select=data`, { headers: sbHeaders() });
@@ -127,25 +147,93 @@ export async function getPlatformCreds(platform: string): Promise<Record<string,
   }
   return fileLoad().platformCreds?.[platform] ?? null;
 }
-
 export async function setPlatformCreds(platform: string, data: Record<string, unknown>): Promise<void> {
   if (useSupabase) {
-    await fetch(PCREDS, {
-      method: 'POST',
-      headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ platform, data, updated_at: new Date().toISOString() }),
-    });
+    await fetch(PCREDS, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ platform, data, updated_at: new Date().toISOString() }) });
     return;
   }
-  const d = fileLoad();
-  d.platformCreds = d.platformCreds ?? {};
-  d.platformCreds[platform] = data;
-  fileSave(d);
+  const d = fileLoad(); d.platformCreds = d.platformCreds ?? {}; d.platformCreds[platform] = data; fileSave(d);
 }
-
 export async function hasPlatformCreds(platform: string): Promise<boolean> {
   const c = await getPlatformCreds(platform);
   return !!c && Object.keys(c).length > 0;
+}
+
+// ---------- OAuth apps ----------
+export async function getOauthApp(platform: string): Promise<OauthApp | null> {
+  if (useSupabase) {
+    const res = await fetch(`${OAUTH}?platform=eq.${encodeURIComponent(platform)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    const r = rows[0];
+    if (!r) return null;
+    return { clientId: r.client_id, clientSecret: r.client_secret, redirectUri: r.redirect_uri ?? undefined, scopes: r.scopes ?? undefined };
+  }
+  return fileLoad().oauthApps?.[platform] ?? null;
+}
+export async function setOauthApp(platform: string, app: OauthApp): Promise<void> {
+  if (useSupabase) {
+    await fetch(OAUTH, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ platform, client_id: app.clientId, client_secret: app.clientSecret, redirect_uri: app.redirectUri ?? null, scopes: app.scopes ?? null, updated_at: new Date().toISOString() }) });
+    return;
+  }
+  const d = fileLoad(); d.oauthApps = d.oauthApps ?? {}; d.oauthApps[platform] = app; fileSave(d);
+}
+export async function hasOauthApp(platform: string): Promise<boolean> {
+  const a = await getOauthApp(platform);
+  return !!(a && a.clientId && a.clientSecret);
+}
+
+// ---------- Contas conectadas ----------
+export async function listAccounts(platform?: string): Promise<ConnectedAccount[]> {
+  if (useSupabase) {
+    const q = platform ? `?platform=eq.${encodeURIComponent(platform)}&select=*&order=created_at.asc` : `?select=*&order=created_at.asc`;
+    const res = await fetch(`${ACCOUNTS}${q}`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToAccount);
+  }
+  const all = Object.values(fileLoad().accounts ?? {});
+  return platform ? all.filter((a) => a.platform === platform) : all;
+}
+export async function getAccount(id: string): Promise<ConnectedAccount | null> {
+  if (useSupabase) {
+    const res = await fetch(`${ACCOUNTS}?id=eq.${encodeURIComponent(id)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToAccount(rows[0]) : null;
+  }
+  return fileLoad().accounts?.[id] ?? null;
+}
+export async function upsertAccount(a: ConnectedAccount): Promise<void> {
+  const now = Date.now();
+  if (useSupabase) {
+    await fetch(ACCOUNTS, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ id: a.id, platform: a.platform, account_id: a.accountId, display_name: a.displayName ?? null,
+        access_token: a.accessToken ?? null, refresh_token: a.refreshToken ?? null, expires_at: a.expiresAt ?? null, extra: a.extra ?? {}, created_at: now, updated_at: now }) });
+    return;
+  }
+  const d = fileLoad(); d.accounts = d.accounts ?? {}; d.accounts[a.id] = a; fileSave(d);
+}
+export async function updateAccountTokens(id: string, fields: { accessToken?: string; refreshToken?: string; expiresAt?: number }): Promise<void> {
+  if (useSupabase) {
+    const body: Record<string, unknown> = { updated_at: Date.now() };
+    if (fields.accessToken !== undefined) body.access_token = fields.accessToken;
+    if (fields.refreshToken !== undefined) body.refresh_token = fields.refreshToken;
+    if (fields.expiresAt !== undefined) body.expires_at = fields.expiresAt;
+    await fetch(`${ACCOUNTS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=minimal' }), body: JSON.stringify(body) });
+    return;
+  }
+  const d = fileLoad(); const a = d.accounts?.[id];
+  if (a) { Object.assign(a, fields); fileSave(d); }
+}
+export async function removeAccount(id: string): Promise<boolean> {
+  if (useSupabase) {
+    const res = await fetch(`${ACCOUNTS}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
+    return res.ok;
+  }
+  const d = fileLoad(); if (d.accounts?.[id]) { delete d.accounts[id]; fileSave(d); return true; } return false;
 }
 
 // ---------- Posts ----------
@@ -158,7 +246,6 @@ export async function listPosts(): Promise<ScheduledPost[]> {
   }
   return fileLoad().posts.slice().sort((a, b) => a.at - b.at);
 }
-
 export async function getDuePosts(now: number): Promise<ScheduledPost[]> {
   if (useSupabase) {
     const res = await fetch(`${POSTS}?select=*&status=eq.pending&at=lte.${now}&order=at.asc`, { headers: sbHeaders() });
@@ -168,45 +255,26 @@ export async function getDuePosts(now: number): Promise<ScheduledPost[]> {
   }
   return fileLoad().posts.filter((p) => p.status === 'pending' && p.at <= now);
 }
-
 export async function addPost(p: Omit<ScheduledPost, 'id' | 'status' | 'createdAt'>): Promise<ScheduledPost> {
   const post: ScheduledPost = { ...p, id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, status: 'pending', createdAt: Date.now() };
   if (useSupabase) {
-    await fetch(POSTS, {
-      method: 'POST',
-      headers: sbHeaders({ prefer: 'return=minimal' }),
-      body: JSON.stringify({ id: post.id, platform: post.platform, file: post.file, title: post.title, description: post.description, tags: post.tags, at: post.at, status: post.status, created_at: post.createdAt }),
-    });
+    await fetch(POSTS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ id: post.id, platform: post.platform, file: post.file, title: post.title, description: post.description, tags: post.tags, at: post.at, status: post.status, created_at: post.createdAt, account_id: post.accountId ?? null }) });
     return post;
   }
-  const d = fileLoad();
-  d.posts.push(post);
-  fileSave(d);
-  return post;
+  const d = fileLoad(); d.posts.push(post); fileSave(d); return post;
 }
-
 export async function updatePost(id: string, fields: Partial<Pick<ScheduledPost, 'status' | 'url' | 'error'>>): Promise<void> {
   if (useSupabase) {
-    await fetch(`${POSTS}?id=eq.${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: sbHeaders({ prefer: 'return=minimal' }),
-      body: JSON.stringify(fields),
-    });
+    await fetch(`${POSTS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=minimal' }), body: JSON.stringify(fields) });
     return;
   }
-  const d = fileLoad();
-  const p = d.posts.find((x) => x.id === id);
-  if (p) { Object.assign(p, fields); fileSave(d); }
+  const d = fileLoad(); const p = d.posts.find((x) => x.id === id); if (p) { Object.assign(p, fields); fileSave(d); }
 }
-
 export async function removePost(id: string): Promise<boolean> {
   if (useSupabase) {
     const res = await fetch(`${POSTS}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
     return res.ok;
   }
-  const d = fileLoad();
-  const before = d.posts.length;
-  d.posts = d.posts.filter((x) => x.id !== id);
-  fileSave(d);
-  return d.posts.length < before;
+  const d = fileLoad(); const before = d.posts.length; d.posts = d.posts.filter((x) => x.id !== id); fileSave(d); return d.posts.length < before;
 }
