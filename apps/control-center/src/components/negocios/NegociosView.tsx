@@ -1,12 +1,13 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, Youtube, Check } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, Youtube, Check, Clock } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
 import { hasYoutubeCreds } from '../../services/credentials';
+import { computeSlots, schedulePost } from '../../services/scheduler';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -166,6 +167,31 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
   const [cortesClips, setCortesClips] = useState<CorteClip[]>([]);
   // publicação por clipe (índice → estado)
   const [pub, setPub] = useState<Record<number, { busy?: boolean; url?: string; err?: string }>>({});
+  // agendamento em lote
+  const [schedBusy, setSchedBusy] = useState(false);
+  const [schedMsg, setSchedMsg] = useState('');
+
+  const scheduleAll = async () => {
+    if (schedBusy || cortesClips.length === 0) return;
+    if (!hasYoutubeCreds()) { setSchedMsg('Cadastre o YouTube em Settings → Conexões (e clique em "Ativar postagem automática").'); return; }
+    setSchedBusy(true); setSchedMsg('Agendando...');
+    const slots = computeSlots(cortesClips.length, [biz.postSchedule || ''], biz.postsPerDay || 1);
+    let ok = 0;
+    for (let i = 0; i < cortesClips.length; i++) {
+      const c = cortesClips[i];
+      const res = await schedulePost({
+        file: c.file,
+        title: c.title || `${biz.name} — corte ${i + 1}`,
+        description: biz.description || '',
+        tags: (biz.niche || biz.name).split(/[\s,]+/).filter(Boolean).slice(0, 10),
+        at: slots[i] ?? Date.now(),
+      });
+      if (res.ok) ok++;
+    }
+    const first = slots[0] ? new Date(slots[0]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
+    setSchedMsg(`${ok}/${cortesClips.length} agendado(s). Primeiro: ${first}. O servidor publica sozinho.`);
+    setSchedBusy(false);
+  };
 
   const publishClip = async (i: number, c: CorteClip) => {
     if (pub[i]?.busy) return;
@@ -280,7 +306,19 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
           {cortesErr && <p style={{ fontSize: 11.5, color: 'var(--danger)', marginTop: 8 }}>{cortesErr}</p>}
           {cortesClips.length > 0 && (
             <div style={{ marginTop: 10 }}>
-              <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 8 }}>{cortesClips.length} corte(s) gerado(s):</p>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
+                <p style={{ fontSize: 11.5, color: 'var(--text-secondary)', margin: 0 }}>{cortesClips.length} corte(s) gerado(s):</p>
+                <button
+                  onClick={scheduleAll}
+                  disabled={schedBusy}
+                  title="Agendar todos nos horários do negócio"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '5px 10px', borderRadius: 6, border: 'none', cursor: schedBusy ? 'default' : 'pointer', color: 'white', background: color, opacity: schedBusy ? 0.6 : 1, whiteSpace: 'nowrap' }}
+                >
+                  {schedBusy ? <Loader2 size={12} className="spin" /> : <Clock size={12} />}
+                  {schedBusy ? 'Agendando...' : 'Agendar postagens'}
+                </button>
+              </div>
+              {schedMsg && <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{schedMsg}</p>}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 10 }}>
                 {cortesClips.map((c, i) => (
                   <div key={i} style={{ background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 10, overflow: 'hidden' }}>
