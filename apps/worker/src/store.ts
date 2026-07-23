@@ -1,6 +1,7 @@
-// Armazenamento persistente do worker: fila de posts agendados + credenciais
-// das redes. Grava um JSON no workspace para sobreviver a reinícios (recomenda-se
-// um volume do Railway montado no workspace para durabilidade real).
+// Armazenamento do worker: fila de posts agendados + credenciais das redes.
+// Usa Supabase (REST/PostgREST com service_role) quando SUPABASE_URL e
+// SUPABASE_SERVICE_KEY estão definidos; senão cai num arquivo JSON no workspace.
+// A API é assíncrona para funcionar igual nos dois modos.
 import fs from 'node:fs';
 import path from 'node:path';
 import { WORKSPACE_ROOT } from './workspace.js';
@@ -26,56 +27,151 @@ export interface ScheduledPost {
   createdAt: number;
 }
 
-export interface StoreData {
-  youtube?: YoutubeCreds;
-  posts: ScheduledPost[];
+const SUPABASE_URL = (process.env.SUPABASE_URL ?? '').replace(/\/+$/, '');
+const SUPABASE_KEY = process.env.SUPABASE_SERVICE_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY ?? '';
+const useSupabase = !!(SUPABASE_URL && SUPABASE_KEY);
+
+export function storageMode(): 'supabase' | 'file' {
+  return useSupabase ? 'supabase' : 'file';
 }
 
-const FILE = path.join(WORKSPACE_ROOT, '.beehive-store.json');
+// ---------- Supabase (PostgREST) ----------
+function sbHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    apikey: SUPABASE_KEY,
+    authorization: `Bearer ${SUPABASE_KEY}`,
+    'content-type': 'application/json',
+    ...extra,
+  };
+}
+const CREDS = `${SUPABASE_URL}/rest/v1/beehive_youtube_creds`;
+const POSTS = `${SUPABASE_URL}/rest/v1/beehive_posts`;
 
-export function loadStore(): StoreData {
+function rowToPost(r: any): ScheduledPost {
+  return {
+    id: String(r.id),
+    platform: 'youtube',
+    file: r.file,
+    title: r.title ?? '',
+    description: r.description ?? '',
+    tags: Array.isArray(r.tags) ? r.tags : [],
+    at: Number(r.at),
+    status: r.status,
+    url: r.url ?? undefined,
+    error: r.error ?? undefined,
+    createdAt: Number(r.created_at),
+  };
+}
+
+// ---------- Arquivo (fallback) ----------
+const FILE = path.join(WORKSPACE_ROOT, '.beehive-store.json');
+interface FileData { youtube?: YoutubeCreds; posts: ScheduledPost[]; }
+function fileLoad(): FileData {
   try {
-    const raw = fs.readFileSync(FILE, 'utf8');
-    const data = JSON.parse(raw) as StoreData;
-    if (!Array.isArray(data.posts)) data.posts = [];
-    return data;
+    const d = JSON.parse(fs.readFileSync(FILE, 'utf8')) as FileData;
+    if (!Array.isArray(d.posts)) d.posts = [];
+    return d;
   } catch {
     return { posts: [] };
   }
 }
-
-export function saveStore(data: StoreData): void {
+function fileSave(d: FileData): void {
   try {
     fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });
-    fs.writeFileSync(FILE, JSON.stringify(data, null, 2), 'utf8');
-  } catch {
-    /* ignore */
+    fs.writeFileSync(FILE, JSON.stringify(d, null, 2), 'utf8');
+  } catch { /* ignore */ }
+}
+
+// ---------- API pública (assíncrona) ----------
+export async function getYoutubeCreds(): Promise<YoutubeCreds | null> {
+  if (useSupabase) {
+    const res = await fetch(`${CREDS}?id=eq.1&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    const r = rows[0];
+    if (!r) return null;
+    return { clientId: r.client_id, clientSecret: r.client_secret, refreshToken: r.refresh_token, privacyStatus: r.privacy_status };
   }
+  return fileLoad().youtube ?? null;
 }
 
-export function setYoutubeCreds(creds: YoutubeCreds): void {
-  const data = loadStore();
-  data.youtube = creds;
-  saveStore(data);
+export async function setYoutubeCreds(c: YoutubeCreds): Promise<void> {
+  if (useSupabase) {
+    await fetch(CREDS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
+      body: JSON.stringify({ id: 1, client_id: c.clientId, client_secret: c.clientSecret, refresh_token: c.refreshToken, privacy_status: c.privacyStatus ?? 'public', updated_at: new Date().toISOString() }),
+    });
+    return;
+  }
+  const d = fileLoad();
+  d.youtube = c;
+  fileSave(d);
 }
 
-export function hasYoutubeCreds(): boolean {
-  const c = loadStore().youtube;
+export async function hasYoutubeCreds(): Promise<boolean> {
+  const c = await getYoutubeCreds();
   return !!(c && c.clientId && c.clientSecret && c.refreshToken);
 }
 
-export function addPost(p: Omit<ScheduledPost, 'id' | 'status' | 'createdAt'>): ScheduledPost {
-  const data = loadStore();
+export async function listPosts(): Promise<ScheduledPost[]> {
+  if (useSupabase) {
+    const res = await fetch(`${POSTS}?select=*&order=at.asc`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToPost);
+  }
+  return fileLoad().posts.slice().sort((a, b) => a.at - b.at);
+}
+
+export async function getDuePosts(now: number): Promise<ScheduledPost[]> {
+  if (useSupabase) {
+    const res = await fetch(`${POSTS}?select=*&status=eq.pending&at=lte.${now}&order=at.asc`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToPost);
+  }
+  return fileLoad().posts.filter((p) => p.status === 'pending' && p.at <= now);
+}
+
+export async function addPost(p: Omit<ScheduledPost, 'id' | 'status' | 'createdAt'>): Promise<ScheduledPost> {
   const post: ScheduledPost = { ...p, id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, status: 'pending', createdAt: Date.now() };
-  data.posts.push(post);
-  saveStore(data);
+  if (useSupabase) {
+    await fetch(POSTS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ id: post.id, platform: post.platform, file: post.file, title: post.title, description: post.description, tags: post.tags, at: post.at, status: post.status, created_at: post.createdAt }),
+    });
+    return post;
+  }
+  const d = fileLoad();
+  d.posts.push(post);
+  fileSave(d);
   return post;
 }
 
-export function removePost(id: string): boolean {
-  const data = loadStore();
-  const before = data.posts.length;
-  data.posts = data.posts.filter((p) => p.id !== id);
-  saveStore(data);
-  return data.posts.length < before;
+export async function updatePost(id: string, fields: Partial<Pick<ScheduledPost, 'status' | 'url' | 'error'>>): Promise<void> {
+  if (useSupabase) {
+    await fetch(`${POSTS}?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify(fields),
+    });
+    return;
+  }
+  const d = fileLoad();
+  const p = d.posts.find((x) => x.id === id);
+  if (p) { Object.assign(p, fields); fileSave(d); }
+}
+
+export async function removePost(id: string): Promise<boolean> {
+  if (useSupabase) {
+    const res = await fetch(`${POSTS}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
+    return res.ok;
+  }
+  const d = fileLoad();
+  const before = d.posts.length;
+  d.posts = d.posts.filter((x) => x.id !== id);
+  fileSave(d);
+  return d.posts.length < before;
 }
