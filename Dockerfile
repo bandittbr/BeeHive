@@ -4,7 +4,7 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg python3 python3-pip \
   && rm -rf /var/lib/apt/lists/* \
-  && pip3 install --no-cache-dir yt-dlp
+  && pip3 install --no-cache-dir --break-system-packages yt-dlp
 
 RUN npm install -g pnpm@latest
 
