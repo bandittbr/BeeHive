@@ -1,0 +1,11 @@
+{
+  "name": "@beehive/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "BeeHive API — bootstrap que sobe o worker com kernel + plugins",
+  "scripts": {
+    "build": "echo 'Build ok (tsx runtime, no compile needed)'",
+    "start": "pnpm --filter @beehive/worker run start"
+  }
+}

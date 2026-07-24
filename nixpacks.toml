@@ -1,6 +1,5 @@
-# Nixpacks config for BeeHive API backend on Railway
-# Só sobe o backend (apps/api). O frontend (apps/web) fica no Vercel.
-# rebuild trigger: use get-pip.py to install pip into nix python
+# Nixpacks config for BeeHive Worker backend on Railway
+# Sobe o worker (apps/worker) com kernel + plugins. O frontend (apps/control-center) fica no Vercel.
 
 [phases.setup]
 nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ffmpeg", "curl"]
@@ -15,7 +14,7 @@ cmds = [
 ]
 
 [start]
-cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; echo \"[start] libstdcxx=$L libgomp=$G\"; pnpm --filter @beehive/api run start"
+cmd = "L=$(dirname $(find /nix/store -name 'libstdc++.so*' 2>/dev/null | head -1)); G=$(dirname $(find /nix/store -name 'libgomp.so*' 2>/dev/null | head -1)); export LD_LIBRARY_PATH=\"$L:$G:$LD_LIBRARY_PATH\"; echo \"[start] libstdcxx=$L libgomp=$G\"; pnpm --filter @beehive/worker run start"
 
 [variables]
 PORT = "4000"
