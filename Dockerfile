@@ -12,8 +12,12 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/worker/package.json apps/worker/
 COPY packages/shared/package.json packages/shared/
 COPY packages/sdk/package.json packages/sdk/
+COPY plugins/*/package.json plugins/
 
-RUN pnpm install --no-frozen-lockfile
+RUN pnpm install --no-frozen-lockfile && \
+  mkdir -p /app/node_modules/@beehive && \
+  ln -sf /app/packages/sdk /app/node_modules/@beehive/sdk && \
+  ln -sf /app/packages/shared /app/node_modules/@beehive/shared
 
 COPY . .
 
