@@ -1,0 +1,33 @@
+name: auth-manager
+version: 1.0.0
+description: "Auth Manager: autenticação e autorização — API keys, tokens, RBAC."
+author: BeeHive
+
+capabilities:
+  - id: auth.authenticate
+    description: "Autentica usando API key"
+    inputs:
+      - { name: apiKey, type: string, required: true }
+    outputs:
+      - { name: session, type: object }
+      - { name: authenticated, type: boolean }
+
+  - id: auth.validate
+    description: "Valida sessão"
+    inputs:
+      - { name: sessionId, type: string, required: true }
+    outputs:
+      - { name: valid, type: boolean }
+      - { name: session, type: object }
+
+  - id: auth.key.generate
+    description: "Gera nova API key"
+    inputs:
+      - { name: userId, type: string, required: true }
+      - { name: permissions, type: array, required: true }
+    outputs:
+      - { name: apiKey, type: string }
+
+permissions:
+  - auth:manage
+  - auth:validate

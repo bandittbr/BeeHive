@@ -1,0 +1,35 @@
+name: marketplace
+version: 1.0.0
+description: "Marketplace: loja de plugins — instala, desinstala, publica."
+author: BeeHive
+
+capabilities:
+  - id: marketplace.search
+    description: "Busca plugins no catálogo"
+    inputs:
+      - { name: query, type: string, required: true }
+    outputs:
+      - { name: plugins, type: array }
+
+  - id: marketplace.install
+    description: "Instala plugin do catálogo"
+    inputs:
+      - { name: pluginId, type: string, required: true }
+    outputs:
+      - { name: success, type: boolean }
+
+  - id: marketplace.uninstall
+    description: "Desinstala plugin"
+    inputs:
+      - { name: pluginId, type: string, required: true }
+    outputs:
+      - { name: success, type: boolean }
+
+  - id: marketplace.installed
+    description: "Lista plugins instalados"
+    outputs:
+      - { name: plugins, type: array }
+
+permissions:
+  - marketplace:install
+  - marketplace:uninstall

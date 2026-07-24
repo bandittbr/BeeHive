@@ -5,7 +5,7 @@
 const LS_URL = 'beehive.worker.url';
 const LS_TOKEN = 'beehive.worker.token';
 
-export type WorkerJobType = 'shell' | 'writeFile' | 'readFile' | 'git' | 'browser' | 'ytFetch' | 'clip' | 'publishYoutube';
+export type WorkerJobType = 'shell' | 'writeFile' | 'readFile' | 'git' | 'browser';
 
 export interface WorkerJob {
   type: WorkerJobType;

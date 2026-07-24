@@ -1,0 +1,40 @@
+name: ai-manager
+version: 1.0.0
+description: "AI Manager: gateway unificado de IA. Gerencia provedores e modelos."
+author: BeeHive
+
+capabilities:
+  - id: ai.complete
+    description: "Executa chamada de IA completa (não-streaming)"
+    inputs:
+      - { name: model, type: string, required: true }
+      - { name: messages, type: array, required: true }
+      - { name: temperature, type: number }
+      - { name: maxTokens, type: number }
+    outputs:
+      - { name: content, type: string }
+      - { name: usage, type: object }
+
+  - id: ai.stream
+    description: "Executa chamada de IA com streaming"
+    inputs:
+      - { name: model, type: string, required: true }
+      - { name: messages, type: array, required: true }
+    outputs:
+      - { name: stream, type: object }
+
+  - id: ai.models.list
+    description: "Lista modelos disponíveis por provedor"
+    outputs:
+      - { name: models, type: array }
+
+adapters:
+  - OpenAI
+  - Anthropic
+  - Google
+  - Ollama
+  - OpenRouter
+
+permissions:
+  - ai:chat
+  - ai:stream

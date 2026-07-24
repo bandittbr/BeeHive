@@ -1,0 +1,20 @@
+{
+  "name": "@beehive/plugin-memory",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "description": "Memory: memória persistente por projeto — produtos, campanhas, avatares, prompts, resultados.",
+  "dependencies": {
+    "@beehive/sdk": "workspace:*",
+    "@beehive/shared": "workspace:*",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/cors": "^2.8.17",
+    "@types/uuid": "^9.0.7"
+  }
+}

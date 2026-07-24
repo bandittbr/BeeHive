@@ -1,0 +1,34 @@
+name: knowledge-base
+version: 1.0.0
+description: "Knowledge Base: RAG com busca full-text em OCR, STT, scripts, produtos, PDFs."
+author: BeeHive
+
+capabilities:
+  - id: knowledge.index
+    description: "Indexa documento na base de conhecimento"
+    inputs:
+      - { name: source, type: string, required: true }
+      - { name: category, type: string, required: true }
+      - { name: title, type: string, required: true }
+      - { name: content, type: string, required: true }
+      - { name: metadata, type: object }
+    outputs:
+      - { name: documentId, type: string }
+
+  - id: knowledge.search
+    description: "Busca documentos na base de conhecimento"
+    inputs:
+      - { name: query, type: string, required: true }
+      - { name: limit, type: number, default: 10 }
+    outputs:
+      - { name: results, type: array }
+
+  - id: knowledge.stats
+    description: "Estatísticas da base de conhecimento"
+    outputs:
+      - { name: totalDocuments, type: number }
+      - { name: totalTokens, type: number }
+
+permissions:
+  - knowledge:read
+  - knowledge:write

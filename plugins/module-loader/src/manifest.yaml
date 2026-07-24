@@ -1,0 +1,24 @@
+name: module-loader
+version: 1.0.0
+description: "Module Loader: scanner de diretórios — descobre e carrega plugins."
+author: BeeHive
+
+capabilities:
+  - id: modules.scan
+    description: "Escaneia diretório por plugins"
+    inputs:
+      - { name: directory, type: string, required: true }
+    outputs:
+      - { name: plugins, type: array }
+
+  - id: modules.load
+    description: "Carrega plugin por nome"
+    inputs:
+      - { name: name, type: string, required: true }
+      - { name: directory, type: string, required: true }
+    outputs:
+      - { name: loaded, type: boolean }
+
+permissions:
+  - modules:load
+  - modules:scan

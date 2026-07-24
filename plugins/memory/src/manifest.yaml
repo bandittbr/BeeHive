@@ -1,0 +1,43 @@
+name: memory
+version: 1.0.0
+description: "Memory: memória persistente por projeto — produtos, campanhas, avatares, prompts."
+author: BeeHive
+
+capabilities:
+  - id: memory.store
+    description: "Armazena entrada na memória do projeto"
+    inputs:
+      - { name: projectId, type: string, required: true }
+      - { name: type, type: string, required: true }
+      - { name: key, type: string, required: true }
+      - { name: value, type: object, required: true }
+    outputs:
+      - { name: entryId, type: string }
+
+  - id: memory.search
+    description: "Busca entradas na memória"
+    inputs:
+      - { name: projectId, type: string }
+      - { name: type, type: string }
+      - { name: tags, type: array }
+      - { name: limit, type: number, default: 50 }
+    outputs:
+      - { name: entries, type: array }
+
+  - id: memory.get
+    description: "Obtém entrada específica da memória"
+    inputs:
+      - { name: entryId, type: string, required: true }
+    outputs:
+      - { name: entry, type: object }
+
+  - id: memory.delete
+    description: "Remove entrada da memória"
+    inputs:
+      - { name: entryId, type: string, required: true }
+    outputs:
+      - { name: success, type: boolean }
+
+permissions:
+  - memory:read
+  - memory:write
