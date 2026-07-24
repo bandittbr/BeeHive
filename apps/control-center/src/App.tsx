@@ -21,6 +21,8 @@ import {
   ChevronLeft,
   Calendar as CalendarIcon,
   Key as KeyIcon,
+  Menu,
+  Shuffle,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { chatService } from './services/chat.service';
@@ -75,6 +77,7 @@ const { projects } = useAppStore();
   const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'secrets' | 'costs'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const openProject = (project: Project) => {
     setOpenedProject(project);
@@ -103,7 +106,7 @@ const { projects } = useAppStore();
   };
 
   return (
-    <div className="app">
+    <div className={`app${sidebarOpen ? ' sidebar-open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget && sidebarOpen) setSidebarOpen(false); }}>
       {/* Sidebar rotulada */}
       <aside className="sidebar">
         <div className="sidebar-logo">
@@ -113,18 +116,18 @@ const { projects } = useAppStore();
         <div className="sidebar-nav">
           <div className="nav-group">
             <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('chat'); setOpenedProject(null); }}><MessageSquare size={16} /> Chat</button>
-              <button className="nav-row-plus" onClick={handleNewConversation} title="Nova conversa"><Plus size={14} /></button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('chat'); setOpenedProject(null); setSidebarOpen(false); }}><MessageSquare size={16} /> Chat</button>
+              <button className="nav-row-plus" onClick={() => { handleNewConversation(); setSidebarOpen(false); }} title="Nova conversa"><Plus size={14} /></button>
             </div>
             <div className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('projetos'); setOpenedProject(null); }}><FolderKanban size={16} /> Projetos</button>
-              <button className="nav-row-plus" onClick={handleNewProject} title="Novo projeto"><Plus size={14} /></button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('projetos'); setOpenedProject(null); setSidebarOpen(false); }}><FolderKanban size={16} /> Projetos</button>
+              <button className="nav-row-plus" onClick={() => { handleNewProject(); setSidebarOpen(false); }} title="Novo projeto"><Plus size={14} /></button>
             </div>
             <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); }}><Globe size={16} /> Negócios</button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); setSidebarOpen(false); }}><Globe size={16} /> Negócios</button>
             </div>
             <div className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); }}><BarChart3 size={16} /> Avaliações</button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); setSidebarOpen(false); }}><BarChart3 size={16} /> Avaliações</button>
             </div>
           </div>
           <div className="sidebar-divider" />
@@ -132,7 +135,7 @@ const { projects } = useAppStore();
             <div className="sidebar-section-label">Projetos Recentes</div>
             <div className="recent-list">
               {projects.slice(0, 5).map((p: Project) => (
-                <button key={p.id} className="recent-row" onClick={() => openProject(p)}>
+                <button key={p.id} className="recent-row" onClick={() => { openProject(p); setSidebarOpen(false); }}>
                   <span className="recent-icon">{p.icon}</span>
                   <span className="recent-name">{p.name}</span>
                   <span className={`recent-dot ${p.status}`} />
@@ -145,7 +148,7 @@ const { projects } = useAppStore();
         <div className="sidebar-footer">
           <div className="nav-group">
             <div className={`nav-row${activeArea === 'settings' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('settings'); setOpenedProject(null); }}><Settings size={16} /> Settings</button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('settings'); setOpenedProject(null); setSidebarOpen(false); }}><Settings size={16} /> Settings</button>
             </div>
           </div>
           <div className="sidebar-user">
@@ -160,6 +163,9 @@ const { projects } = useAppStore();
 
       <div className="app-body">
         <header className="topbar">
+          <button className="topbar-menu-btn" onClick={() => setSidebarOpen(true)} title="Menu" aria-label="Abrir menu">
+            <Menu size={18} />
+          </button>
           <div className="breadcrumb">
             <span className="breadcrumb-root" onClick={goToProjectsList}>Projetos</span>
             <span className="breadcrumb-sep">/</span>
@@ -236,7 +242,8 @@ function HomeChat() {
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [selectedModel, setSelectedModel] = useState('opencode:big-pickle');
+  const [selectedModel, setSelectedModel] = useState('deepseek/deepseek-v4-pro');
+  const [omniRouterEnabled, setOmniRouterEnabled] = useState(() => localStorage.getItem('beehive-omnirouter') === '1');
   const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
   const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
   const [showFilePanel, setShowFilePanel] = useState(false);
@@ -248,7 +255,7 @@ function HomeChat() {
   const handleNewConversation = async () => {
     if (!firstProjectId) return;
     const title = newConversationTitle || `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-    const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
+    const conversation = await createConversation(title, selectedModel, 'default');
     if (conversation) {
       setActiveConversationId(conversation.id);
       setStarted(true);
@@ -265,7 +272,7 @@ function HomeChat() {
     if (!activeConversationId && firstProjectId) {
       try {
         const title = `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
-        const conversation = await createConversation(title, 'opencode:big-pickle', 'default');
+        const conversation = await createConversation(title, selectedModel, 'default');
         if (conversation) setActiveConversationId(conversation.id);
       } catch { /* segue sem persistir */ }
     }
@@ -300,7 +307,7 @@ function HomeChat() {
       setMessages((prev) => prev.map((m) =>
         m.id === assistantMsgId ? { ...m, content: fullContent } : m
       ));
-    });
+    }, { modelID: selectedModel, omnirouter: omniRouterEnabled });
 
     setMessages((prev) => prev.map((m) =>
       m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m
@@ -403,6 +410,8 @@ function HomeChat() {
           setAttachedFiles={setAttachedFiles}
           selectedModel={selectedModel}
           setSelectedModel={setSelectedModel}
+          omniRouterEnabled={omniRouterEnabled}
+          setOmniRouterEnabled={(v) => { setOmniRouterEnabled(v); localStorage.setItem('beehive-omnirouter', v ? '1' : '0'); }}
           reasoningEffort={reasoningEffort}
           setReasoningEffort={setReasoningEffort}
           fileOperations={fileOperations}
@@ -446,6 +455,8 @@ function ChatInputArea({
   setAttachedFiles,
   selectedModel,
   setSelectedModel,
+  omniRouterEnabled,
+  setOmniRouterEnabled,
   reasoningEffort,
   setReasoningEffort,
   fileOperations,
@@ -461,6 +472,8 @@ function ChatInputArea({
   setAttachedFiles: React.Dispatch<React.SetStateAction<File[]>>;
   selectedModel: string;
   setSelectedModel: (v: string) => void;
+  omniRouterEnabled: boolean;
+  setOmniRouterEnabled: (v: boolean) => void;
   reasoningEffort: 'default' | 'low' | 'medium' | 'high';
   setReasoningEffort: (v: 'default' | 'low' | 'medium' | 'high') => void;
   fileOperations: { id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[];
@@ -472,13 +485,16 @@ function ChatInputArea({
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Todos os modelos abaixo são roteados pelo worker via OpenRouter (uma chave
+  // só dá acesso a esses e a dezenas de outros). O title é só o nome do
+  // modelo — o provider (OpenRouter) já aparece na linha de baixo do item.
   const modelOptions = [
-    { providerID: 'opencode', modelID: 'big-pickle', title: 'opencode:big-pickle', description: 'OpenCode', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'ollama', modelID: 'llama3', title: 'Llama 3', description: 'Ollama', supportsImages: false },
-    { providerID: 'ollama', modelID: 'mistral', title: 'Mistral', description: 'Ollama', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'deepseek/deepseek-v4-pro', title: 'DeepSeek V4 Pro', description: 'OpenRouter', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'meta-llama/llama-3.1-8b-instruct:free', title: 'Llama 3.1 8B (grátis)', description: 'OpenRouter', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'openai/gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'openai/gpt-4o-mini', title: 'GPT-4o Mini', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'anthropic/claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'google/gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
   ];
 
   const effortOptions = [
@@ -488,7 +504,7 @@ function ChatInputArea({
     { value: 'high', label: 'High', desc: 'Mais profundo, mais tokens' },
   ];
 
-  const currentModel = modelOptions.find(m => `${m.providerID}:${m.modelID}` === selectedModel);
+  const currentModel = modelOptions.find(m => m.modelID === selectedModel);
   const supportsImages = currentModel?.supportsImages ?? false;
   const imageFiles = attachedFiles.filter(f => f.type.startsWith('image/'));
   const hasUnsupportedImages = imageFiles.length > 0 && !supportsImages;
@@ -577,11 +593,31 @@ function ChatInputArea({
             <ModelSelect
               open={modelOpen}
               onOpenChange={setModelOpen}
-              value={{ providerID: selectedModel.split(':')[0] || 'opencode', modelID: selectedModel.split(':')[1] || selectedModel }}
-              onChange={(modelRef) => setSelectedModel(`${modelRef.providerID}:${modelRef.modelID}`)}
+              value={{ providerID: 'openrouter', modelID: selectedModel }}
+              onChange={(modelRef) => setSelectedModel(modelRef.modelID)}
               options={modelOptions}
               placeholder="Select model"
             />
+
+            <button
+              type="button"
+              onClick={() => setOmniRouterEnabled(!omniRouterEnabled)}
+              title={omniRouterEnabled
+                ? 'OmniRouter ativo — troca de modelo sozinho se este ficar sem crédito/limite'
+                : 'Ativar OmniRouter (troca de modelo automática por esgotamento de cota)'}
+              aria-pressed={omniRouterEnabled}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                padding: '6px 10px', borderRadius: 8, fontSize: 13,
+                border: omniRouterEnabled ? '1px solid var(--accent, #6d5efc)' : '1px solid transparent',
+                background: omniRouterEnabled ? 'var(--accent-soft, rgba(109,94,252,0.12))' : 'transparent',
+                color: omniRouterEnabled ? 'var(--accent, #6d5efc)' : 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              <Shuffle size={14} />
+              OmniRouter
+            </button>
 
             <ReasoningEffortSelect
               value={reasoningEffort}

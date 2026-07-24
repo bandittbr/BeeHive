@@ -278,3 +278,205 @@ export async function removePost(id: string): Promise<boolean> {
   }
   const d = fileLoad(); const before = d.posts.length; d.posts = d.posts.filter((x) => x.id !== id); fileSave(d); return d.posts.length < before;
 }
+
+// ---------- Usuários (login) + Providers de IA por usuário (BYOK) ----------
+export interface UserRow {
+  id: string;
+  email: string;
+  passwordHash: string;
+  passwordSalt: string;
+  currentProviderId?: string;
+  currentModel?: string;
+}
+export interface ProviderRow {
+  id: string;
+  userId: string;
+  providerType: string;
+  name: string;
+  encryptedKey: string;
+  keyIv: string;
+  keyTag: string;
+  baseUrl?: string;
+  status: 'connected' | 'disconnected' | 'error';
+  lastTestedAt?: string;
+  lastTestedError?: string;
+  models: unknown[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+const USERS = `${SUPABASE_URL}/rest/v1/beehive_users`;
+const PROVIDERS = `${SUPABASE_URL}/rest/v1/beehive_providers`;
+
+function rowToUser(r: any): UserRow {
+  return {
+    id: String(r.id),
+    email: r.email,
+    passwordHash: r.password_hash,
+    passwordSalt: r.password_salt,
+    currentProviderId: r.current_provider_id ?? undefined,
+    currentModel: r.current_model ?? undefined,
+  };
+}
+function rowToProvider(r: any): ProviderRow {
+  return {
+    id: String(r.id),
+    userId: String(r.user_id),
+    providerType: r.provider_type,
+    name: r.name,
+    encryptedKey: r.encrypted_key,
+    keyIv: r.key_iv,
+    keyTag: r.key_tag,
+    baseUrl: r.base_url ?? undefined,
+    status: r.status,
+    lastTestedAt: r.last_tested_at ?? undefined,
+    lastTestedError: r.last_tested_error ?? undefined,
+    models: Array.isArray(r.models) ? r.models : [],
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+
+// arquivo (fallback, uso local/dev sem Supabase)
+interface AuthFileData { users: UserRow[]; providers: ProviderRow[] }
+const AUTH_FILE = path.join(WORKSPACE_ROOT, '.beehive-auth.json');
+function authFileLoad(): AuthFileData {
+  try {
+    const d = JSON.parse(fs.readFileSync(AUTH_FILE, 'utf8')) as AuthFileData;
+    if (!Array.isArray(d.users)) d.users = [];
+    if (!Array.isArray(d.providers)) d.providers = [];
+    return d;
+  } catch { return { users: [], providers: [] }; }
+}
+function authFileSave(d: AuthFileData): void {
+  try { fs.mkdirSync(WORKSPACE_ROOT, { recursive: true }); fs.writeFileSync(AUTH_FILE, JSON.stringify(d, null, 2), 'utf8'); } catch { /* ignore */ }
+}
+
+export async function getUserByEmail(email: string): Promise<UserRow | null> {
+  if (useSupabase) {
+    const res = await fetch(`${USERS}?email=eq.${encodeURIComponent(email.toLowerCase())}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToUser(rows[0]) : null;
+  }
+  return authFileLoad().users.find((u) => u.email.toLowerCase() === email.toLowerCase()) ?? null;
+}
+
+export async function getUserById(id: string): Promise<UserRow | null> {
+  if (useSupabase) {
+    const res = await fetch(`${USERS}?id=eq.${encodeURIComponent(id)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToUser(rows[0]) : null;
+  }
+  return authFileLoad().users.find((u) => u.id === id) ?? null;
+}
+
+export async function createUser(email: string, passwordHash: string, passwordSalt: string): Promise<UserRow> {
+  const normalizedEmail = email.toLowerCase();
+  if (useSupabase) {
+    const res = await fetch(USERS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'return=representation' }),
+      body: JSON.stringify({ email: normalizedEmail, password_hash: passwordHash, password_salt: passwordSalt }),
+    });
+    if (!res.ok) throw new Error(`Falha ao criar usuário: HTTP ${res.status}`);
+    const rows = (await res.json()) as any[];
+    return rowToUser(rows[0]);
+  }
+  const d = authFileLoad();
+  const user: UserRow = { id: crypto.randomUUID(), email: normalizedEmail, passwordHash, passwordSalt };
+  d.users.push(user);
+  authFileSave(d);
+  return user;
+}
+
+export async function setCurrentSelection(userId: string, providerId: string | null, model: string | null): Promise<void> {
+  if (useSupabase) {
+    await fetch(`${USERS}?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ current_provider_id: providerId, current_model: model, updated_at: new Date().toISOString() }),
+    });
+    return;
+  }
+  const d = authFileLoad();
+  const u = d.users.find((x) => x.id === userId);
+  if (u) { u.currentProviderId = providerId ?? undefined; u.currentModel = model ?? undefined; authFileSave(d); }
+}
+
+export async function listProviders(userId: string): Promise<ProviderRow[]> {
+  if (useSupabase) {
+    const res = await fetch(`${PROVIDERS}?user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.asc`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToProvider);
+  }
+  return authFileLoad().providers.filter((p) => p.userId === userId);
+}
+
+export async function getProvider(id: string, userId: string): Promise<ProviderRow | null> {
+  if (useSupabase) {
+    const res = await fetch(`${PROVIDERS}?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToProvider(rows[0]) : null;
+  }
+  return authFileLoad().providers.find((p) => p.id === id && p.userId === userId) ?? null;
+}
+
+export async function addProvider(input: {
+  userId: string; providerType: string; name: string; encryptedKey: string; keyIv: string; keyTag: string; baseUrl?: string;
+}): Promise<ProviderRow> {
+  const now = new Date().toISOString();
+  if (useSupabase) {
+    const res = await fetch(PROVIDERS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'return=representation' }),
+      body: JSON.stringify({
+        user_id: input.userId, provider_type: input.providerType, name: input.name,
+        encrypted_key: input.encryptedKey, key_iv: input.keyIv, key_tag: input.keyTag,
+        base_url: input.baseUrl ?? null, status: 'connected',
+      }),
+    });
+    if (!res.ok) throw new Error(`Falha ao salvar provider: HTTP ${res.status}`);
+    const rows = (await res.json()) as any[];
+    return rowToProvider(rows[0]);
+  }
+  const d = authFileLoad();
+  const row: ProviderRow = {
+    id: crypto.randomUUID(), userId: input.userId, providerType: input.providerType, name: input.name,
+    encryptedKey: input.encryptedKey, keyIv: input.keyIv, keyTag: input.keyTag, baseUrl: input.baseUrl,
+    status: 'connected', models: [], createdAt: now, updatedAt: now,
+  };
+  d.providers.push(row);
+  authFileSave(d);
+  return row;
+}
+
+export async function updateProviderTestResult(id: string, fields: { status: 'connected' | 'error'; lastTestedError?: string | null; models?: unknown[] }): Promise<void> {
+  const now = new Date().toISOString();
+  if (useSupabase) {
+    await fetch(`${PROVIDERS}?id=eq.${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ status: fields.status, last_tested_at: now, last_tested_error: fields.lastTestedError ?? null, ...(fields.models ? { models: fields.models } : {}), updated_at: now }),
+    });
+    return;
+  }
+  const d = authFileLoad();
+  const p = d.providers.find((x) => x.id === id);
+  if (p) { p.status = fields.status; p.lastTestedAt = now; p.lastTestedError = fields.lastTestedError ?? undefined; if (fields.models) p.models = fields.models; p.updatedAt = now; authFileSave(d); }
+}
+
+export async function removeProvider(id: string, userId: string): Promise<boolean> {
+  if (useSupabase) {
+    const res = await fetch(`${PROVIDERS}?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
+    return res.ok;
+  }
+  const d = authFileLoad();
+  const before = d.providers.length;
+  d.providers = d.providers.filter((p) => !(p.id === id && p.userId === userId));
+  authFileSave(d);
+  return d.providers.length < before;
+}

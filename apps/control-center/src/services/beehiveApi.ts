@@ -1,26 +1,45 @@
-﻿// Backend real do BeeHive — já está no ar no Railway, rodando um kernel/provider
-// system completo (não faz parte deste repositório; ver PROJECT log de 2026-07-18
-// sobre a investigação de onde esse código mora). Usado aqui só para o Chat
-// responder de verdade (modelo grátis, opencode:big-pickle) em vez de simular
-// uma resposta com setTimeout.
+﻿// Backend real do BeeHive — apps/worker (Railway, root Dockerfile em pnpm).
+// Usado aqui pro Chat responder de verdade via plugin ai-manager
+// (executeCapability('ai.complete', ...) em apps/worker/src/index.ts).
 //
-// Contrato confirmado na mão (o servidor não expõe OpenAPI/docs):
-//   POST /api/conversation/respond
+// Contrato: POST /api/conversation/respond
 //   body:  { message: { role: "user", content: string } }
 //   resp:  { messages: [{ role: "assistant", content: string }] }
 //
 // OBS: O backend NÃO suporta SSE/streaming nativo — retorna JSON completo.
 // O streaming no frontend é simulado via chunking da resposta completa.
+//
+// 2026-07-24: corrigido — apontava para um domínio Railway órfão
+// (beehive-production-d934), que não pertence a nenhum projeto desta conta
+// e só devolvia fallback. O domínio real do serviço @beehive/worker é
+// beehive-production-d895.up.railway.app.
 
-const BEEHIVE_API_URL = 'https://beehive-production-d934.up.railway.app';
+import { getAuthToken } from './authToken';
+
+export const BEEHIVE_API_URL = 'https://beehive-production-d895.up.railway.app';
+
+function authHeaders(): Record<string, string> {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+// modelID: slug do modelo no OpenRouter (ex.: "deepseek/deepseek-v4-pro").
+// Se omitido, o worker usa o padrão do ambiente (AI_MODEL / deepseek-v4-pro).
+// omnirouter: quando true, o backend troca de modelo sozinho na cadeia de
+// fallback (plugins/ai-manager/src/capabilities/ai.complete.ts) se o modelo
+// pedido ficar sem crédito ou bater rate limit.
+export interface AskOptions {
+  modelID?: string;
+  omnirouter?: boolean;
+}
 
 // Non-streaming version (for backwards compatibility)
-export async function askBeeHive(content: string): Promise<string> {
+export async function askBeeHive(content: string, opts: AskOptions = {}): Promise<string> {
   try {
     const res = await fetch(`${BEEHIVE_API_URL}/api/conversation/respond`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: { role: 'user', content } }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter }),
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -39,13 +58,14 @@ export async function askBeeHive(content: string): Promise<string> {
 // Streaming version — simulated chunking (backend não suporta SSE nativo)
 export async function askBeeHiveStream(
   content: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
+  opts: AskOptions = {}
 ): Promise<void> {
   try {
     const res = await fetch(`${BEEHIVE_API_URL}/api/conversation/respond`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: { role: 'user', content } }),
+      headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter }),
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');

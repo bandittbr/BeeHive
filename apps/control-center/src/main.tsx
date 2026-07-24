@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import './styles/globals.css';
 import App from './App';
 import { McpCallbackPage } from './components/chat/McpCallbackPage';
+import { AuthGate } from './components/auth/AuthGate';
 
 class ErrorBoundary extends React.Component<
   { children: React.ReactNode },
@@ -35,7 +36,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
       <BrowserRouter>
         <Routes>
           <Route path="/mcp/callback" element={<McpCallbackPage />} />
-          <Route path="*" element={<App />} />
+          <Route path="*" element={<AuthGate><App /></AuthGate>} />
         </Routes>
       </BrowserRouter>
     </ErrorBoundary>

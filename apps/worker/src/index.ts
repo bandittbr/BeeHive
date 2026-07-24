@@ -20,10 +20,15 @@ import {
   getOauthApp, setOauthApp, hasOauthApp,
   listAccounts, getAccount, upsertAccount, updateAccountTokens, removeAccount,
   listPosts, getDuePosts, addPost, updatePost, removePost, storageMode,
+  getUserByEmail, getUserById, createUser, setCurrentSelection,
+  listProviders, getProvider, addProvider, updateProviderTestResult, removeProvider,
   type ScheduledPost, type PlatformId,
 } from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge.js';
+import { hashPassword, verifyPassword, signToken, verifyToken, isValidEmail } from './auth.js';
+import { encryptSecret, decryptSecret, maskSecret } from './key-crypto.js';
+import { callProviderCompletion, testProviderConnection } from './provider-call.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const AUTH_TOKEN = process.env.WORKER_TOKEN ?? '';
@@ -53,6 +58,30 @@ function emit(jobId: string, e: Omit<JobEvent, 'jobId' | 'ts'>) {
 function authOk(req: express.Request): boolean {
   if (!AUTH_TOKEN) return true;
   return (req.header('authorization') ?? '') === `Bearer ${AUTH_TOKEN}`;
+}
+
+// --- Sessão de usuário (login por email/senha, distinto do WORKER_TOKEN acima) ---
+async function currentUser(req: express.Request) {
+  const header = req.header('authorization') ?? '';
+  const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+  const payload = token ? verifyToken(token) : null;
+  if (!payload) return null;
+  return getUserById(payload.userId);
+}
+
+function requireUser(
+  handler: (req: express.Request, res: express.Response, user: NonNullable<Awaited<ReturnType<typeof currentUser>>>) => Promise<void>,
+) {
+  return async (req: express.Request, res: express.Response) => {
+    const user = await currentUser(req);
+    if (!user) { res.status(401).json({ error: 'não autenticado' }); return; }
+    try {
+      await handler(req, res, user);
+    } catch (e) {
+      console.error('[auth] erro na rota:', e);
+      res.status(500).json({ error: e instanceof Error ? e.message : 'erro interno' });
+    }
+  };
 }
 
 function page(title: string, msg: string): string {
@@ -335,6 +364,94 @@ async function schedulerTick() {
 }
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
 
+// --- Auth (login por email/senha) ---
+app.post('/api/auth/signup', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim();
+  const password = String(req.body?.password ?? '');
+  if (!isValidEmail(email)) return res.status(400).json({ error: 'email inválido' });
+  if (password.length < 8) return res.status(400).json({ error: 'senha precisa ter pelo menos 8 caracteres' });
+  const existing = await getUserByEmail(email);
+  if (existing) return res.status(409).json({ error: 'já existe uma conta com esse email' });
+  const { hash, salt } = await hashPassword(password);
+  const user = await createUser(email, hash, salt);
+  const token = signToken(user.id, user.email);
+  res.json({ token, user: { id: user.id, email: user.email } });
+});
+
+app.post('/api/auth/login', async (req, res) => {
+  const email = String(req.body?.email ?? '').trim();
+  const password = String(req.body?.password ?? '');
+  const user = await getUserByEmail(email);
+  if (!user) return res.status(401).json({ error: 'email ou senha inválidos' });
+  const ok = await verifyPassword(password, user.passwordHash, user.passwordSalt);
+  if (!ok) return res.status(401).json({ error: 'email ou senha inválidos' });
+  const token = signToken(user.id, user.email);
+  res.json({ token, user: { id: user.id, email: user.email, currentProviderId: user.currentProviderId ?? null, currentModel: user.currentModel ?? null } });
+});
+
+app.get('/api/auth/me', requireUser(async (_req, res, user) => {
+  res.json({ user: { id: user.id, email: user.email, currentProviderId: user.currentProviderId ?? null, currentModel: user.currentModel ?? null } });
+}));
+
+// --- Providers de IA por usuário (BYOK, chave criptografada em repouso) ---
+app.get('/api/providers', requireUser(async (_req, res, user) => {
+  const rows = await listProviders(user.id);
+  res.json({
+    providers: rows.map((p) => ({
+      id: p.id, providerType: p.providerType, name: p.name, baseUrl: p.baseUrl ?? null,
+      status: p.status, lastTestedAt: p.lastTestedAt ?? null, lastTestedError: p.lastTestedError ?? null,
+      models: p.models, isCurrent: p.id === user.currentProviderId,
+    })),
+    currentProviderId: user.currentProviderId ?? null,
+    currentModel: user.currentModel ?? null,
+  });
+}));
+
+app.post('/api/providers', requireUser(async (req, res, user) => {
+  const providerType = String(req.body?.providerType ?? '').trim();
+  const apiKey = String(req.body?.apiKey ?? '');
+  const baseUrl = req.body?.baseUrl ? String(req.body.baseUrl) : undefined;
+  const name = String(req.body?.name ?? providerType);
+  if (!providerType) return res.status(400).json({ error: 'providerType é obrigatório' });
+  if (!apiKey && providerType !== 'ollama') return res.status(400).json({ error: 'apiKey é obrigatório' });
+
+  const { encrypted, iv, tag } = encryptSecret(apiKey || '');
+  const row = await addProvider({ userId: user.id, providerType, name, encryptedKey: encrypted, keyIv: iv, keyTag: tag, baseUrl });
+
+  // testa em segundo plano e atualiza status/modelos
+  testProviderConnection(providerType, apiKey, baseUrl).then((result) => {
+    updateProviderTestResult(row.id, { status: result.success ? 'connected' : 'error', lastTestedError: result.error ?? null, models: result.models ?? [] }).catch(() => {});
+  }).catch(() => {});
+
+  res.json({ provider: { id: row.id, providerType: row.providerType, name: row.name, baseUrl: row.baseUrl ?? null, status: row.status, maskedApiKey: maskSecret(apiKey || '') } });
+}));
+
+app.post('/api/providers/:id/test', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const row = await getProvider(id, user.id);
+  if (!row) return res.status(404).json({ error: 'provider não encontrado' });
+  const apiKey = decryptSecret(row.encryptedKey, row.keyIv, row.keyTag);
+  const result = await testProviderConnection(row.providerType, apiKey, row.baseUrl);
+  await updateProviderTestResult(id, { status: result.success ? 'connected' : 'error', lastTestedError: result.error ?? null, models: result.models ?? [] });
+  res.json(result);
+}));
+
+app.post('/api/providers/:id/select', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const model = req.body?.model ? String(req.body.model) : null;
+  const row = await getProvider(id, user.id);
+  if (!row) return res.status(404).json({ error: 'provider não encontrado' });
+  await setCurrentSelection(user.id, id, model);
+  res.json({ ok: true, currentProviderId: id, currentModel: model });
+}));
+
+app.delete('/api/providers/:id', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const ok = await removeProvider(id, user.id);
+  if (user.currentProviderId === id) await setCurrentSelection(user.id, null, null);
+  res.json({ ok });
+}));
+
 // --- Chat (compat: frontend usa POST /api/conversation/respond) ---
 app.post('/api/conversation/respond', async (req, res) => {
   try {
@@ -342,14 +459,41 @@ app.post('/api/conversation/respond', async (req, res) => {
     if (!msg || msg.role !== 'user' || !msg.content) {
       return res.status(400).json({ error: 'formato: { message: { role: "user", content: string } }' });
     }
+
+    // Usuário logado com um provider BYOK selecionado → usa a chave dele, direto.
+    const user = await currentUser(req);
+    if (user?.currentProviderId) {
+      const provider = await getProvider(user.currentProviderId, user.id);
+      if (provider) {
+        // Prioriza o modelo salvo em Settings > Providers (selectCurrent) sobre o
+        // seletor genérico do chat — o dropdown do chat hoje lista modelos do
+        // gateway OpenRouter padrão, que podem não existir no provider BYOK do usuário.
+        const model = user.currentModel || (typeof req.body?.model === 'string' && req.body.model) || provider.models[0] || '';
+        try {
+          const apiKey = decryptSecret(provider.encryptedKey, provider.keyIv, provider.keyTag);
+          const result = await callProviderCompletion(provider.providerType, apiKey, provider.baseUrl, model, [{ role: 'user', content: msg.content }]);
+          return res.json({ messages: [{ role: 'assistant', content: result.content || 'Não consegui gerar uma resposta agora.' }], model, provider: provider.providerType });
+        } catch (e) {
+          console.error('[chat] erro no provider BYOK do usuário:', e);
+          return res.json({ messages: [{ role: 'assistant', content: `Não consegui falar com ${provider.name} agora (${e instanceof Error ? e.message : 'erro'}).` }] });
+        }
+      }
+    }
+
+    // Sem usuário/provider BYOK → gateway padrão (OpenRouter global, com OmniRouter opcional).
+    const model = typeof req.body?.model === 'string' && req.body.model
+      ? req.body.model
+      : (process.env.AI_MODEL ?? 'deepseek/deepseek-v4-pro');
+    const omnirouter = req.body?.omnirouter === true;
     const result = await executeCapability('ai.complete', {
       messages: [{ role: 'user', content: msg.content }],
-      model: process.env.AI_MODEL ?? 'openai/gpt-4o-mini',
-    });
+      model,
+      omnirouter,
+    }) as { outputs?: { content?: string; modelUsed?: string } };
     const content = typeof result?.outputs?.content === 'string'
       ? result.outputs.content
       : 'Não consegui gerar uma resposta agora.';
-    res.json({ messages: [{ role: 'assistant', content }] });
+    res.json({ messages: [{ role: 'assistant', content }], model: result?.outputs?.modelUsed ?? model });
   } catch (e) {
     console.error('[chat] erro:', e);
     res.json({ messages: [{ role: 'assistant', content: 'Não consegui falar com o servidor de IA agora.' }] });

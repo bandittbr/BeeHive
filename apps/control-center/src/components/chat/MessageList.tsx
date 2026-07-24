@@ -287,12 +287,11 @@ function StreamingInput({
   const [effortOpen, setEffortOpen] = useState(false);
 
   const modelOptions = [
-    { providerID: 'opencode', modelID: 'big-pickle', title: 'opencode:big-pickle', description: 'OpenCode', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'ollama', modelID: 'llama3', title: 'Llama 3', description: 'Ollama', supportsImages: false },
-    { providerID: 'ollama', modelID: 'mistral', title: 'Mistral', description: 'Ollama', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'deepseek/deepseek-v4-pro', title: 'DeepSeek V4 Pro', description: 'OpenRouter', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'meta-llama/llama-3.1-8b-instruct:free', title: 'Llama 3.1 8B (grátis)', description: 'OpenRouter', supportsImages: false },
+    { providerID: 'openrouter', modelID: 'openai/gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'anthropic/claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'openrouter', modelID: 'google/gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
   ];
 
   const effortOptions = [

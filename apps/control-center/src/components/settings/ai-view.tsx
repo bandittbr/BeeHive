@@ -47,6 +47,9 @@ type AiSettingsViewProps = {
   testConnection: (providerId: string) => Promise<TestResult>;
   fetchModels: (providerId: string) => Promise<Model[]>;
   refreshProviders: () => Promise<void>;
+  currentProviderId: string | null;
+  currentModel: string | null;
+  onSelectModel: (providerId: string, modelId: string) => Promise<void>;
 };
 
 function providerSourceLabel(source?: ConnectedProvider["source"]) {
@@ -88,11 +91,14 @@ export function AiSettingsView({
   providers,
   isLoading,
   error,
-  onAddProvider, 
+  onAddProvider,
   onRemoveProvider,
   testConnection,
   fetchModels,
-  refreshProviders
+  refreshProviders,
+  currentProviderId,
+  currentModel,
+  onSelectModel,
 }: AiSettingsViewProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addingProvider, setAddingProvider] = useState<string | null>(null);
@@ -454,32 +460,43 @@ export function AiSettingsView({
                       </div>
                       {fullProvider.models.length > 0 ? (
                         <div className="max-h-48 overflow-y-auto space-y-1">
-                          {fullProvider.models.map((model) => (
-                            <div
-                              key={model.id}
-                              className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
-                            >
-                              <div className="min-w-0">
-                                <div className="font-medium truncate">{model.name}</div>
-                                <div className="text-xs text-muted-foreground">
-                                  {model.contextWindow.toLocaleString()} context
-                                  {model.maxOutput && ` • ${model.maxOutput.toLocaleString()} output`}
+                          {fullProvider.models.map((model) => {
+                            const isCurrent = currentProviderId === provider.id && currentModel === model.id;
+                            return (
+                              <button
+                                key={model.id}
+                                type="button"
+                                onClick={() => onSelectModel(provider.id, model.id)}
+                                title={isCurrent ? "Modelo atual do chat" : "Usar este modelo no chat"}
+                                className={`flex w-full items-center justify-between rounded-lg border px-3 py-2 text-sm text-left transition-colors ${
+                                  isCurrent ? "border-primary bg-primary/5 ring-1 ring-primary" : "border-border hover:bg-muted/50"
+                                }`}
+                              >
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate flex items-center gap-1.5">
+                                    {model.name}
+                                    {isCurrent && <CheckCircle2 className="size-3.5 text-primary shrink-0" />}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {model.contextWindow.toLocaleString()} context
+                                    {model.maxOutput && ` • ${model.maxOutput.toLocaleString()} output`}
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                {model.supportsImages && (
-                                  <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
-                                    Images
-                                  </span>
-                                )}
-                                {model.supportsTools && (
-                                  <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900 dark:text-purple-300">
-                                    Tools
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
+                                <div className="flex items-center gap-1 shrink-0">
+                                  {model.supportsImages && (
+                                    <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
+                                      Images
+                                    </span>
+                                  )}
+                                  {model.supportsTools && (
+                                    <span className="rounded-full bg-purple-100 px-2 py-0.5 text-[10px] font-medium text-purple-700 dark:bg-purple-900 dark:text-purple-300">
+                                      Tools
+                                    </span>
+                                  )}
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
                       ) : (
                         <div className="text-sm text-muted-foreground py-4 text-center">

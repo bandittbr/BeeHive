@@ -28,22 +28,32 @@ interface UseProvidersReturn {
   testConnection: (providerId: string) => Promise<TestResult>;
   fetchModels: (providerId: string) => Promise<Model[]>;
   refreshProviders: () => Promise<void>;
+  currentProviderId: string | null;
+  currentModel: string | null;
+  onSelectModel: (providerId: string, modelId: string) => Promise<void>;
 }
 
 export function useProviders(): UseProvidersReturn {
   const store = useProviderStore();
 
+  // A api key nunca volta do servidor depois de salva (fica só criptografada
+  // no banco) — mostramos um placeholder mascarado fixo em vez de derivar do valor.
   const providers = store.providers.map(p => ({
     id: p.id,
     providerType: p.providerType,
     name: p.name,
-    maskedApiKey: p.encryptedKey.slice(0, 4) + '...' + p.encryptedKey.slice(-4),
+    maskedApiKey: '••••••••',
     baseUrl: p.baseUrl,
     status: p.status,
     lastTestedAt: p.lastTestedAt,
     lastTestedError: p.lastTestedError,
     models: p.models,
   }));
+
+  useEffect(() => {
+    store.fetchProviders().catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleAddProvider = useCallback(
     async (providerId: string, apiKey: string, baseUrl?: string) => {
@@ -83,5 +93,8 @@ export function useProviders(): UseProvidersReturn {
     testConnection: store.testConnection,
     fetchModels: store.fetchModels,
     refreshProviders: async () => { await store.fetchProviders(); },
+    currentProviderId: store.currentProviderId,
+    currentModel: store.currentModel,
+    onSelectModel: store.selectCurrent,
   };
 }
