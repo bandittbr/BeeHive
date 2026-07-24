@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build": "tsc"
+  },
   "main": "./src/index.ts",
   "description": "AI Manager: gateway unificado de IA. Plugins nunca chamam OpenAI/Claude/Gemini direto.",
   "dependencies": {
@@ -12,6 +16,7 @@
     "cors": "^2.8.5"
   },
   "devDependencies": {
+    "typescript": "^5.7.3",
     "@types/express": "^4.17.21",
     "@types/cors": "^2.8.17"
   }

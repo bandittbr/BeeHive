@@ -23,7 +23,7 @@ export function createRouter(): Router {
     const doc = { id: uuidv4(), source, category, title, content, metadata: metadata || {}, indexedAt: new Date().toISOString() };
     await fs.writeFile(path.join(kbDir, 'documents', `${doc.id}.json`), JSON.stringify(doc, null, 2));
 
-    const tokens = content.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, '').split(/\s+/).filter((t) => t.length > 2);
+    const tokens = content.toLowerCase().replace(/[^\w\sÀ-ÿ]/g, '').split(/\s+/).filter((t: string) => t.length > 2);
     for (const token of [...new Set(tokens)]) {
       const tokenFile = path.join(kbDir, 'index', `${token}.json`);
       try {

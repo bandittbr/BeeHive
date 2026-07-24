@@ -41,7 +41,7 @@ export class MockCapability implements ICapability {
   description: string;
   inputs: CapabilityInput[];
   outputs: CapabilityOutput[];
-  tags?: string[];
+  tags: string[];
   version?: string;
 
   private mockOutputs: Record<string, unknown>;
@@ -53,7 +53,7 @@ export class MockCapability implements ICapability {
     this.description = '[MOCK] ' + original.description;
     this.inputs = original.inputs;
     this.outputs = original.outputs;
-    this.tags = original.tags;
+    this.tags = original.tags ?? [];
     this.version = original.version;
     this.mockOutputs = customOutputs ?? defaultMockFor(original);
   }

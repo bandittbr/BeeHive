@@ -23,6 +23,7 @@ import {
   type ScheduledPost, type PlatformId,
 } from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
+import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const AUTH_TOKEN = process.env.WORKER_TOKEN ?? '';
@@ -30,6 +31,9 @@ const PUBLIC_URL = (process.env.WORKER_PUBLIC_URL ?? '').replace(/\/+$/, '');
 const PLATFORMS: PlatformId[] = ['youtube', 'instagram', 'facebook', 'tiktok'];
 
 ensureWorkspace();
+
+// Boot kernel com plugins (assíncrono, não bloqueia o listen)
+bootKernel().catch((err) => console.error('[kernel] boot failed:', err));
 
 const app = express();
 app.use(cors());
@@ -330,6 +334,29 @@ async function schedulerTick() {
   }
 }
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
+
+setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
+
+// --- Plugin Capabilities (kernel) ---
+app.get('/api/plugins', (_req, res) => {
+  try {
+    const caps = listCapabilities().map((e) => ({ id: e.capability.id, name: e.capability.name, pluginId: e.pluginId }));
+    res.json({ capabilities: caps });
+  } catch (e) {
+    res.status(503).json({ error: 'kernel not ready', detail: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+app.post('/api/plugins/:capability', async (req, res) => {
+  try {
+    const capId = (req.params as Record<string, string>).capability;
+    const input = req.body ?? {};
+    const result = await executeCapability(capId, input);
+    res.json({ ok: true, capability: capId, result });
+  } catch (e) {
+    res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
 
 app.listen(PORT, () => {
   console.log(`[beehive-worker] porta ${PORT} · storage=${storageMode()} · public=${PUBLIC_URL ? 'on' : 'off'} · agendador on`);
