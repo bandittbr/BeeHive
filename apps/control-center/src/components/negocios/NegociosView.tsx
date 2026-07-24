@@ -7,7 +7,7 @@ import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
 import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds, hasTiktokCreds } from '../../services/credentials';
-import { computeSlots, schedulePost, type PlatformId } from '../../services/scheduler';
+import { computeSlots, schedulePost, listAccounts, type PlatformId } from '../../services/scheduler';
 import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
@@ -176,18 +176,24 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
 
   const scheduleAll = async () => {
     if (schedBusy || cortesClips.length === 0) return;
-    const networks: PlatformId[] = [];
-    if (hasYoutubeCreds()) networks.push('youtube');
-    if (hasInstagramCreds()) networks.push('instagram');
-    if (hasFacebookCreds()) networks.push('facebook');
-    if (hasTiktokCreds()) networks.push('tiktok');
-    if (networks.length === 0) { setSchedMsg('Configure ao menos uma rede em Settings → Conexões (e clique em "Ativar").'); return; }
-    setSchedBusy(true); setSchedMsg('Agendando...');
+    setSchedBusy(true); setSchedMsg('Preparando destinos...');
+    // Monta a lista de destinos: uma entrada por (rede) ou (rede + conta conectada).
+    const targets: { platform: PlatformId; accountId?: string }[] = [];
+    if (hasYoutubeCreds()) targets.push({ platform: 'youtube' });
+    if (hasInstagramCreds()) targets.push({ platform: 'instagram' });
+    if (hasFacebookCreds()) targets.push({ platform: 'facebook' });
+    // TikTok: contas conectadas via OAuth (multi-conta) ou credencial única (fallback)
+    const ttAccounts = await listAccounts('tiktok');
+    if (ttAccounts.length) ttAccounts.forEach((a) => targets.push({ platform: 'tiktok', accountId: a.id }));
+    else if (hasTiktokCreds()) targets.push({ platform: 'tiktok' });
+
+    if (targets.length === 0) { setSchedMsg('Configure ao menos uma rede em Settings → Conexões (e clique em "Ativar"/"Conectar").'); setSchedBusy(false); return; }
+    setSchedMsg('Agendando...');
     const slots = computeSlots(cortesClips.length, [biz.postSchedule || ''], biz.postsPerDay || 1);
     let ok = 0, total = 0;
     for (let i = 0; i < cortesClips.length; i++) {
       const c = cortesClips[i];
-      for (const net of networks) {
+      for (const t of targets) {
         total++;
         const res = await schedulePost({
           file: c.file,
@@ -195,13 +201,14 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
           description: biz.description || '',
           tags: (biz.niche || biz.name).split(/[\s,]+/).filter(Boolean).slice(0, 10),
           at: slots[i] ?? Date.now(),
-          platform: net,
+          platform: t.platform,
+          accountId: t.accountId,
         });
         if (res.ok) ok++;
       }
     }
     const first = slots[0] ? new Date(slots[0]).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '';
-    setSchedMsg(`${ok}/${total} agendado(s) em ${networks.length} rede(s). Primeiro: ${first}. O servidor publica sozinho.`);
+    setSchedMsg(`${ok}/${total} agendado(s) em ${targets.length} destino(s). Primeiro: ${first}. O servidor publica sozinho.`);
     setSchedBusy(false);
   };
 
