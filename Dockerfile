@@ -1,4 +1,4 @@
-FROM node:20-slim
+FROM node:22-slim
 
 WORKDIR /app
 
@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg pyth
   && rm -rf /var/lib/apt/lists/* \
   && pip3 install --no-cache-dir --break-system-packages yt-dlp
 
-RUN npm install -g pnpm@latest
+RUN npm install -g pnpm@9
 
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/worker/package.json apps/worker/
