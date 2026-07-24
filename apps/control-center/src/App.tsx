@@ -242,7 +242,7 @@ function HomeChat() {
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
   const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
-  const [selectedModel, setSelectedModel] = useState('deepseek/deepseek-v4-pro');
+  const [selectedModel, setSelectedModel] = useState('big-pickle'); // OpenCode Zen, grátis
   const [omniRouterEnabled, setOmniRouterEnabled] = useState(() => localStorage.getItem('beehive-omnirouter') === '1');
   const [reasoningEffort, setReasoningEffort] = useState<'default' | 'low' | 'medium' | 'high'>('default');
   const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
@@ -485,16 +485,17 @@ function ChatInputArea({
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Todos os modelos abaixo são roteados pelo worker via OpenRouter (uma chave
-  // só dá acesso a esses e a dezenas de outros). O title é só o nome do
-  // modelo — o provider (OpenRouter) já aparece na linha de baixo do item.
+  // Modelos grátis do gateway padrão (OpenCode Zen — ver plugins/ai-manager/
+  // src/capabilities/ai.complete.ts). Custo zero: nenhum cobra por token.
+  // O title é só o nome do modelo — o provider já aparece embaixo do item.
+  // (Se o servidor estiver configurado com OPENROUTER_API_KEY em vez de
+  // OPENCODE_ZEN_API_KEY, esses IDs não existem lá — troque a lista se for
+  // usar OpenRouter como gateway padrão.)
   const modelOptions = [
-    { providerID: 'openrouter', modelID: 'deepseek/deepseek-v4-pro', title: 'DeepSeek V4 Pro', description: 'OpenRouter', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'meta-llama/llama-3.1-8b-instruct:free', title: 'Llama 3.1 8B (grátis)', description: 'OpenRouter', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'openai/gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'openai/gpt-4o-mini', title: 'GPT-4o Mini', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'anthropic/claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'google/gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'opencode-zen', modelID: 'big-pickle', title: 'Big Pickle', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'deepseek-v4-flash-free', title: 'DeepSeek V4 Flash', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'mimo-v2.5-free', title: 'MiMo V2.5', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'nemotron-3-ultra-free', title: 'Nemotron 3 Ultra', description: 'OpenCode Zen (grátis)', supportsImages: false },
   ];
 
   const effortOptions = [

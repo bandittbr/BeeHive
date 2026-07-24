@@ -480,10 +480,11 @@ app.post('/api/conversation/respond', async (req, res) => {
       }
     }
 
-    // Sem usuário/provider BYOK → gateway padrão (OpenRouter global, com OmniRouter opcional).
+    // Sem usuário/provider BYOK → gateway padrão global (OpenCode Zen, grátis por
+    // padrão; cai pra OpenRouter se só essa chave estiver configurada), com OmniRouter opcional.
     const model = typeof req.body?.model === 'string' && req.body.model
       ? req.body.model
-      : (process.env.AI_MODEL ?? 'deepseek/deepseek-v4-pro');
+      : (process.env.AI_MODEL ?? 'big-pickle');
     const omnirouter = req.body?.omnirouter === true;
     const result = await executeCapability('ai.complete', {
       messages: [{ role: 'user', content: msg.content }],

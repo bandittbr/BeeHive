@@ -287,11 +287,10 @@ function StreamingInput({
   const [effortOpen, setEffortOpen] = useState(false);
 
   const modelOptions = [
-    { providerID: 'openrouter', modelID: 'deepseek/deepseek-v4-pro', title: 'DeepSeek V4 Pro', description: 'OpenRouter', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'meta-llama/llama-3.1-8b-instruct:free', title: 'Llama 3.1 8B (grátis)', description: 'OpenRouter', supportsImages: false },
-    { providerID: 'openrouter', modelID: 'openai/gpt-4o', title: 'GPT-4o', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'anthropic/claude-3.5-sonnet', title: 'Claude 3.5 Sonnet', description: 'OpenRouter', supportsImages: true },
-    { providerID: 'openrouter', modelID: 'google/gemini-1.5-pro', title: 'Gemini 1.5 Pro', description: 'OpenRouter', supportsImages: true },
+    { providerID: 'opencode-zen', modelID: 'big-pickle', title: 'Big Pickle', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'deepseek-v4-flash-free', title: 'DeepSeek V4 Flash', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'mimo-v2.5-free', title: 'MiMo V2.5', description: 'OpenCode Zen (grátis)', supportsImages: false },
+    { providerID: 'opencode-zen', modelID: 'nemotron-3-ultra-free', title: 'Nemotron 3 Ultra', description: 'OpenCode Zen (grátis)', supportsImages: false },
   ];
 
   const effortOptions = [
