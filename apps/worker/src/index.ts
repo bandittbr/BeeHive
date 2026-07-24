@@ -335,7 +335,26 @@ async function schedulerTick() {
 }
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
 
-setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
+// --- Chat (compat: frontend usa POST /api/conversation/respond) ---
+app.post('/api/conversation/respond', async (req, res) => {
+  try {
+    const msg = req.body?.message;
+    if (!msg || msg.role !== 'user' || !msg.content) {
+      return res.status(400).json({ error: 'formato: { message: { role: "user", content: string } }' });
+    }
+    const result = await executeCapability('ai.complete', {
+      messages: [{ role: 'user', content: msg.content }],
+      model: process.env.AI_MODEL ?? 'openai/gpt-4o-mini',
+    });
+    const content = typeof result?.outputs?.content === 'string'
+      ? result.outputs.content
+      : 'Não consegui gerar uma resposta agora.';
+    res.json({ messages: [{ role: 'assistant', content }] });
+  } catch (e) {
+    console.error('[chat] erro:', e);
+    res.json({ messages: [{ role: 'assistant', content: 'Não consegui falar com o servidor de IA agora.' }] });
+  }
+});
 
 // --- Plugin Capabilities (kernel) ---
 app.get('/api/plugins', (_req, res) => {
