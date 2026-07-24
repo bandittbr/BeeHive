@@ -15,7 +15,6 @@ RUN npm install -g pnpm@latest
 # Primeiro copia só os manifests para aproveitar cache de camadas
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml tsconfig.base.json ./
 COPY apps/worker/package.json apps/worker/
-COPY kernel/package.json kernel/
 COPY packages/shared/package.json packages/shared/
 COPY packages/sdk/package.json packages/sdk/
 COPY plugins/*/package.json plugins/
