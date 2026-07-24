@@ -19,12 +19,32 @@ export function ProviderIcon(props: ProviderIconProps) {
   const isGoogle = hasProviderFamily("google");
   const isOllama = hasProviderFamily("ollama");
   const isDeepSeek = hasProviderFamily("deepseek");
+  const isNvidia = hasProviderFamily("nvidia");
+  const isMistral = hasProviderFamily("mistral");
+  const isCohere = hasProviderFamily("cohere");
+  const isTogether = hasProviderFamily("together");
+  const isPerplexity = hasProviderFamily("perplexity");
+  const isXai = hasProviderFamily("xai") || normalizedId === "xai";
+  const isGithub = hasProviderFamily("github");
+  const isGroq = hasProviderFamily("groq");
+  const isFireworks = hasProviderFamily("fireworks");
+  const isReplicate = hasProviderFamily("replicate");
 
   const fallbackLetters = (() => {
     if (isOpenRouter) return "OR";
     if (isDeepSeek) return "DS";
     if (isGoogle) return "GO";
     if (isOllama) return "OL";
+    if (isNvidia) return "NV";
+    if (isMistral) return "MI";
+    if (isCohere) return "CH";
+    if (isTogether) return "TO";
+    if (isPerplexity) return "PP";
+    if (isXai) return "XA";
+    if (isGithub) return "GH";
+    if (isGroq) return "GQ";
+    if (isFireworks) return "FW";
+    if (isReplicate) return "RP";
     if (normalizedId.length >= 2) return normalizedId.substring(0, 2).toUpperCase();
     return "AI";
   })();
@@ -37,6 +57,16 @@ export function ProviderIcon(props: ProviderIconProps) {
     if (isGoogle) return "bg-blue-500 text-white";
     if (isOllama) return "bg-green-600 text-white";
     if (isDeepSeek) return "bg-cyan-600 text-white";
+    if (isNvidia) return "bg-emerald-600 text-white";
+    if (isMistral) return "bg-sky-600 text-white";
+    if (isCohere) return "bg-indigo-600 text-white";
+    if (isTogether) return "bg-violet-600 text-white";
+    if (isPerplexity) return "bg-amber-600 text-white";
+    if (isXai) return "bg-zinc-800 text-white";
+    if (isGithub) return "bg-gray-800 text-white";
+    if (isGroq) return "bg-orange-500 text-white";
+    if (isFireworks) return "bg-red-600 text-white";
+    if (isReplicate) return "bg-slate-700 text-white";
     return "bg-muted text-muted-foreground";
   })();
 
@@ -60,6 +90,18 @@ export function ProviderIcon(props: ProviderIconProps) {
           <circle cx="9" cy="16" r="1" fill="currentColor" />
           <circle cx="15" cy="16" r="1" fill="currentColor" />
           <path d="M10 19c.5.5 1.5 1 2 1s1.5-.5 2-1" />
+        </svg>
+      ) : isNvidia ? (
+        <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width={size * 0.6} height={size * 0.6}>
+          <path d="M8.948 8.798v-1.39a5.31 5.31 0 0 1 1.702-1.02v3.076c-.567.163-1.083.476-1.702.334m-2.011 1.303v-2.5a8.04 8.04 0 0 1 2.011-1.548v3.176c-.65.34-1.312.68-2.011.872m-2.01 1.303v-2.5a10.82 10.82 0 0 1 2.01-1.549v3.176c-.65.34-1.312.68-2.01.873m12.145-5.943c.624.624.976 1.485.976 2.434 0 .949-.352 1.81-.976 2.434-.624.624-1.485.976-2.434.976-.949 0-1.81-.352-2.434-.976-.624-.624-.976-1.485-.976-2.434 0-.949.352-1.81.976-2.434.624-.624 1.485-.976 2.434-.976.949 0 1.81.352 2.434.976" />
+        </svg>
+      ) : isMistral ? (
+        <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width={size * 0.6} height={size * 0.6}>
+          <path d="M4.5 2.5v19h3v-7h3v7h3v-7h3v7h3v-19h-3v7h-3v-7h-3v7h-3v-7z" />
+        </svg>
+      ) : isPerplexity ? (
+        <svg role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" fill="currentColor" width={size * 0.6} height={size * 0.6}>
+          <path d="M12 2L2 7v10l10 5 10-5V7l-10-5zm0 2.5l7.5 3.75v7.5L12 19.5l-7.5-3.75v-7.5L12 4.5z" />
         </svg>
       ) : (
         <span className="font-bold tracking-tight" style={{ fontSize: `${Math.max(8, size * 0.45)}px` }}>

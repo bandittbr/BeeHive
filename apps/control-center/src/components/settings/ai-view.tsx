@@ -2,7 +2,8 @@ import { useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { 
   ArrowRight, CheckCircle2, KeyRound, X, Plus, Loader2, 
-  AlertCircle, RefreshCcw, ChevronDown, ChevronUp, Globe
+  AlertCircle, RefreshCcw, ChevronDown, ChevronUp, Globe,
+  Puzzle, Sparkles, Server, Wifi
 } from "lucide-react";
 import { ProviderIcon } from "./provider-icon";
 import { SettingsNotice, SettingsStatusBadge } from "./settings-section";
@@ -57,13 +58,29 @@ function providerSourceLabel(source?: ConnectedProvider["source"]) {
 }
 
 const PROVIDER_OPTIONS = [
-  { id: "openrouter", name: "OpenRouter", desc: "Multiple models via OpenRouter" },
-  { id: "openai", name: "OpenAI", desc: "GPT-4, DALL-E, Whisper" },
-  { id: "anthropic", name: "Anthropic", desc: "Claude 3.5 Sonnet, Claude 3 Opus" },
-  { id: "google", name: "Google", desc: "Gemini 1.5 Pro, Gemini 1.5 Flash" },
-  { id: "ollama", name: "Ollama", desc: "Local models (Llama, Mistral, etc.)" },
-  { id: "deepseek", name: "DeepSeek", desc: "DeepSeek Coder, DeepSeek Chat" },
-  { id: "custom", name: "Custom (OpenAI-compatible)", desc: "Any OpenAI-compatible endpoint" },
+  { id: "openai", name: "OpenAI", desc: "GPT-4o, GPT-4, DALL-E, Whisper", category: "cloud" },
+  { id: "anthropic", name: "Anthropic", desc: "Claude 3.5 Sonnet, Claude 3 Opus", category: "cloud" },
+  { id: "openrouter", name: "OpenRouter", desc: "Multiple models via unified API", category: "cloud" },
+  { id: "google", name: "Google Gemini", desc: "Gemini 1.5 Pro, Gemini 2.0 Flash", category: "cloud" },
+  { id: "deepseek", name: "DeepSeek", desc: "DeepSeek V3, DeepSeek R1", category: "cloud" },
+  { id: "xai", name: "xAI (Grok)", desc: "Grok-2, Grok-3", category: "cloud" },
+  { id: "mistral", name: "Mistral AI", desc: "Mistral Large, Codestral", category: "cloud" },
+  { id: "perplexity", name: "Perplexity", desc: "Sonar Pro, Sonar Deep Research", category: "cloud" },
+  { id: "nvidia", name: "NVIDIA", desc: "Nemotron, Llama Nemotron", category: "cloud" },
+  { id: "cohere", name: "Cohere", desc: "Command R+, Command A", category: "cloud" },
+  { id: "together", name: "Together AI", desc: "Llama 3.3, Mixtral hosted", category: "cloud" },
+  { id: "groq", name: "Groq", desc: "Llama 3, Mixtral (ultra-fast)", category: "cloud" },
+  { id: "fireworks", name: "Fireworks AI", desc: "Llama 3, DeepSeek hosted", category: "cloud" },
+  { id: "github", name: "GitHub Models", desc: "GPT-4o, Phi-3, AI21 via Azure", category: "cloud" },
+  { id: "replicate", name: "Replicate", desc: "Open-source models hosted", category: "cloud" },
+  { id: "ollama", name: "Ollama", desc: "Local models (Llama, Mistral, etc.)", category: "local" },
+  { id: "custom", name: "Personalizado", desc: "Any OpenAI-compatible endpoint", category: "custom" },
+];
+
+const CATEGORIES = [
+  { id: "cloud", label: "Cloud Providers", icon: Wifi },
+  { id: "local", label: "Local", icon: Server },
+  { id: "custom", label: "Personalizado", icon: Puzzle },
 ];
 
 export function AiSettingsView({ 
@@ -85,10 +102,22 @@ export function AiSettingsView({
   const [testResults, setTestResults] = useState<Record<string, TestResult>>({});
   const [expandedProvider, setExpandedProvider] = useState<string | null>(null);
   const [loadingModels, setLoadingModels] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
+  const connectedIds = new Set(connectedProviders.map(c => c.id));
   const availableProviders = PROVIDER_OPTIONS.filter(
-    (p) => !connectedProviders.some((c) => c.id === p.id)
+    (p) => !connectedIds.has(p.id)
   );
+
+  const filteredProviders = availableProviders.filter(p =>
+    p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    p.desc.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const groupedProviders = CATEGORIES.map(cat => ({
+    ...cat,
+    providers: filteredProviders.filter(p => p.category === cat.id),
+  })).filter(g => g.providers.length > 0);
 
   const handleTestConnection = useCallback(async (providerId: string) => {
     setTestingId(providerId);
@@ -119,12 +148,16 @@ export function AiSettingsView({
     }
   }, [addingProvider, apiKey, baseUrl, onAddProvider]);
 
+  const needsBaseUrl = addingProvider === "custom" || addingProvider === "ollama";
+
   return (
     <LayoutStack>
       <LayoutSection>
         <LayoutSectionHeader>
           <LayoutSectionTitle>AI Providers</LayoutSectionTitle>
-          <LayoutSectionDescription>Manage your AI provider connections and API keys</LayoutSectionDescription>
+          <LayoutSectionDescription>
+            Configure seus provedores de IA. Escolha um da lista ou adicione um endpoint personalizado.
+          </LayoutSectionDescription>
         </LayoutSectionHeader>
 
         <LayoutSectionItem>
@@ -156,59 +189,110 @@ export function AiSettingsView({
           </LayoutSectionItem>
         )}
 
+        {/* Modal de Adicionar Provedor */}
         {showAddModal && (
           <LayoutSectionItem className="rounded-2xl border border-border bg-muted/30 p-4">
-            <div className="flex flex-col gap-3">
-              <h4 className="text-sm font-medium">Add Provider</h4>
-              <div className="flex flex-col gap-2">
-                {availableProviders.map((p) => (
-                  <button
-                    key={p.id}
-                    className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-left text-sm transition-colors hover:bg-muted/50 ${
-                      addingProvider === p.id ? "border-primary bg-primary/5" : "border-border"
-                    }`}
-                    onClick={() => setAddingProvider(addingProvider === p.id ? null : p.id)}
-                  >
-                    <ProviderIcon providerId={p.id} size={20} />
-                    <div className="min-w-0">
-                      <div className="font-medium">{p.name}</div>
-                      <div className="text-xs text-muted-foreground">{p.desc}</div>
+            <div className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <h4 className="text-sm font-medium">Add Provider</h4>
+                <button
+                  onClick={() => { setAddingProvider(null); setApiKey(""); setBaseUrl(""); setShowAddModal(false); }}
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              {/* Busca */}
+              <input
+                type="text"
+                placeholder="Search providers..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              />
+
+              {/* Grid de provedores por categoria */}
+              <div className="flex flex-col gap-4 max-h-80 overflow-y-auto">
+                {groupedProviders.map((group) => (
+                  <div key={group.id}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <group.icon className="size-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                        {group.label}
+                      </span>
                     </div>
-                  </button>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {group.providers.map((p) => (
+                        <button
+                          key={p.id}
+                          className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 text-left text-sm transition-all hover:bg-muted/50 ${
+                            addingProvider === p.id 
+                              ? "border-primary bg-primary/5 ring-1 ring-primary" 
+                              : "border-border"
+                          }`}
+                          onClick={() => setAddingProvider(addingProvider === p.id ? null : p.id)}
+                        >
+                          <ProviderIcon providerId={p.id} size={22} />
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium truncate">{p.name}</div>
+                            <div className="text-xs text-muted-foreground truncate">{p.desc}</div>
+                          </div>
+                          {addingProvider === p.id && (
+                            <CheckCircle2 className="size-4 text-primary shrink-0" />
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
+
+              {/* Formulário de conexão */}
               {addingProvider && (
-                <div className="flex flex-col gap-2 mt-2">
-                  <input
-                    type="password"
-                    placeholder="API Key (sk-...)"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  />
-                  {addingProvider === "custom" && (
+                <div className="flex flex-col gap-3 mt-2 rounded-xl border border-border bg-background p-4">
+                  <div className="flex items-center gap-2">
+                    <ProviderIcon providerId={addingProvider} size={18} />
+                    <span className="text-sm font-medium">
+                      {PROVIDER_OPTIONS.find(p => p.id === addingProvider)?.name || addingProvider}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col gap-2">
+                    <label className="text-xs text-muted-foreground">API Key</label>
                     <input
-                      type="text"
-                      placeholder="Base URL (https://api.example.com/v1)"
-                      value={baseUrl}
-                      onChange={(e) => setBaseUrl(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+                      type="password"
+                      placeholder={addingProvider === "ollama" ? "Optional (leave blank for local)" : "sk-..."}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
                     />
+                  </div>
+
+                  {needsBaseUrl && (
+                    <div className="flex flex-col gap-2">
+                      <label className="text-xs text-muted-foreground">
+                        {addingProvider === "ollama" ? "Ollama URL" : "Base URL"}
+                      </label>
+                      <input
+                        type="text"
+                        placeholder={
+                          addingProvider === "ollama" 
+                            ? "http://localhost:11434" 
+                            : "https://api.seuprovedor.com/v1"
+                        }
+                        value={baseUrl}
+                        onChange={(e) => setBaseUrl(e.target.value)}
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring font-mono"
+                      />
+                    </div>
                   )}
-                  {addingProvider === "ollama" && (
-                    <input
-                      type="text"
-                      placeholder="Base URL (http://localhost:11434)"
-                      value={baseUrl}
-                      onChange={(e) => setBaseUrl(e.target.value)}
-                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                    />
-                  )}
-                  <div className="flex gap-2">
+
+                  <div className="flex items-center gap-2 pt-1">
                     <Button
                       size="sm"
                       onClick={handleAddProvider}
-                      disabled={!apiKey.trim() || isLoading}
+                      disabled={(!apiKey.trim() && addingProvider !== "ollama") || isLoading}
                     >
                       {isLoading ? (
                         <Loader2 className="mr-1.5 size-3.5 animate-spin" />
@@ -220,7 +304,7 @@ export function AiSettingsView({
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => { setAddingProvider(null); setApiKey(""); setBaseUrl(""); setShowAddModal(false); }}
+                      onClick={() => { setAddingProvider(null); setApiKey(""); setBaseUrl(""); }}
                     >
                       Cancel
                     </Button>
@@ -231,6 +315,7 @@ export function AiSettingsView({
           </LayoutSectionItem>
         )}
 
+        {/* Lista de provedores conectados */}
         {connectedProviders.length > 0 ? (
           <div className="space-y-2">
             {connectedProviders.map((provider) => {
@@ -247,7 +332,7 @@ export function AiSettingsView({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex min-w-0 items-center gap-3">
-                      <ProviderIcon providerId={provider.id} size={20} />
+                      <ProviderIcon providerId={provider.id} size={22} />
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="truncate text-sm font-medium">{provider.name}</span>
@@ -267,8 +352,15 @@ export function AiSettingsView({
                             </span>
                           )}
                         </div>
-                        <div className="truncate font-mono text-xs text-muted-foreground">
-                          {fullProvider?.maskedApiKey || "••••••••"}
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {fullProvider?.maskedApiKey || "••••••••"}
+                          </span>
+                          {fullProvider?.baseUrl && (
+                            <span className="text-xs text-muted-foreground truncate max-w-[200px]">
+                              · {fullProvider.baseUrl}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -316,6 +408,7 @@ export function AiSettingsView({
                     </div>
                   </div>
                   
+                  {/* Resultado do teste */}
                   {testResult && (
                     <div className={`mt-3 rounded-xl border p-3 text-sm ${
                       testResult.success 
@@ -340,6 +433,7 @@ export function AiSettingsView({
                     </div>
                   )}
                   
+                  {/* Modelos */}
                   {isExpanded && fullProvider && (
                     <div className="mt-3 border-t border-border pt-3">
                       <div className="flex items-center justify-between mb-2">
@@ -372,7 +466,7 @@ export function AiSettingsView({
                                   {model.maxOutput && ` • ${model.maxOutput.toLocaleString()} output`}
                                 </div>
                               </div>
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 shrink-0">
                                 {model.supportsImages && (
                                   <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[10px] font-medium text-blue-700 dark:bg-blue-900 dark:text-blue-300">
                                     Images
@@ -399,17 +493,26 @@ export function AiSettingsView({
             })}
           </div>
         ) : (
-          <LayoutSectionItem className="rounded-2xl border border-dashed border-border px-4 py-6 text-center">
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <KeyRound className="size-8" />
-              <p className="text-sm">No providers connected yet</p>
-              <p className="text-xs">Add a provider to start using AI models</p>
+          <LayoutSectionItem className="rounded-2xl border border-dashed border-border px-4 py-8 text-center">
+            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+              <div className="rounded-full bg-muted p-3">
+                <Sparkles className="size-6" />
+              </div>
+              <p className="text-sm font-medium">Nenhum provedor conectado</p>
+              <p className="text-xs max-w-sm">
+                Adicione um provedor de IA para começar. Escolha entre as opções populares 
+                ou configure um endpoint personalizado compatível com OpenAI.
+              </p>
+              <Button onClick={() => setShowAddModal(true)} variant="outline" size="sm">
+                <Plus className="mr-1.5 size-3.5" />
+                Connect Provider
+              </Button>
             </div>
           </LayoutSectionItem>
         )}
 
         <LayoutSectionItemFootnote>
-          API keys are stored encrypted and never sent to BeeHive servers.
+          API keys are stored encrypted locally and never sent to BeeHive servers.
         </LayoutSectionItemFootnote>
       </LayoutSection>
     </LayoutStack>

@@ -116,7 +116,10 @@ export interface Model {
 
 // ===== Provider Credential Management =====
 
-export type ProviderType = 'openai' | 'anthropic' | 'openrouter' | 'google' | 'ollama' | 'deepseek' | 'custom';
+export type ProviderType = 'openai' | 'anthropic' | 'openrouter' | 
+  'google' | 'ollama' | 'deepseek' | 'custom' |
+  'nvidia' | 'mistral' | 'cohere' | 'together' | 'perplexity' |
+  'xai' | 'github' | 'groq' | 'fireworks' | 'replicate';
 export type ProviderStatus = 'connected' | 'disconnected' | 'error' | 'testing';
 
 export interface ProviderConfig {
