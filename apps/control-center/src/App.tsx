@@ -335,8 +335,12 @@ function HomeChat() {
     // Resumo final no chat
     const done = steps.filter((s) => s.status === 'done').length;
     const blocked = steps.filter((s) => s.status === 'blocked').length;
+    const pageLink = steps
+      .map((s) => s.result?.match(/🔗 Ver página: (\S+)/)?.[1])
+      .find(Boolean);
     const summary = `Plano concluído: ${done}/${steps.length} etapas executadas.` +
-      (blocked > 0 ? ` ${blocked} etapa(s) aguardam o Cowork (execução real) — em construção.` : '');
+      (blocked > 0 ? ` ${blocked} etapa(s) aguardam o Cowork (execução real) — em construção.` : '') +
+      (pageLink ? `\n\n🔗 Página gerada: ${pageLink}` : '');
     setMessages((prev) => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: summary, createdAt: new Date().toISOString() }]);
   };
 

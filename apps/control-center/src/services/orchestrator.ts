@@ -8,7 +8,7 @@
 // executadas no Cowork Nuvem quando o worker está configurado.
 
 import { askBeeHive } from './beehiveApi';
-import { isWorkerConfigured, runWorkerJob, type WorkerJob } from './worker';
+import { isWorkerConfigured, runWorkerJob, getWorkerConfig, type WorkerJob } from './worker';
 
 export type AgentKind =
   | 'chat' // conversa/resposta direta
@@ -229,7 +229,8 @@ Gere o arquivo HTML completo e pronto pra uso (com CSS embutido em <style>, resp
 Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown fences (sem \`\`\`).`;
       const raw = await askBeeHive(directPrompt);
       const content = raw.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
-      if (content) job = { type: 'writeFile', payload: { path: 'index.html', content }, label: step.title };
+      // pasta única por geração — senão a próxima landing page sobrescreve a anterior
+      if (content) job = { type: 'writeFile', payload: { path: `sites/${Date.now()}/index.html`, content }, label: step.title };
     } catch { /* cai no erro abaixo */ }
   }
 
@@ -239,8 +240,17 @@ Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown 
 
   const outcome = await runWorkerJob(job, { timeoutMs: 300000 });
   if (outcome.status === 'done') {
-    const resultText = outcome.output?.trim()
+    let resultText = outcome.output?.trim()
       || (typeof outcome.result === 'string' ? outcome.result : JSON.stringify(outcome.result ?? {}));
+    // writeFile gera um arquivo no workspace do worker — sem isso o usuário
+    // não tem como ver a página/arquivo gerado (o worker já serve /files/*).
+    if (job.type === 'writeFile' && typeof job.payload.path === 'string') {
+      const { url, token } = getWorkerConfig();
+      if (url) {
+        const link = `${url}/files/${encodeURIComponent(job.payload.path)}${token ? `?t=${encodeURIComponent(token)}` : ''}`;
+        resultText = `${resultText}\n\n🔗 Ver página: ${link}`;
+      }
+    }
     return { ...step, status: 'done', detail: `Executado no Cowork (${job.type}).`, result: resultText || 'OK' };
   }
   return { ...step, status: 'error', detail: `Cowork: ${outcome.error ?? 'falha na execução'}`, result: outcome.output };
