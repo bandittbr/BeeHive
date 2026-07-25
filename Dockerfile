@@ -19,6 +19,9 @@ RUN pnpm install --no-frozen-lockfile && \
   ln -sf /app/packages/sdk /app/node_modules/@beehive/sdk && \
   ln -sf /app/packages/shared /app/node_modules/@beehive/shared
 
+# Chromium do Playwright (usado pela etapa "browser" do orquestrador — testar/screenshot de páginas geradas)
+RUN pnpm --filter @beehive/worker exec playwright install --with-deps chromium
+
 COPY . .
 
 RUN pnpm --filter @beehive/worker run build || true

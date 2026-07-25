@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect } from 'react';
+﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
   BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
@@ -36,6 +36,9 @@ import { TaskPlan } from './components/chat/TaskPlan';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
+import { useArtifacts } from './lib/useArtifacts';
+import type { ArtifactItem } from './lib/artifacts';
+import { ArtifactPanel } from './components/chat/artifact-panel';
 
 import { PipelineBuilder } from './components/pipeline/PipelineBuilder';
 import { CostDashboard } from './components/cost/CostDashboard';
@@ -80,6 +83,15 @@ const { projects } = useAppStore();
   const [chatResetKey, setChatResetKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const firstProjectId = projects.length > 0 ? projects[0].id : null;
+  const {
+    conversations,
+    loading: conversationsLoading,
+    createConversation,
+    loadMore: loadMoreConversations,
+    hasMore: hasMoreConversations,
+  } = useConversations(firstProjectId);
 
   useEffect(() => { fetchAuthUser().then(setAuthUser).catch(() => {}); }, []);
 
@@ -110,8 +122,16 @@ const { projects } = useAppStore();
   };
 
   const handleNewConversation = () => {
+    setActiveConversationId(null);
     setChatResetKey((k) => k + 1);
     setActiveArea('chat');
+  };
+
+  const openConversation = (id: string) => {
+    setActiveConversationId(id);
+    setActiveArea('chat');
+    setOpenedProject(null);
+    setSidebarOpen(false);
   };
 
   return (
@@ -140,7 +160,24 @@ const { projects } = useAppStore();
             </div>
           </div>
           <div className="sidebar-divider" />
-          <div className="sidebar-recent" style={{ maxHeight: '220px', overflowY: 'auto' }}>
+          <div className="sidebar-recent" style={{ maxHeight: '180px', overflowY: 'auto' }}>
+            <div className="sidebar-section-label">Conversas Recentes</div>
+            <div className="recent-list">
+              {conversations.slice(0, 8).map((c) => (
+                <button
+                  key={c.id}
+                  className={`recent-row${activeArea === 'chat' && activeConversationId === c.id ? ' active' : ''}`}
+                  onClick={() => openConversation(c.id)}
+                  title={c.title}
+                >
+                  <span className="recent-icon"><MessageSquare size={13} /></span>
+                  <span className="recent-name">{c.title}</span>
+                </button>
+              ))}
+              {conversations.length === 0 && !conversationsLoading && <div className="recent-empty">Nenhuma conversa ainda</div>}
+            </div>
+          </div>
+          <div className="sidebar-recent" style={{ maxHeight: '180px', overflowY: 'auto' }}>
             <div className="sidebar-section-label">Projetos Recentes</div>
             <div className="recent-list">
               {projects.slice(0, 5).map((p: Project) => (
@@ -194,7 +231,18 @@ const { projects } = useAppStore();
         </header>
 
         <main className="main">
-          {activeArea === 'chat' && <HomeChat key={chatResetKey} />}
+          {activeArea === 'chat' && (
+            <HomeChat
+              key={chatResetKey}
+              activeConversationId={activeConversationId}
+              setActiveConversationId={setActiveConversationId}
+              conversations={conversations}
+              conversationsLoading={conversationsLoading}
+              createConversation={createConversation}
+              loadMoreConversations={loadMoreConversations}
+              hasMoreConversations={hasMoreConversations}
+            />
+          )}
           {activeArea === 'projetos' && !openedProject && <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />}
           {activeArea === 'projetos' && openedProject && <ProjectView project={openedProject} activeView={projectView} onViewChange={setProjectView} rightPanel={rightPanel} onRightPanelChange={setRightPanel} onBack={goToProjectsList} />}
           {activeArea === 'negocios' && <NegociosView />}
@@ -212,27 +260,31 @@ const { projects } = useAppStore();
 // HOME CHAT — centralizado, estilo Claude Desktop
 // ============================================================
 
-function HomeChat() {
+function HomeChat({
+  activeConversationId,
+  setActiveConversationId,
+  conversations,
+  conversationsLoading,
+  createConversation,
+  loadMoreConversations,
+  hasMoreConversations,
+}: {
+  activeConversationId: string | null;
+  setActiveConversationId: (id: string | null) => void;
+  conversations: ReturnType<typeof useConversations>['conversations'];
+  conversationsLoading: boolean;
+  createConversation: ReturnType<typeof useConversations>['createConversation'];
+  loadMoreConversations: () => void;
+  hasMoreConversations: boolean;
+}) {
   const { projects } = useAppStore();
-  const [started, setStarted] = useState(false);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+  const [started, setStarted] = useState(!!activeConversationId);
   const [newConversationTitle, setNewConversationTitle] = useState('');
-  const [showConversationList, setShowConversationList] = useState(false);
   const pending = usePermissionStore((s) => s.pending);
   const respondPermission = usePermissionStore((s) => s.respondPermission);
 
-  const { projectId } = useAppStore.getState().projects.length > 0 ? { projectId: useAppStore.getState().projects[0]?.id } : { projectId: null };
-  
   // Use the first project as default if available
   const firstProjectId = projects.length > 0 ? projects[0].id : null;
-  
-  const {
-    conversations,
-    loading: conversationsLoading,
-    createConversation,
-    loadMore: loadMoreConversations,
-    hasMore: hasMoreConversations,
-  } = useConversations(firstProjectId);
 
   const [sending, setSending] = useState(false);
   const [input, setInput] = useState('');
@@ -245,6 +297,32 @@ function HomeChat() {
   const [plan, setPlan] = useState<Plan | null>(null);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const { messages, loading: messagesLoading, sendMessage, setMessages } = useMessages(activeConversationId);
+
+  // Painel de artefatos (site/imagem/arquivo gerado): abre sozinho quando um
+  // artefato novo aparece na conversa, estilo Claude Desktop/opencode.
+  const messageLikes = useMemo(
+    () => messages.filter((m) => m.role !== 'system').map((m) => ({ role: m.role, parts: [{ type: 'text' as const, text: m.content }] })),
+    [messages],
+  );
+  const artifacts = useArtifacts(messageLikes);
+  const [activeArtifact, setActiveArtifact] = useState<ArtifactItem | null>(null);
+  const [artifactPanelClosed, setArtifactPanelClosed] = useState(false);
+  const seenArtifactIds = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const newOnes = artifacts.filter((a) => !seenArtifactIds.current.has(a.id));
+    artifacts.forEach((a) => seenArtifactIds.current.add(a.id));
+    if (newOnes.length > 0) {
+      setActiveArtifact(newOnes[newOnes.length - 1]);
+      setArtifactPanelClosed(false);
+    }
+  }, [artifacts]);
+
+  // Se o usuário clicar numa conversa recente na sidebar esquerda enquanto já
+  // está na área de chat (sem remount), sincroniza started com a prop.
+  useEffect(() => {
+    if (activeConversationId) setStarted(true);
+  }, [activeConversationId]);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -348,32 +426,16 @@ function HomeChat() {
     setMessages((prev) => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: summary, createdAt: new Date().toISOString() }]);
   };
 
+  const showArtifactPanel = !!activeArtifact && !artifactPanelClosed;
+
   return (
     <div className="home-chat-layout">
-      <main className="chat-main">
+      <main className={`chat-main${showArtifactPanel ? ' with-artifact-panel' : ''}`}>
         {!started && !activeConversationId ? (
           <div className="chat-hero">
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
             <h1>Olá, Gabriel! 👋</h1>
             <p>O que vamos criar hoje?</p>
-
-            {/* Conversation list sidebar */}
-            {conversations.length > 0 && (
-              <div className="conversation-list">
-                <h3>Conversas recentes</h3>
-                <ul>
-                  {conversations.map((c) => (
-                    <li key={c.id} onClick={() => { setActiveConversationId(c.id); setStarted(true); }}>
-                      <span className="conv-title">{c.title}</span>
-                      <span className="conv-time">{new Date(c.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-                    </li>
-                  ))}
-                </ul>
-                {hasMoreConversations && !conversationsLoading && (
-                  <button onClick={loadMoreConversations} className="load-more">Carregar mais</button>
-                )}
-              </div>
-            )}
           </div>
         ) : (
           <div className="chat-messages">
@@ -386,6 +448,7 @@ function HomeChat() {
                 streaming: sending && m.id === messages[messages.length - 1]?.id,
               }))}
               streaming={sending}
+              onPreviewArtifact={(a) => { setActiveArtifact(a); setArtifactPanelClosed(false); }}
             />
             {plan && !plan.conversational && <TaskPlan intent={plan.intent} steps={plan.steps} />}
             {sending && (
@@ -421,20 +484,9 @@ function HomeChat() {
         />
       </main>
 
-      <aside className="conversation-sidebar">
-        <div className="sidebar-header">
-          <h3>Conversas</h3>
-          <button onClick={() => { setActiveConversationId(null); setStarted(false); }}>Nova conversa</button>
-        </div>
-        <ul className="conversation-list">
-          {conversations.map((c) => (
-            <li key={c.id} className={activeConversationId === c.id ? 'active' : ''} onClick={() => { setActiveConversationId(c.id); setStarted(true); }}>
-              <span className="conv-title">{c.title}</span>
-              <span className="conv-time">{new Date(c.updatedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
-            </li>
-          ))}
-        </ul>
-      </aside>
+      {showArtifactPanel && (
+        <ArtifactPanel artifact={activeArtifact} onClose={() => setArtifactPanelClosed(true)} />
+      )}
 
       <PermissionApprovalModal
         permission={pending ?? { id: '', permission: 'bash', patterns: [] }}

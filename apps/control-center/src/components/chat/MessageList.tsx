@@ -36,8 +36,8 @@ import { PermissionApprovalPanel } from "@/components/chat/permission-approval-m
 import { usePermissionStore } from "@/stores/permissionStore";
 import { MessageListProvider, useMessageList } from "./message-list-provider";
 import { ArtifactList } from "./artifact";
-import { deriveOpenTargets } from "@/types/open-target";
-import { getArtifactType, type ArtifactItem } from "@/lib/artifacts";
+import { useArtifacts } from "@/lib/useArtifacts";
+import type { ArtifactItem } from "@/lib/artifacts";
 import { getToolActivityLabel, isToolPartInFlight, getActiveToolLabel } from "@/lib/tool-activity";
 
 interface Message {
@@ -170,9 +170,10 @@ interface MessageListProps {
   streaming?: boolean;
   onRegenerate?: (messageId: string) => void;
   onCopy?: (content: string) => void;
+  onPreviewArtifact?: (artifact: ArtifactItem) => void;
 }
 
-export function MessageList({ messages, streaming, onRegenerate, onCopy }: MessageListProps) {
+export function MessageList({ messages, streaming, onRegenerate, onCopy, onPreviewArtifact }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set());
 
@@ -200,7 +201,7 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy }: Messa
   const pending = usePermissionStore((s) => s.pending);
   const respondPermission = usePermissionStore((s) => s.respondPermission);
 
-  const allArtifacts = deriveOpenTargets(
+  const uniqueArtifacts = useArtifacts(
     messages.map((m) => ({
       role: m.role,
       parts: [
@@ -215,22 +216,6 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy }: Messa
       ],
     }))
   );
-  const uniqueTargets = Array.from(
-    new Map(allArtifacts.map((a) => [a.id, a])).values()
-  );
-  // ArtifactList/ArtifactButton esperam ArtifactItem (com legacy_target/type),
-  // não o OpenTarget cru — passar o target direto quebra canOpenArtifact()
-  // com "Cannot read properties of undefined (reading 'kind')".
-  const uniqueArtifacts: ArtifactItem[] = uniqueTargets.map((target, index) => ({
-    id: target.id,
-    name: target.name,
-    path: target.value,
-    type: getArtifactType(target.name),
-    messageId: "",
-    messageIndex: index,
-    updatedAt: target.updatedAt,
-    legacy_target: target,
-  }));
 
   return (
     <MessageListProvider showThinking={false} developerMode={false}>
@@ -242,7 +227,7 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy }: Messa
           />
         )}
         {uniqueArtifacts.length > 0 && (
-          <ArtifactList artifacts={uniqueArtifacts} />
+          <ArtifactList artifacts={uniqueArtifacts} onPreview={onPreviewArtifact} />
         )}
         {messages.map((message, index) => (
           <MessageBubble

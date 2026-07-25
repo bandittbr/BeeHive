@@ -88,6 +88,7 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
   transition: background var(--transition-fast); text-align: left; width: 100%;
 }
 .recent-row:hover { background: var(--surface-2); }
+.recent-row.active { background: var(--primary-muted); color: var(--primary-light); }
 .recent-icon { font-size: 12px; flex-shrink: 0; }
 .recent-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-dot { width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0; background: var(--text-muted); }
@@ -156,94 +157,18 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 /* ===== MAIN ===== */
 .main { overflow: hidden; display: flex; flex-direction: column; flex: 1; }
 
-/* ===== HOME CHAT LAYOUT ===== */
+/* ===== HOME CHAT LAYOUT =====
+   Flex, não grid: o painel de artefatos (site/imagem gerado) é opcional e
+   abre ao lado, estilo Claude Desktop/opencode — não uma sidebar fixa de
+   conversas (essa foi pra "Conversas Recentes" na sidebar esquerda). */
 .home-chat-layout {
-  display: grid;
-  grid-template-columns: 1fr 260px;
+  display: flex;
   height: 100%;
   min-height: 0;
-  transition: grid-template-columns 0.2s ease;
-}
-.home-chat-layout.has-file-panel {
-  grid-template-columns: 1fr 360px;
 }
 
-/* ===== CONVERSATION SIDEBAR (lista de conversas à direita) ===== */
-.conversation-sidebar {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border-left: 1px solid var(--border-light);
-  background: var(--bg);
-  overflow: hidden;
-}
-.conversation-sidebar .sidebar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 14px 14px 10px;
-  border-bottom: 1px solid var(--border-light);
-}
-.conversation-sidebar .sidebar-header h3 {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-.conversation-sidebar .sidebar-header button {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 4px 8px;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-  white-space: nowrap;
-}
-.conversation-sidebar .sidebar-header button:hover {
-  color: var(--text-secondary);
-  background: var(--surface-2);
-}
-.conversation-list {
-  flex: 1;
-  overflow-y: auto;
-  list-style: none;
-  margin: 0;
-  padding: 8px;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-.conversation-list li {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 10px;
-  border-radius: var(--radius-xs);
-  cursor: pointer;
-  transition: background var(--transition-fast);
-}
-.conversation-list li:hover { background: var(--surface-2); }
-.conversation-list li.active { background: var(--primary-muted); }
-.conversation-list .conv-title {
-  font-size: 12.5px;
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.conversation-list li.active .conv-title { color: var(--primary-light); }
-.conversation-list .conv-time {
-  font-size: 10.5px;
-  color: var(--text-muted);
-}
 @media (max-width: 900px) {
-  .home-chat-layout { grid-template-columns: 1fr; }
-  .conversation-sidebar { display: none; }
+  .artifact-panel { display: none; }
   .home-file-panel { display: none; }
   .cost-charts { grid-template-columns: 1fr; }
   .cost-summary { grid-template-columns: repeat(2, 1fr); }
@@ -260,10 +185,15 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
+  flex: 1;
   max-width: 800px;
   width: 100%;
   margin: 0 auto;
   padding: 24px 24px 0;
+}
+.chat-main.with-artifact-panel {
+  max-width: none;
 }
 
 /* Chat Hero - centered */
@@ -325,8 +255,9 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 8px 0 16px;
+  padding: 8px 14px 16px 0;
   min-height: 200px;
+  scrollbar-gutter: stable;
 }
 .chat-messages::-webkit-scrollbar { width: 6px; }
 .chat-messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
