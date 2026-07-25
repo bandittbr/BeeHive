@@ -676,22 +676,31 @@ export async function addMessage(input: { conversationId: string; userId: string
 }
 
 // ---------- Piloto automático de cortes (canais fonte + config + histórico) ----------
+// Piloto = uma automação independente (ex.: "Humor", "Terror", "Tech"), cada
+// uma com seus próprios canais fonte e contas-alvo (de beehive_accounts).
+export interface ClipPilot {
+  id: string;
+  name: string;
+  niche?: string;
+  description?: string;
+  active: boolean;
+  postsPerDay: number;
+  times?: string; // "12:00,18:00,21:00" — se vazio, espalha automático
+  accountIds: string[]; // ids de beehive_accounts (qualquer rede, misturado)
+  createdAt: number;
+  updatedAt: number;
+}
 export interface ClipChannel {
   id: string;
+  pilotId: string;
   channelUrl: string;
   label?: string;
   active: boolean;
   createdAt: number;
 }
-export interface ClipConfig {
-  active: boolean;
-  postsPerDay: number;
-  times?: string; // "12:00,18:00,21:00" — se vazio, espalha automático
-  niche?: string;
-  description?: string;
-}
 export interface ClipHistoryEntry {
   videoId: string;
+  pilotId?: string;
   channelUrl?: string;
   title?: string;
   status: 'done' | 'error' | 'skipped';
@@ -700,51 +709,127 @@ export interface ClipHistoryEntry {
   processedAt: number;
 }
 
+const CLIP_PILOTS = `${SUPABASE_URL}/rest/v1/beehive_clip_pilots`;
 const CLIP_CHANNELS = `${SUPABASE_URL}/rest/v1/beehive_clip_channels`;
-const CLIP_CONFIG = `${SUPABASE_URL}/rest/v1/beehive_clip_config`;
 const CLIP_HISTORY = `${SUPABASE_URL}/rest/v1/beehive_clip_history`;
 
-function rowToChannel(r: any): ClipChannel {
-  return { id: String(r.id), channelUrl: r.channel_url, label: r.label ?? undefined, active: !!r.active, createdAt: Number(r.created_at) };
+function rowToPilot(r: any): ClipPilot {
+  return {
+    id: String(r.id), name: r.name, niche: r.niche ?? undefined, description: r.description ?? undefined,
+    active: !!r.active, postsPerDay: Number(r.posts_per_day) || 1, times: r.times ?? undefined,
+    accountIds: Array.isArray(r.account_ids) ? r.account_ids : [],
+    createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
+  };
 }
-function rowToClipConfig(r: any): ClipConfig {
-  return { active: !!r.active, postsPerDay: Number(r.posts_per_day) || 1, times: r.times ?? undefined, niche: r.niche ?? undefined, description: r.description ?? undefined };
+function rowToChannel(r: any): ClipChannel {
+  return { id: String(r.id), pilotId: String(r.pilot_id), channelUrl: r.channel_url, label: r.label ?? undefined, active: !!r.active, createdAt: Number(r.created_at) };
 }
 function rowToHistory(r: any): ClipHistoryEntry {
-  return { videoId: String(r.video_id), channelUrl: r.channel_url ?? undefined, title: r.title ?? undefined, status: r.status, clipsGenerated: Number(r.clips_generated) || 0, error: r.error ?? undefined, processedAt: Number(r.processed_at) };
+  return { videoId: String(r.video_id), pilotId: r.pilot_id ?? undefined, channelUrl: r.channel_url ?? undefined, title: r.title ?? undefined, status: r.status, clipsGenerated: Number(r.clips_generated) || 0, error: r.error ?? undefined, processedAt: Number(r.processed_at) };
 }
 
-interface AutoclipFileData { channels: ClipChannel[]; config: ClipConfig; history: ClipHistoryEntry[] }
+interface AutoclipFileData { pilots: ClipPilot[]; channels: ClipChannel[]; history: ClipHistoryEntry[] }
 const AUTOCLIP_FILE = path.join(WORKSPACE_ROOT, '.beehive-autoclip.json');
-const DEFAULT_CLIP_CONFIG: ClipConfig = { active: false, postsPerDay: 1 };
 function autoclipFileLoad(): AutoclipFileData {
   try {
     const d = JSON.parse(fs.readFileSync(AUTOCLIP_FILE, 'utf8')) as AutoclipFileData;
+    if (!Array.isArray(d.pilots)) d.pilots = [];
     if (!Array.isArray(d.channels)) d.channels = [];
     if (!Array.isArray(d.history)) d.history = [];
-    if (!d.config) d.config = { ...DEFAULT_CLIP_CONFIG };
     return d;
-  } catch { return { channels: [], config: { ...DEFAULT_CLIP_CONFIG }, history: [] }; }
+  } catch { return { pilots: [], channels: [], history: [] }; }
 }
 function autoclipFileSave(d: AutoclipFileData): void {
   try { fs.mkdirSync(WORKSPACE_ROOT, { recursive: true }); fs.writeFileSync(AUTOCLIP_FILE, JSON.stringify(d, null, 2), 'utf8'); } catch { /* ignore */ }
 }
 
-export async function listClipChannels(): Promise<ClipChannel[]> {
+export async function listPilots(): Promise<ClipPilot[]> {
   if (useSupabase) {
-    const res = await fetch(`${CLIP_CHANNELS}?select=*&order=created_at.asc`, { headers: sbHeaders() });
+    const res = await fetch(`${CLIP_PILOTS}?select=*&order=created_at.asc`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToPilot);
+  }
+  return autoclipFileLoad().pilots;
+}
+
+export async function getPilot(id: string): Promise<ClipPilot | null> {
+  if (useSupabase) {
+    const res = await fetch(`${CLIP_PILOTS}?id=eq.${encodeURIComponent(id)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToPilot(rows[0]) : null;
+  }
+  return autoclipFileLoad().pilots.find((p) => p.id === id) ?? null;
+}
+
+export async function createPilot(input: { name: string; niche?: string; description?: string; postsPerDay?: number; times?: string; accountIds?: string[] }): Promise<ClipPilot> {
+  const now = Date.now();
+  const row: ClipPilot = {
+    id: `${now}_${Math.random().toString(36).slice(2, 8)}`, name: input.name, niche: input.niche, description: input.description,
+    active: false, postsPerDay: Math.max(1, input.postsPerDay || 1), times: input.times, accountIds: input.accountIds ?? [],
+    createdAt: now, updatedAt: now,
+  };
+  if (useSupabase) {
+    await fetch(CLIP_PILOTS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ id: row.id, name: row.name, niche: row.niche ?? null, description: row.description ?? null, active: row.active, posts_per_day: row.postsPerDay, times: row.times ?? null, account_ids: row.accountIds, created_at: row.createdAt, updated_at: row.updatedAt }) });
+    return row;
+  }
+  const d = autoclipFileLoad(); d.pilots.push(row); autoclipFileSave(d); return row;
+}
+
+export async function updatePilot(id: string, fields: Partial<Pick<ClipPilot, 'name' | 'niche' | 'description' | 'active' | 'postsPerDay' | 'times' | 'accountIds'>>): Promise<ClipPilot | null> {
+  const now = Date.now();
+  if (useSupabase) {
+    const body: Record<string, unknown> = { updated_at: now };
+    if (fields.name !== undefined) body.name = fields.name;
+    if (fields.niche !== undefined) body.niche = fields.niche;
+    if (fields.description !== undefined) body.description = fields.description;
+    if (fields.active !== undefined) body.active = fields.active;
+    if (fields.postsPerDay !== undefined) body.posts_per_day = fields.postsPerDay;
+    if (fields.times !== undefined) body.times = fields.times;
+    if (fields.accountIds !== undefined) body.account_ids = fields.accountIds;
+    const res = await fetch(`${CLIP_PILOTS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=representation' }), body: JSON.stringify(body) });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToPilot(rows[0]) : null;
+  }
+  const d = autoclipFileLoad();
+  const p = d.pilots.find((x) => x.id === id);
+  if (!p) return null;
+  Object.assign(p, fields, { updatedAt: now });
+  autoclipFileSave(d);
+  return p;
+}
+
+export async function deletePilot(id: string): Promise<boolean> {
+  if (useSupabase) {
+    const res = await fetch(`${CLIP_PILOTS}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
+    return res.ok;
+  }
+  const d = autoclipFileLoad();
+  const before = d.pilots.length;
+  d.pilots = d.pilots.filter((p) => p.id !== id);
+  d.channels = d.channels.filter((c) => c.pilotId !== id);
+  autoclipFileSave(d);
+  return d.pilots.length < before;
+}
+
+export async function listClipChannels(pilotId: string): Promise<ClipChannel[]> {
+  if (useSupabase) {
+    const res = await fetch(`${CLIP_CHANNELS}?pilot_id=eq.${encodeURIComponent(pilotId)}&select=*&order=created_at.asc`, { headers: sbHeaders() });
     if (!res.ok) return [];
     const rows = (await res.json().catch(() => [])) as any[];
     return rows.map(rowToChannel);
   }
-  return autoclipFileLoad().channels;
+  return autoclipFileLoad().channels.filter((c) => c.pilotId === pilotId);
 }
 
-export async function addClipChannel(input: { channelUrl: string; label?: string }): Promise<ClipChannel> {
-  const row: ClipChannel = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, channelUrl: input.channelUrl, label: input.label, active: true, createdAt: Date.now() };
+export async function addClipChannel(input: { pilotId: string; channelUrl: string; label?: string }): Promise<ClipChannel> {
+  const row: ClipChannel = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, pilotId: input.pilotId, channelUrl: input.channelUrl, label: input.label, active: true, createdAt: Date.now() };
   if (useSupabase) {
     await fetch(CLIP_CHANNELS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
-      body: JSON.stringify({ id: row.id, channel_url: row.channelUrl, label: row.label ?? null, active: true, created_at: row.createdAt }) });
+      body: JSON.stringify({ id: row.id, pilot_id: row.pilotId, channel_url: row.channelUrl, label: row.label ?? null, active: true, created_at: row.createdAt }) });
     return row;
   }
   const d = autoclipFileLoad(); d.channels.push(row); autoclipFileSave(d); return row;
@@ -762,25 +847,6 @@ export async function removeClipChannel(id: string): Promise<boolean> {
   return d.channels.length < before;
 }
 
-export async function getClipConfig(): Promise<ClipConfig> {
-  if (useSupabase) {
-    const res = await fetch(`${CLIP_CONFIG}?id=eq.1&select=*`, { headers: sbHeaders() });
-    if (!res.ok) return { ...DEFAULT_CLIP_CONFIG };
-    const rows = (await res.json().catch(() => [])) as any[];
-    return rows[0] ? rowToClipConfig(rows[0]) : { ...DEFAULT_CLIP_CONFIG };
-  }
-  return autoclipFileLoad().config;
-}
-
-export async function setClipConfig(cfg: ClipConfig): Promise<void> {
-  if (useSupabase) {
-    await fetch(CLIP_CONFIG, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ id: 1, active: cfg.active, posts_per_day: cfg.postsPerDay, times: cfg.times ?? null, niche: cfg.niche ?? null, description: cfg.description ?? null, updated_at: new Date().toISOString() }) });
-    return;
-  }
-  const d = autoclipFileLoad(); d.config = cfg; autoclipFileSave(d);
-}
-
 export async function isVideoProcessed(videoId: string): Promise<boolean> {
   if (useSupabase) {
     const res = await fetch(`${CLIP_HISTORY}?video_id=eq.${encodeURIComponent(videoId)}&select=video_id`, { headers: sbHeaders() });
@@ -794,18 +860,19 @@ export async function isVideoProcessed(videoId: string): Promise<boolean> {
 export async function addClipHistory(entry: ClipHistoryEntry): Promise<void> {
   if (useSupabase) {
     await fetch(CLIP_HISTORY, { method: 'POST', headers: sbHeaders({ prefer: 'resolution=merge-duplicates,return=minimal' }),
-      body: JSON.stringify({ video_id: entry.videoId, channel_url: entry.channelUrl ?? null, title: entry.title ?? null, status: entry.status, clips_generated: entry.clipsGenerated, error: entry.error ?? null, processed_at: entry.processedAt }) });
+      body: JSON.stringify({ video_id: entry.videoId, pilot_id: entry.pilotId ?? null, channel_url: entry.channelUrl ?? null, title: entry.title ?? null, status: entry.status, clips_generated: entry.clipsGenerated, error: entry.error ?? null, processed_at: entry.processedAt }) });
     return;
   }
   const d = autoclipFileLoad(); d.history.push(entry); autoclipFileSave(d);
 }
 
-export async function listClipHistory(limit = 30): Promise<ClipHistoryEntry[]> {
+export async function listClipHistory(pilotId?: string, limit = 30): Promise<ClipHistoryEntry[]> {
   if (useSupabase) {
-    const res = await fetch(`${CLIP_HISTORY}?select=*&order=processed_at.desc&limit=${limit}`, { headers: sbHeaders() });
+    const q = pilotId ? `&pilot_id=eq.${encodeURIComponent(pilotId)}` : '';
+    const res = await fetch(`${CLIP_HISTORY}?select=*&order=processed_at.desc&limit=${limit}${q}`, { headers: sbHeaders() });
     if (!res.ok) return [];
     const rows = (await res.json().catch(() => [])) as any[];
     return rows.map(rowToHistory);
   }
-  return autoclipFileLoad().history.slice().sort((a, b) => b.processedAt - a.processedAt).slice(0, limit);
+  return autoclipFileLoad().history.filter((h) => !pilotId || h.pilotId === pilotId).slice().sort((a, b) => b.processedAt - a.processedAt).slice(0, limit);
 }

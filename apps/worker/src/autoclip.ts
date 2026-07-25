@@ -1,17 +1,16 @@
-// Piloto automático de cortes: descobre vídeo novo nos canais cadastrados,
-// baixa+transcreve, pede pra IA escolher os melhores momentos, corta em
-// vertical com legenda animada e agenda a publicação nas redes conectadas —
-// tudo reaproveitando o que já existe (executors/media.ts pro processamento,
-// o agendador em index.ts pra publicar de verdade).
+// Piloto automático de cortes — roda N automações independentes ("pilotos":
+// ex. Humor, Terror, Tech), cada uma com seus próprios canais fonte e contas
+// de destino (de beehive_accounts). Descobre vídeo novo, baixa+transcreve,
+// pede pra IA os melhores momentos, corta em vertical com legenda animada e
+// agenda a publicação nas contas escolhidas — reaproveitando executors/media.ts
+// pro processamento e o agendador em index.ts pra publicar de verdade.
 import { spawn } from 'node:child_process';
-import { resolveInWorkspace } from './workspace.js';
 import { runYtFetch, runClip } from './executors/media.js';
 import { executeCapability } from './kernel-bridge.js';
 import {
-  listClipChannels, getClipConfig, isVideoProcessed, addClipHistory,
-  countPostsTodayByOrigin, addPost,
-  hasYoutubeCreds, hasPlatformCreds, listAccounts,
-  type ClipConfig,
+  listPilots, listClipChannels, isVideoProcessed, addClipHistory,
+  countPostsTodayByOrigin, addPost, getAccount,
+  type ClipPilot,
 } from './store.js';
 import type { JobRequest } from './types.js';
 
@@ -78,16 +77,18 @@ ${transcript.slice(0, 90000)}`;
   return Array.isArray(parsed?.segments) ? parsed.segments.slice(0, maxClips) : [];
 }
 
-interface Target { platform: 'youtube' | 'instagram' | 'facebook' | 'tiktok'; accountId?: string }
+interface Target { platform: 'youtube' | 'instagram' | 'facebook' | 'tiktok'; accountId: string }
 
-async function buildTargets(): Promise<Target[]> {
+// Resolve as contas-alvo do piloto (cadastradas em Settings → Conexões,
+// qualquer combinação de redes) a partir dos ids salvos no piloto.
+async function resolveTargets(accountIds: string[]): Promise<Target[]> {
   const targets: Target[] = [];
-  if (await hasYoutubeCreds()) targets.push({ platform: 'youtube' });
-  if (await hasPlatformCreds('instagram')) targets.push({ platform: 'instagram' });
-  if (await hasPlatformCreds('facebook')) targets.push({ platform: 'facebook' });
-  const ttAccounts = await listAccounts('tiktok');
-  if (ttAccounts.length) ttAccounts.forEach((a) => targets.push({ platform: 'tiktok', accountId: a.id }));
-  else if (await hasPlatformCreds('tiktok')) targets.push({ platform: 'tiktok' });
+  for (const id of accountIds) {
+    const acc = await getAccount(id);
+    if (acc && ['youtube', 'instagram', 'facebook', 'tiktok'].includes(acc.platform)) {
+      targets.push({ platform: acc.platform as Target['platform'], accountId: acc.id });
+    }
+  }
   return targets;
 }
 
@@ -103,11 +104,11 @@ function defaultTimes(n: number): [number, number][] {
 }
 
 // Calcula os horários dos próximos `count` posts, começando depois dos que já
-// foram agendados hoje (offset), espalhados pelos horários configurados (ou
+// foram agendados hoje (offset), espalhados pelos horários do piloto (ou
 // automático entre 9h-21h). Igual à lógica do frontend (services/scheduler.ts).
-function nextSlotTimes(count: number, offsetToday: number, cfg: ClipConfig): number[] {
-  let slots = parseTimes(cfg.times);
-  if (slots.length === 0) slots = defaultTimes(Math.max(1, cfg.postsPerDay || 1));
+function nextSlotTimes(count: number, offsetToday: number, pilot: ClipPilot): number[] {
+  let slots = parseTimes(pilot.times);
+  if (slots.length === 0) slots = defaultTimes(Math.max(1, pilot.postsPerDay || 1));
   const out: number[] = [];
   const now = new Date();
   let idx = offsetToday % slots.length;
@@ -127,92 +128,111 @@ function nextSlotTimes(count: number, offsetToday: number, cfg: ClipConfig): num
 }
 
 let ticking = false;
-let rotate = 0;
+const rotateByPilot = new Map<string, number>();
+
+// Processa UM piloto: acha vídeo novo, corta e agenda (se ainda tiver vaga
+// no dia). Erros de um piloto não afetam os outros.
+async function runPilot(pilot: ClipPilot): Promise<void> {
+  const origin = `autoclip:${pilot.id}`;
+  const alreadyToday = await countPostsTodayByOrigin(origin);
+  const remaining = pilot.postsPerDay - alreadyToday;
+  if (remaining <= 0) return;
+
+  const channels = (await listClipChannels(pilot.id)).filter((c) => c.active);
+  if (channels.length === 0) return;
+
+  const rotate = rotateByPilot.get(pilot.id) ?? 0;
+  let found: { video: DiscoveredVideo; channelUrl: string } | null = null;
+  for (let i = 0; i < channels.length && !found; i++) {
+    const ch = channels[(rotate + i) % channels.length];
+    const videos = await discoverChannelVideos(ch.channelUrl, 15);
+    for (const v of videos) {
+      if (!(await isVideoProcessed(v.id))) { found = { video: v, channelUrl: ch.channelUrl }; break; }
+    }
+  }
+  rotateByPilot.set(pilot.id, rotate + 1);
+  if (!found) return;
+
+  const { video, channelUrl } = found;
+  const runId = `autoclip/${pilot.id}/${Date.now()}`;
+  try {
+    const fetchRes = await runYtFetch({ type: 'ytFetch', payload: { url: video.url }, cwd: runId } as JobRequest, noop);
+    const data = fetchRes.result as any;
+    if (!data?.hasSubs || !data?.transcript) {
+      await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'skipped', clipsGenerated: 0, error: 'sem legenda/transcrição', processedAt: Date.now() });
+      return;
+    }
+
+    const duration = Number(data.duration) || 0;
+    const byDuration = Math.max(1, Math.round((duration || 600) / 210));
+    const maxClips = Math.max(1, Math.min(remaining, byDuration));
+
+    const segments = await selectHighlights(String(data.transcript), duration, maxClips);
+    if (segments.length === 0) {
+      await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'IA não achou momentos bons', processedAt: Date.now() });
+      return;
+    }
+
+    const clipRes = await runClip({ type: 'clip', payload: { input: data.video, srt: data.srt, segments, vertical: true }, cwd: runId } as JobRequest, noop);
+    const clips = ((clipRes.result as any)?.clips ?? []) as { file: string; title?: string }[];
+    if (clips.length === 0) {
+      await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'nenhum corte gerado', processedAt: Date.now() });
+      return;
+    }
+
+    const targets = await resolveTargets(pilot.accountIds);
+    if (targets.length === 0) {
+      await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'nenhuma conta selecionada pro piloto (edite o piloto e escolha as contas)', processedAt: Date.now() });
+      return;
+    }
+
+    const slots = nextSlotTimes(clips.length, alreadyToday, pilot);
+    const tags = (pilot.niche || '').split(/[\s,]+/).filter(Boolean).slice(0, 10);
+    for (let i = 0; i < clips.length; i++) {
+      const c = clips[i];
+      for (const t of targets) {
+        await addPost({
+          platform: t.platform,
+          file: `${runId}/${c.file}`,
+          title: c.title || video.title || `Corte ${i + 1}`,
+          description: pilot.description || '',
+          tags,
+          at: slots[i] ?? Date.now(),
+          accountId: t.accountId,
+          origin,
+        });
+      }
+    }
+
+    await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'done', clipsGenerated: clips.length, processedAt: Date.now() });
+  } catch (e) {
+    await addClipHistory({ videoId: video.id, pilotId: pilot.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: e instanceof Error ? e.message : String(e), processedAt: Date.now() });
+  }
+}
 
 export async function autoclipTick(): Promise<void> {
   if (ticking) return;
   ticking = true;
   try {
-    const config = await getClipConfig();
-    if (!config.active) return;
-
-    const alreadyToday = await countPostsTodayByOrigin('autoclip');
-    const remaining = config.postsPerDay - alreadyToday;
-    if (remaining <= 0) return;
-
-    const channels = (await listClipChannels()).filter((c) => c.active);
-    if (channels.length === 0) return;
-
-    // acha o próximo vídeo ainda não processado, rodando os canais em rodízio
-    let found: { video: DiscoveredVideo; channelUrl: string } | null = null;
-    for (let i = 0; i < channels.length && !found; i++) {
-      const ch = channels[(rotate + i) % channels.length];
-      const videos = await discoverChannelVideos(ch.channelUrl, 15);
-      for (const v of videos) {
-        if (!(await isVideoProcessed(v.id))) { found = { video: v, channelUrl: ch.channelUrl }; break; }
+    const pilots = (await listPilots()).filter((p) => p.active);
+    for (const pilot of pilots) {
+      try {
+        await runPilot(pilot);
+      } catch (e) {
+        console.error(`[autoclip] piloto ${pilot.name} falhou:`, e instanceof Error ? e.message : e);
       }
-    }
-    rotate++;
-    if (!found) return;
-
-    const { video, channelUrl } = found;
-    const runId = `autoclip/${Date.now()}`;
-    try {
-      const fetchRes = await runYtFetch({ type: 'ytFetch', payload: { url: video.url }, cwd: runId } as JobRequest, noop);
-      const data = fetchRes.result as any;
-      if (!data?.hasSubs || !data?.transcript) {
-        await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'skipped', clipsGenerated: 0, error: 'sem legenda/transcrição', processedAt: Date.now() });
-        return;
-      }
-
-      const duration = Number(data.duration) || 0;
-      const byDuration = Math.max(1, Math.round((duration || 600) / 210));
-      const maxClips = Math.max(1, Math.min(remaining, byDuration));
-
-      const segments = await selectHighlights(String(data.transcript), duration, maxClips);
-      if (segments.length === 0) {
-        await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'IA não achou momentos bons', processedAt: Date.now() });
-        return;
-      }
-
-      const clipRes = await runClip({ type: 'clip', payload: { input: data.video, srt: data.srt, segments, vertical: true }, cwd: runId } as JobRequest, noop);
-      const clips = ((clipRes.result as any)?.clips ?? []) as { file: string; title?: string }[];
-      if (clips.length === 0) {
-        await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'nenhum corte gerado', processedAt: Date.now() });
-        return;
-      }
-
-      const targets = await buildTargets();
-      if (targets.length === 0) {
-        await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: 'nenhuma rede conectada (Settings → Conexões)', processedAt: Date.now() });
-        return;
-      }
-
-      const slots = nextSlotTimes(clips.length, alreadyToday, config);
-      const tags = (config.niche || '').split(/[\s,]+/).filter(Boolean).slice(0, 10);
-      for (let i = 0; i < clips.length; i++) {
-        const c = clips[i];
-        for (const t of targets) {
-          await addPost({
-            platform: t.platform,
-            file: `${runId}/${c.file}`,
-            title: c.title || video.title || `Corte ${i + 1}`,
-            description: config.description || '',
-            tags,
-            at: slots[i] ?? Date.now(),
-            accountId: t.accountId,
-            origin: 'autoclip',
-          });
-        }
-      }
-
-      await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'done', clipsGenerated: clips.length, processedAt: Date.now() });
-    } catch (e) {
-      await addClipHistory({ videoId: video.id, channelUrl, title: video.title, status: 'error', clipsGenerated: 0, error: e instanceof Error ? e.message : String(e), processedAt: Date.now() });
     }
   } catch (e) {
     console.error('[autoclip] tick falhou:', e instanceof Error ? e.message : e);
   } finally {
     ticking = false;
   }
+}
+
+// Roda só um piloto específico agora (botão "Rodar agora" de um piloto).
+export async function runPilotNow(pilotId: string): Promise<void> {
+  const pilots = await listPilots();
+  const pilot = pilots.find((p) => p.id === pilotId);
+  if (!pilot) throw new Error('piloto não encontrado');
+  await runPilot(pilot);
 }

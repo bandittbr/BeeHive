@@ -24,10 +24,11 @@ import {
   listProviders, getProvider, addProvider, updateProviderTestResult, removeProvider,
   listConversations, getConversation, createConversation, updateConversation, deleteConversation,
   listMessages, addMessage,
-  listClipChannels, addClipChannel, removeClipChannel, getClipConfig, setClipConfig, listClipHistory,
+  listPilots, createPilot, updatePilot, deletePilot,
+  listClipChannels, addClipChannel, removeClipChannel, listClipHistory,
   type ScheduledPost, type PlatformId,
 } from './store.js';
-import { autoclipTick } from './autoclip.js';
+import { autoclipTick, runPilotNow } from './autoclip.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, isValidEmail } from './auth.js';
@@ -197,6 +198,37 @@ app.delete('/accounts/:id', async (req, res) => {
   res.json({ ok });
 });
 
+// Cadastro manual de conta (youtube/instagram/facebook — credenciais coladas
+// direto, sem popup OAuth; tiktok continua pelo fluxo /oauth/tiktok/start).
+// Permite múltiplas contas por rede: cada uma vira uma linha em beehive_accounts.
+app.post('/accounts', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const platform = String(req.body?.platform ?? '').trim();
+  const displayName = String(req.body?.displayName ?? '').trim();
+  if (!platform || !displayName) return res.status(400).json({ error: 'platform e displayName são obrigatórios' });
+  const accountId = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  let account: { id: string; platform: string; accountId: string; displayName: string; accessToken?: string; refreshToken?: string; extra?: Record<string, unknown> };
+  if (platform === 'youtube') {
+    const { clientId, clientSecret, refreshToken, privacyStatus } = req.body ?? {};
+    if (!clientId || !clientSecret || !refreshToken) return res.status(400).json({ error: 'clientId, clientSecret e refreshToken são obrigatórios' });
+    account = { id: `youtube:${accountId}`, platform: 'youtube', accountId, displayName, refreshToken: String(refreshToken), extra: { clientId: String(clientId), clientSecret: String(clientSecret), privacyStatus: privacyStatus ? String(privacyStatus) : 'public' } };
+  } else if (platform === 'instagram') {
+    const { igUserId, accessToken } = req.body ?? {};
+    if (!igUserId || !accessToken) return res.status(400).json({ error: 'igUserId e accessToken são obrigatórios' });
+    account = { id: `instagram:${accountId}`, platform: 'instagram', accountId, displayName, accessToken: String(accessToken), extra: { igUserId: String(igUserId) } };
+  } else if (platform === 'facebook') {
+    const { pageId, accessToken } = req.body ?? {};
+    if (!pageId || !accessToken) return res.status(400).json({ error: 'pageId e accessToken são obrigatórios' });
+    account = { id: `facebook:${accountId}`, platform: 'facebook', accountId, displayName, accessToken: String(accessToken), extra: { pageId: String(pageId) } };
+  } else {
+    return res.status(400).json({ error: `cadastro manual não suportado para ${platform}` });
+  }
+
+  await upsertAccount(account);
+  res.json({ account: { id: account.id, platform: account.platform, accountId: account.accountId, displayName: account.displayName } });
+});
+
 // --- credenciais genéricas por rede (compat: instagram/facebook/tiktok) ---
 app.post('/creds/:platform', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
@@ -237,46 +269,72 @@ app.delete('/schedule/:id', async (req, res) => {
   res.json({ ok: await removePost((req.params as Record<string, string>).id) });
 });
 
-// --- Piloto automático de cortes (canais fonte + config + histórico) ---
-app.get('/api/autoclip/channels', async (req, res) => {
+// --- Piloto automático de cortes (múltiplos pilotos independentes: nicho +
+// canais fonte + contas-alvo escolhidas dentre as cadastradas em /accounts) ---
+app.get('/api/autoclip/pilots', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  res.json({ channels: await listClipChannels() });
+  res.json({ pilots: await listPilots() });
 });
-app.post('/api/autoclip/channels', async (req, res) => {
+app.post('/api/autoclip/pilots', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const name = String(req.body?.name ?? '').trim();
+  if (!name) return res.status(400).json({ error: 'name é obrigatório' });
+  const pilot = await createPilot({
+    name,
+    niche: req.body?.niche ? String(req.body.niche) : undefined,
+    description: req.body?.description ? String(req.body.description) : undefined,
+    postsPerDay: Math.max(1, Math.min(20, Number(req.body?.postsPerDay) || 1)),
+    times: req.body?.times ? String(req.body.times) : undefined,
+    accountIds: Array.isArray(req.body?.accountIds) ? req.body.accountIds.map(String) : [],
+  });
+  res.json({ pilot });
+});
+app.put('/api/autoclip/pilots/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const b = req.body ?? {};
+  const fields: Record<string, unknown> = {};
+  if (b.name !== undefined) fields.name = String(b.name);
+  if (b.niche !== undefined) fields.niche = String(b.niche);
+  if (b.description !== undefined) fields.description = String(b.description);
+  if (b.active !== undefined) fields.active = !!b.active;
+  if (b.postsPerDay !== undefined) fields.postsPerDay = Math.max(1, Math.min(20, Number(b.postsPerDay) || 1));
+  if (b.times !== undefined) fields.times = String(b.times);
+  if (b.accountIds !== undefined) fields.accountIds = Array.isArray(b.accountIds) ? b.accountIds.map(String) : [];
+  const pilot = await updatePilot(id, fields);
+  if (!pilot) return res.status(404).json({ error: 'piloto não encontrado' });
+  res.json({ pilot });
+});
+app.delete('/api/autoclip/pilots/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ ok: await deletePilot((req.params as Record<string, string>).id) });
+});
+
+app.get('/api/autoclip/pilots/:id/channels', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ channels: await listClipChannels((req.params as Record<string, string>).id) });
+});
+app.post('/api/autoclip/pilots/:id/channels', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const pilotId = (req.params as Record<string, string>).id;
   const channelUrl = String(req.body?.channelUrl ?? '').trim();
   if (!/^https?:\/\//i.test(channelUrl)) return res.status(400).json({ error: 'channelUrl inválido' });
   const label = req.body?.label ? String(req.body.label) : undefined;
-  res.json({ channel: await addClipChannel({ channelUrl, label }) });
+  res.json({ channel: await addClipChannel({ pilotId, channelUrl, label }) });
 });
 app.delete('/api/autoclip/channels/:id', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   res.json({ ok: await removeClipChannel((req.params as Record<string, string>).id) });
 });
-app.get('/api/autoclip/config', async (req, res) => {
+
+app.get('/api/autoclip/pilots/:id/history', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  res.json({ config: await getClipConfig() });
+  res.json({ history: await listClipHistory((req.params as Record<string, string>).id, 30) });
 });
-app.put('/api/autoclip/config', async (req, res) => {
-  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  const b = req.body ?? {};
-  await setClipConfig({
-    active: !!b.active,
-    postsPerDay: Math.max(1, Math.min(20, Number(b.postsPerDay) || 1)),
-    times: b.times ? String(b.times) : undefined,
-    niche: b.niche ? String(b.niche) : undefined,
-    description: b.description ? String(b.description) : undefined,
-  });
-  res.json({ ok: true, config: await getClipConfig() });
-});
-app.get('/api/autoclip/history', async (req, res) => {
-  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
-  res.json({ history: await listClipHistory(30) });
-});
-app.post('/api/autoclip/run-now', async (req, res) => {
+app.post('/api/autoclip/pilots/:id/run-now', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   res.json({ ok: true, started: true });
-  autoclipTick().catch((e) => console.error('[autoclip] run-now falhou:', e));
+  runPilotNow((req.params as Record<string, string>).id).catch((e) => console.error('[autoclip] run-now falhou:', e));
 });
 
 // --- jobs ---
@@ -348,21 +406,47 @@ function buildCaption(post: ScheduledPost): string {
 async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
   const noop = () => {};
   if (post.platform === 'youtube') {
-    const c = await getYoutubeCreds();
-    if (!c) throw new Error('Credenciais do YouTube não configuradas');
-    const out = await runPublishYoutube({ type: 'publishYoutube', payload: { file: post.file, title: post.title, description: post.description, tags: post.tags, privacyStatus: c.privacyStatus ?? 'public', clientId: c.clientId, clientSecret: c.clientSecret, refreshToken: c.refreshToken } } as JobRequest, noop);
+    let clientId = '', clientSecret = '', refreshToken = '', privacyStatus = 'public';
+    const acc = post.accountId ? await getAccount(post.accountId) : null;
+    if (acc) {
+      clientId = String((acc.extra as any)?.clientId ?? '');
+      clientSecret = String((acc.extra as any)?.clientSecret ?? '');
+      refreshToken = acc.refreshToken ?? '';
+      privacyStatus = String((acc.extra as any)?.privacyStatus ?? 'public');
+    } else {
+      const c = await getYoutubeCreds();
+      if (!c) throw new Error('Credenciais do YouTube não configuradas');
+      clientId = c.clientId; clientSecret = c.clientSecret; refreshToken = c.refreshToken; privacyStatus = c.privacyStatus ?? 'public';
+    }
+    const out = await runPublishYoutube({ type: 'publishYoutube', payload: { file: post.file, title: post.title, description: post.description, tags: post.tags, privacyStatus, clientId, clientSecret, refreshToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'instagram') {
-    const c = await getPlatformCreds('instagram');
-    if (!c) throw new Error('Credenciais do Instagram não configuradas');
-    const out = await runPublishInstagram({ type: 'publishInstagram', payload: { file: post.file, caption: buildCaption(post), igUserId: c.igUserId, accessToken: c.accessToken } } as JobRequest, noop);
+    let igUserId = '', accessToken = '';
+    const acc = post.accountId ? await getAccount(post.accountId) : null;
+    if (acc) {
+      igUserId = String((acc.extra as any)?.igUserId ?? '');
+      accessToken = acc.accessToken ?? '';
+    } else {
+      const c = await getPlatformCreds('instagram');
+      if (!c) throw new Error('Credenciais do Instagram não configuradas');
+      igUserId = String(c.igUserId ?? ''); accessToken = String(c.accessToken ?? '');
+    }
+    const out = await runPublishInstagram({ type: 'publishInstagram', payload: { file: post.file, caption: buildCaption(post), igUserId, accessToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'facebook') {
-    const c = await getPlatformCreds('facebook');
-    if (!c) throw new Error('Credenciais do Facebook não configuradas');
-    const out = await runPublishFacebook({ type: 'publishFacebook', payload: { file: post.file, caption: buildCaption(post), pageId: c.pageId, accessToken: c.accessToken } } as JobRequest, noop);
+    let pageId = '', accessToken = '';
+    const acc = post.accountId ? await getAccount(post.accountId) : null;
+    if (acc) {
+      pageId = String((acc.extra as any)?.pageId ?? '');
+      accessToken = acc.accessToken ?? '';
+    } else {
+      const c = await getPlatformCreds('facebook');
+      if (!c) throw new Error('Credenciais do Facebook não configuradas');
+      pageId = String(c.pageId ?? ''); accessToken = String(c.accessToken ?? '');
+    }
+    const out = await runPublishFacebook({ type: 'publishFacebook', payload: { file: post.file, caption: buildCaption(post), pageId, accessToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'tiktok') {

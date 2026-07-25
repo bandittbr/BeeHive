@@ -1,16 +1,18 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState, useEffect } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2 } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
 import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds, hasTiktokCreds } from '../../services/credentials';
-import { computeSlots, schedulePost, listAccounts, type PlatformId } from '../../services/scheduler';
+import { computeSlots, schedulePost, listAccounts, type PlatformId, type ConnectedAccount } from '../../services/scheduler';
 import {
-  listClipChannels, addClipChannel, removeClipChannel, getClipConfig, setClipConfig,
-  listClipHistory, runAutoclipNow, type ClipChannel, type ClipConfig, type ClipHistoryEntry,
+  listPilots, createPilot, updatePilot, deletePilot,
+  listPilotChannels, addPilotChannel, removeClipChannel,
+  listPilotHistory, runPilotNow,
+  type ClipPilot, type ClipChannel, type ClipHistoryEntry,
 } from '../../services/autoclip';
 import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
@@ -72,45 +74,155 @@ export function NegociosView() {
   );
 }
 
-// Piloto automático: o agente descobre vídeo novo nos canais cadastrados,
-// corta e agenda a publicação sozinho, sem precisar abrir o app. Fala direto
-// com o worker (Settings → Cowork Nuvem precisa estar configurado).
+// Piloto automático: cada piloto é uma automação independente (ex.: "Humor",
+// "Terror", "Tech") com seus próprios canais fonte e contas-alvo, escolhidas
+// dentre as cadastradas em Settings → Conexões. O agente descobre vídeo novo,
+// corta e agenda a publicação sozinho, sem precisar abrir o app.
+const PLATFORM_LABEL: Record<string, string> = { youtube: 'YouTube', instagram: 'Instagram', facebook: 'Facebook', tiktok: 'TikTok' };
+const sectionLabelStyle: React.CSSProperties = { fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' };
+
 function AutopilotPanel() {
-  const [channels, setChannels] = useState<ClipChannel[]>([]);
-  const [config, setConfig] = useState<ClipConfig>({ active: false, postsPerDay: 1 });
-  const [history, setHistory] = useState<ClipHistoryEntry[]>([]);
+  const [pilots, setPilots] = useState<ClipPilot[]>([]);
+  const [accounts, setAccounts] = useState<ConnectedAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState('');
-  const [running, setRunning] = useState(false);
-  const [runMsg, setRunMsg] = useState('');
-  const [newChannelUrl, setNewChannelUrl] = useState('');
-  const [newChannelLabel, setNewChannelLabel] = useState('');
-  const [addingChannel, setAddingChannel] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   const reload = async () => {
     setLoading(true);
-    const [ch, cfg, hist] = await Promise.all([listClipChannels(), getClipConfig(), listClipHistory()]);
-    setChannels(ch);
-    if (cfg) setConfig(cfg);
-    setHistory(hist);
+    const [pl, accLists] = await Promise.all([
+      listPilots(),
+      Promise.all((['youtube', 'instagram', 'facebook', 'tiktok'] as const).map((p) => listAccounts(p))),
+    ]);
+    setPilots(pl);
+    setAccounts(accLists.flat());
     setLoading(false);
   };
   useEffect(() => { reload(); }, []);
 
-  const save = async () => {
+  const handleCreate = async (data: { name: string; niche?: string; description?: string; postsPerDay: number }) => {
+    const res = await createPilot(data);
+    if (res.ok) { setCreating(false); await reload(); }
+    return res;
+  };
+
+  return (
+    <section className="biz-type-section" style={{ marginBottom: 24 }}>
+      <div className="biz-type-header" style={{ '--biz-color': '#F59E0B' } as React.CSSProperties}>
+        <div className="biz-type-icon" style={{ background: '#F59E0B1f', color: '#F59E0B' }}><Bot size={20} /></div>
+        <div className="biz-type-info">
+          <h2>Piloto automático de cortes</h2>
+          <p>Cada piloto monitora seus canais, corta os melhores momentos com legenda e publica sozinho nas contas que você escolher — mesmo com o app fechado.</p>
+        </div>
+        <button className="btn-primary biz-type-add" onClick={() => setCreating((v) => !v)}>
+          <Plus size={14} /> Novo piloto
+        </button>
+      </div>
+
+      {creating && <NewPilotForm onCreate={handleCreate} onCancel={() => setCreating(false)} />}
+
+      {loading ? (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Carregando...</p>
+      ) : pilots.length === 0 ? (
+        <div className="empty-state biz-empty"><p>Nenhum piloto criado ainda. Crie um pra cada nicho/grupo de contas (ex.: "Humor" com 2 contas, "Terror" com outras 2).</p></div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {pilots.map((p) => <PilotCard key={p.id} pilot={p} accounts={accounts} onChange={reload} />)}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function NewPilotForm({ onCreate, onCancel }: {
+  onCreate: (data: { name: string; niche?: string; description?: string; postsPerDay: number }) => Promise<{ ok: boolean; error?: string }>;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState('');
+  const [niche, setNiche] = useState('');
+  const [description, setDescription] = useState('');
+  const [postsPerDay, setPostsPerDay] = useState(1);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+
+  const submit = async () => {
+    if (!name.trim()) { setErr('Dê um nome pro piloto (ex: "Humor").'); return; }
+    setBusy(true); setErr('');
+    const res = await onCreate({ name: name.trim(), niche: niche.trim() || undefined, description: description.trim() || undefined, postsPerDay });
+    setBusy(false);
+    if (!res.ok) setErr(res.error || 'Falha ao criar.');
+  };
+
+  return (
+    <div className="biz-new-form">
+      <div className="form-group">
+        <label>Nome do piloto</label>
+        <input type="text" placeholder="Ex: Humor" value={name} onChange={(e) => setName(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>Nicho / hashtags</label>
+        <input type="text" placeholder="Ex: humor, comédia" value={niche} onChange={(e) => setNiche(e.target.value)} />
+      </div>
+      <div className="form-group">
+        <label>Posts por dia</label>
+        <input type="number" min={1} max={20} value={postsPerDay} onChange={(e) => setPostsPerDay(Math.max(1, Number(e.target.value) || 1))} />
+      </div>
+      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+        <label>Descrição padrão dos posts (opcional)</label>
+        <textarea rows={2} placeholder="Texto/legenda que acompanha todo corte publicado por esse piloto" value={description} onChange={(e) => setDescription(e.target.value)} />
+      </div>
+      {err && <p style={{ fontSize: 11.5, color: 'var(--danger)', gridColumn: '1 / -1' }}>{err}</p>}
+      <div className="biz-new-form-actions">
+        <button className="btn-primary" onClick={submit} disabled={busy}>{busy ? <Loader2 size={13} className="spin" /> : null} Criar piloto</button>
+        <button className="btn-ghost" onClick={onCancel}>Cancelar</button>
+      </div>
+    </div>
+  );
+}
+
+function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: ConnectedAccount[]; onChange: () => void }) {
+  const [expanded, setExpanded] = useState(false);
+  const [loadedDetail, setLoadedDetail] = useState(false);
+  const [channels, setChannels] = useState<ClipChannel[]>([]);
+  const [history, setHistory] = useState<ClipHistoryEntry[]>([]);
+  const [postsPerDay, setPostsPerDay] = useState(pilot.postsPerDay);
+  const [times, setTimes] = useState(pilot.times || '');
+  const [selectedAccounts, setSelectedAccounts] = useState<string[]>(pilot.accountIds);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+  const [newChannelUrl, setNewChannelUrl] = useState('');
+  const [newChannelLabel, setNewChannelLabel] = useState('');
+  const [addingChannel, setAddingChannel] = useState(false);
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState('');
+
+  const loadDetail = async () => {
+    const [ch, hist] = await Promise.all([listPilotChannels(pilot.id), listPilotHistory(pilot.id)]);
+    setChannels(ch); setHistory(hist); setLoadedDetail(true);
+  };
+  useEffect(() => { if (expanded && !loadedDetail) loadDetail(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [expanded]);
+
+  const toggleActive = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    await updatePilot(pilot.id, { active: !pilot.active });
+    onChange();
+  };
+
+  const saveSettings = async () => {
     setSaving(true); setSavedMsg('');
-    const res = await setClipConfig(config);
+    const res = await updatePilot(pilot.id, { postsPerDay, times, accountIds: selectedAccounts });
     setSavedMsg(res.ok ? 'Salvo!' : (res.error || 'Falha ao salvar.'));
     setSaving(false);
-    setTimeout(() => setSavedMsg(''), 2500);
+    setTimeout(() => setSavedMsg(''), 2000);
+    onChange();
   };
+
+  const toggleAccount = (id: string) => setSelectedAccounts((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   const addChannel = async () => {
     if (!newChannelUrl.trim() || addingChannel) return;
     setAddingChannel(true);
-    const res = await addClipChannel(newChannelUrl.trim(), newChannelLabel.trim() || undefined);
-    if (res.ok) { setNewChannelUrl(''); setNewChannelLabel(''); await reload(); }
+    const res = await addPilotChannel(pilot.id, newChannelUrl.trim(), newChannelLabel.trim() || undefined);
+    if (res.ok) { setNewChannelUrl(''); setNewChannelLabel(''); await loadDetail(); }
     setAddingChannel(false);
   };
 
@@ -120,72 +232,85 @@ function AutopilotPanel() {
 
   const runNow = async () => {
     setRunning(true); setRunMsg('');
-    const res = await runAutoclipNow();
+    const res = await runPilotNow(pilot.id);
     setRunMsg(res.ok ? 'Rodando em segundo plano — confira o histórico em alguns minutos.' : (res.error || 'Falha ao iniciar.'));
     setRunning(false);
-    setTimeout(() => reload(), 8000);
+    setTimeout(loadDetail, 8000);
+  };
+
+  const remove = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!confirm(`Remover o piloto "${pilot.name}"? Isso também remove os canais dele.`)) return;
+    await deletePilot(pilot.id);
+    onChange();
   };
 
   const statusLabel = (s: ClipHistoryEntry['status']) => s === 'done' ? { text: 'ok', color: '#22c55e' } : s === 'skipped' ? { text: 'pulado', color: 'var(--text-muted)' } : { text: 'erro', color: 'var(--danger)' };
 
   return (
-    <section className="biz-type-section" style={{ marginBottom: 24 }}>
-      <div className="biz-type-header" style={{ '--biz-color': '#F59E0B' } as React.CSSProperties}>
-        <div className="biz-type-icon" style={{ background: '#F59E0B1f', color: '#F59E0B' }}><Bot size={20} /></div>
-        <div className="biz-type-info">
-          <h2>Piloto automático de cortes</h2>
-          <p>O agente monitora os canais abaixo, baixa vídeo novo, corta os melhores momentos com legenda e agenda a publicação sozinho — mesmo com o app fechado.</p>
+    <div style={{ border: '1px solid var(--border)', borderRadius: 10, padding: 14, background: 'var(--surface, transparent)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, cursor: 'pointer' }} onClick={() => setExpanded((v) => !v)}>
+        <div>
+          <span style={{ fontSize: 13.5, fontWeight: 600, color: 'var(--text)' }}>{pilot.name}</span>
+          {pilot.niche && <span style={{ fontSize: 11, color: 'var(--text-muted)' }}> · {pilot.niche}</span>}
+          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{pilot.accountIds.length} conta(s) · {pilot.postsPerDay}/dia</div>
         </div>
-        <button
-          className="status-pill"
-          onClick={() => setConfig((c) => ({ ...c, active: !c.active }))}
-          style={{ background: config.active ? 'rgba(34,197,94,0.15)' : undefined, color: config.active ? '#22c55e' : undefined, cursor: 'pointer', border: 'none' }}
-        >
-          {config.active ? 'Ativo' : 'Inativo'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button className="status-pill" onClick={toggleActive}
+            style={{ background: pilot.active ? 'rgba(34,197,94,0.15)' : undefined, color: pilot.active ? '#22c55e' : undefined, border: 'none', cursor: 'pointer' }}>
+            {pilot.active ? 'Ativo' : 'Inativo'}
+          </button>
+          <ChevronRight size={14} style={{ transform: expanded ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s', color: 'var(--text-muted)' }} />
+        </div>
       </div>
 
-      {loading ? (
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Carregando...</p>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+      {expanded && (
+        <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 12, borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 10 }}>
             <div className="form-group">
               <label>Posts por dia</label>
-              <input type="number" min={1} max={20} value={config.postsPerDay}
-                onChange={(e) => setConfig((c) => ({ ...c, postsPerDay: Math.max(1, Number(e.target.value) || 1) }))} />
+              <input type="number" min={1} max={20} value={postsPerDay} onChange={(e) => setPostsPerDay(Math.max(1, Number(e.target.value) || 1))} />
             </div>
             <div className="form-group">
               <label>Horários (opcional)</label>
-              <input type="text" placeholder="Ex: 12:00, 18:00, 21:00" value={config.times || ''}
-                onChange={(e) => setConfig((c) => ({ ...c, times: e.target.value }))} />
+              <input type="text" placeholder="Ex: 12:00, 18:00, 21:00" value={times} onChange={(e) => setTimes(e.target.value)} />
             </div>
-            <div className="form-group">
-              <label>Nicho / hashtags</label>
-              <input type="text" placeholder="Ex: humor, motivação..." value={config.niche || ''}
-                onChange={(e) => setConfig((c) => ({ ...c, niche: e.target.value }))} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Descrição padrão dos posts (opcional)</label>
-            <textarea rows={2} placeholder="Texto/legenda que acompanha todo corte publicado" value={config.description || ''}
-              onChange={(e) => setConfig((c) => ({ ...c, description: e.target.value }))} />
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="btn-primary" onClick={save} disabled={saving}>
-              {saving ? <Loader2 size={13} className="spin" /> : null} {savedMsg || 'Salvar configuração'}
+          <div>
+            <span style={sectionLabelStyle}>Contas-alvo ({selectedAccounts.length} selecionada{selectedAccounts.length === 1 ? '' : 's'})</span>
+            {accounts.length === 0 ? (
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Nenhuma conta cadastrada ainda — vá em Settings → Conexões e cadastre pelo menos uma.</p>
+            ) : (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                {accounts.map((a) => {
+                  const on = selectedAccounts.includes(a.id);
+                  return (
+                    <button key={a.id} onClick={() => toggleAccount(a.id)}
+                      style={{ fontSize: 11.5, padding: '5px 10px', borderRadius: 999, border: '1px solid var(--border)', cursor: 'pointer', background: on ? '#F59E0B' : 'transparent', color: on ? 'white' : 'var(--text-secondary)' }}>
+                      {PLATFORM_LABEL[a.platform] ?? a.platform}: {a.displayName || a.accountId}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+            <button className="btn-primary" onClick={saveSettings} disabled={saving}>
+              {saving ? <Loader2 size={13} className="spin" /> : null} {savedMsg || 'Salvar'}
             </button>
-            <button className="btn-ghost" onClick={runNow} disabled={running || !config.active}
-              title={config.active ? '' : 'Ative o piloto antes de rodar'}
+            <button className="btn-ghost" onClick={runNow} disabled={running || !pilot.active}
+              title={pilot.active ? '' : 'Ative o piloto antes de rodar'}
               style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
               {running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Rodar agora
             </button>
+            <button onClick={remove} style={{ marginLeft: 'auto', fontSize: 11.5, color: 'var(--danger)', background: 'none', border: 'none', cursor: 'pointer' }}>Remover piloto</button>
           </div>
           {runMsg && <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{runMsg}</p>}
 
           <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Canais fonte ({channels.length})</span>
+            <span style={sectionLabelStyle}>Canais fonte ({channels.length})</span>
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
               <input type="text" placeholder="Link do canal (ex: youtube.com/@canal)" value={newChannelUrl}
                 onChange={(e) => setNewChannelUrl(e.target.value)}
@@ -216,7 +341,7 @@ function AutopilotPanel() {
 
           {history.length > 0 && (
             <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
-              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Histórico recente</span>
+              <span style={sectionLabelStyle}>Histórico recente</span>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
                 {history.slice(0, 10).map((h) => {
                   const st = statusLabel(h.status);
@@ -232,7 +357,7 @@ function AutopilotPanel() {
           )}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
@@ -347,15 +472,18 @@ function BizAccountCard({ biz, color, fieldLabel, onDelete }: { biz: BizAccount;
   const scheduleAll = async () => {
     if (schedBusy || cortesClips.length === 0) return;
     setSchedBusy(true); setSchedMsg('Preparando destinos...');
-    // Monta a lista de destinos: uma entrada por (rede) ou (rede + conta conectada).
+    // Monta a lista de destinos: cada conta cadastrada em Settings → Conexões
+    // (multi-conta) vira um destino; se não tiver nenhuma conta cadastrada
+    // pra uma rede, cai pro formulário único antigo (compat).
     const targets: { platform: PlatformId; accountId?: string }[] = [];
-    if (hasYoutubeCreds()) targets.push({ platform: 'youtube' });
-    if (hasInstagramCreds()) targets.push({ platform: 'instagram' });
-    if (hasFacebookCreds()) targets.push({ platform: 'facebook' });
-    // TikTok: contas conectadas via OAuth (multi-conta) ou credencial única (fallback)
-    const ttAccounts = await listAccounts('tiktok');
-    if (ttAccounts.length) ttAccounts.forEach((a) => targets.push({ platform: 'tiktok', accountId: a.id }));
-    else if (hasTiktokCreds()) targets.push({ platform: 'tiktok' });
+    for (const p of ['youtube', 'instagram', 'facebook', 'tiktok'] as PlatformId[]) {
+      const accs = await listAccounts(p);
+      if (accs.length) accs.forEach((a) => targets.push({ platform: p, accountId: a.id }));
+    }
+    if (!targets.some((t) => t.platform === 'youtube') && hasYoutubeCreds()) targets.push({ platform: 'youtube' });
+    if (!targets.some((t) => t.platform === 'instagram') && hasInstagramCreds()) targets.push({ platform: 'instagram' });
+    if (!targets.some((t) => t.platform === 'facebook') && hasFacebookCreds()) targets.push({ platform: 'facebook' });
+    if (!targets.some((t) => t.platform === 'tiktok') && hasTiktokCreds()) targets.push({ platform: 'tiktok' });
 
     if (targets.length === 0) { setSchedMsg('Configure ao menos uma rede em Settings → Conexões (e clique em "Ativar"/"Conectar").'); setSchedBusy(false); return; }
     setSchedMsg('Agendando...');

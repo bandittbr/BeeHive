@@ -121,6 +121,23 @@ export async function listAccounts(platform?: string): Promise<ConnectedAccount[
   } catch { return []; }
 }
 
+// Cadastro manual de conta (youtube/instagram/facebook — sem popup OAuth,
+// só cola as credenciais). Permite N contas por rede, cada uma rotulada.
+export async function addAccount(platform: string, displayName: string, fields: Record<string, string>): Promise<{ ok: boolean; error?: string }> {
+  if (!isWorkerConfigured()) return { ok: false, error: 'Configure o Cowork Nuvem (worker) em Settings.' };
+  const { url } = getWorkerConfig();
+  try {
+    const res = await fetch(`${url}/accounts`, { method: 'POST', headers: headers(), body: JSON.stringify({ platform, displayName, ...fields }) });
+    if (!res.ok) {
+      const d = await res.json().catch(() => null);
+      return { ok: false, error: d?.error || `Worker respondeu ${res.status}` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 export async function disconnectAccount(id: string): Promise<boolean> {
   if (!isWorkerConfigured()) return false;
   const { url } = getWorkerConfig();
