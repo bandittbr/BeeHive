@@ -54,8 +54,17 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
     duration = Math.round(parseFloat(out.trim()) || 0);
   } catch { /* ignore */ }
 
-  const srt = files.find((f) => f.endsWith('.srt'));
+  let srt = files.find((f) => f.endsWith('.srt'));
   let transcript = '';
+
+  // Sem legenda no YouTube (canal não gera auto-subs, vídeo silenciado, etc.)
+  // → transcreve o áudio com Whisper via Groq (tem tier grátis, ~228x tempo
+  // real). Só roda se GROQ_API_KEY estiver configurada; senão segue sem legenda.
+  if (!srt && process.env.GROQ_API_KEY) {
+    const whisper = await transcribeWithGroq(dir, video, onChunk);
+    if (whisper) srt = whisper.srtPath;
+  }
+
   if (srt) {
     transcript = await fsp.readFile(path.join(dir, srt), 'utf8').catch(() => '');
     if (transcript.length > 120000) transcript = transcript.slice(0, 120000);
@@ -63,6 +72,61 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
 
   onChunk('stdout', `✓ Vídeo: ${video} (${duration}s) · legenda: ${srt ? 'sim' : 'não'}\n`);
   return { result: { video, srt: srt || null, duration, hasSubs: !!srt, transcript } };
+}
+
+function fmtSrtTime(sec: number): string {
+  if (!(sec >= 0)) sec = 0;
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  const s = Math.floor(sec % 60);
+  const ms = Math.round((sec - Math.floor(sec)) * 1000);
+  const p2 = (n: number) => String(n).padStart(2, '0');
+  const p3 = (n: number) => String(n).padStart(3, '0');
+  return `${p2(h)}:${p2(m)}:${p2(s)},${p3(ms)}`;
+}
+
+// Extrai o áudio e manda pro Whisper (whisper-large-v3-turbo via Groq, API
+// compatível com OpenAI). Escreve um .srt normal — o resto do pipeline
+// (parseSrt/buildAss) não sabe nem precisa saber que a legenda veio daqui.
+async function transcribeWithGroq(dir: string, videoFile: string, onChunk: Chunk): Promise<{ srtPath: string } | null> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return null;
+  try {
+    onChunk('stdout', '→ Sem legenda no YouTube — transcrevendo áudio com Whisper (Groq)...\n');
+    const audioFile = 'whisper_audio.mp3';
+    const code = await run('ffmpeg', ['-y', '-i', videoFile, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '64k', audioFile], dir, onChunk);
+    if (code !== 0) return null;
+
+    const audioBuf = await fsp.readFile(path.join(dir, audioFile));
+    const form = new FormData();
+    form.append('file', new Blob([audioBuf], { type: 'audio/mpeg' }), audioFile);
+    form.append('model', 'whisper-large-v3-turbo');
+    form.append('response_format', 'verbose_json');
+
+    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    });
+    if (!res.ok) {
+      onChunk('stderr', `Whisper/Groq falhou: HTTP ${res.status}\n`);
+      return null;
+    }
+    const data: any = await res.json().catch(() => null);
+    const segments = Array.isArray(data?.segments) ? data.segments : [];
+    if (segments.length === 0) return null;
+
+    const srtBody = segments
+      .map((s: any, i: number) => `${i + 1}\n${fmtSrtTime(Number(s.start))} --> ${fmtSrtTime(Number(s.end))}\n${String(s.text ?? '').trim()}\n`)
+      .join('\n');
+    const srtPath = 'whisper.srt';
+    await fsp.writeFile(path.join(dir, srtPath), srtBody, 'utf8');
+    onChunk('stdout', `✓ Transcrito via Whisper (${segments.length} trecho(s))\n`);
+    return { srtPath };
+  } catch (e) {
+    onChunk('stderr', `Whisper/Groq erro: ${e instanceof Error ? e.message : String(e)}\n`);
+    return null;
+  }
 }
 
 function toSeconds(v: unknown): number {
