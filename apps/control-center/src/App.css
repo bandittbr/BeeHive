@@ -228,14 +228,9 @@ html.light .logo-img-light { display: block; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #D97757, #C05B4E);
-  border-radius: var(--radius);
-  color: white;
   margin-bottom: 20px;
-  box-shadow: var(--shadow-glow);
-  overflow: hidden;
 }
-.chat-hero-icon img { width: 60%; height: 60%; object-fit: contain; }
+.chat-hero-icon img { width: 100%; height: 100%; object-fit: contain; }
 .chat-hero h1 { font-size: 28px; font-weight: 700; color: var(--text); margin-bottom: 8px; letter-spacing: -0.02em; }
 .chat-hero p { font-size: 15px; color: var(--text-muted); margin-bottom: 32px; }
 
