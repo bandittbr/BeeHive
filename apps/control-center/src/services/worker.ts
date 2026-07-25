@@ -77,7 +77,7 @@ export async function checkWorkerHealth(): Promise<boolean> {
 /** Despacha um job e aguarda a conclusão (poll). Nunca lança: erros voltam no resultado. */
 export async function runWorkerJob(
   job: WorkerJob,
-  opts: { timeoutMs?: number; onOutput?: (chunk: string) => void } = {},
+  opts: { timeoutMs?: number; onOutput?: (chunk: string) => void; signal?: AbortSignal } = {},
 ): Promise<WorkerJobResult> {
   const { url, token } = getWorkerConfig();
   if (!url) return { status: 'error', output: '', error: 'Worker não configurado (defina a URL em Settings).' };
@@ -88,6 +88,7 @@ export async function runWorkerJob(
       method: 'POST',
       headers: headers(token),
       body: JSON.stringify(job),
+      signal: opts.signal,
     });
     if (!created.ok) {
       return { status: 'error', output: '', error: `Worker respondeu ${created.status}` };
@@ -96,10 +97,16 @@ export async function runWorkerJob(
 
     const started = Date.now();
     let lastOutputLen = 0;
-    // poll até done/error ou timeout
+    // poll até done/error, timeout ou cancelamento (botão de pausar)
     while (Date.now() - started < timeoutMs) {
+      if (opts.signal?.aborted) {
+        return { status: 'error', output: '', error: 'Cancelado pelo usuário.' };
+      }
       await new Promise((r) => setTimeout(r, 1000));
-      const res = await fetch(`${url}/jobs/${id}`, { headers: headers(token) });
+      if (opts.signal?.aborted) {
+        return { status: 'error', output: '', error: 'Cancelado pelo usuário.' };
+      }
+      const res = await fetch(`${url}/jobs/${id}`, { headers: headers(token), signal: opts.signal });
       if (!res.ok) continue;
       const rec = await res.json();
       if (opts.onOutput && typeof rec.output === 'string' && rec.output.length > lastOutputLen) {
@@ -118,6 +125,9 @@ export async function runWorkerJob(
     }
     return { status: 'error', output: '', error: `Timeout após ${timeoutMs}ms` };
   } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { status: 'error', output: '', error: 'Cancelado pelo usuário.' };
+    }
     return { status: 'error', output: '', error: err instanceof Error ? err.message : String(err) };
   }
 }

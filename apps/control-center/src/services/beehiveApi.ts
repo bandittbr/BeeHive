@@ -30,6 +30,13 @@ export interface AskOptions {
   modelID?: string;
   omnirouter?: boolean;
   conversationId?: string;
+  /** Passa o AbortSignal do botão de pausar — cancela o fetch e, no
+   * streaming, corta a animação de digitação no meio. */
+  signal?: AbortSignal;
+}
+
+function isAbortError(err: unknown): boolean {
+  return err instanceof DOMException && err.name === 'AbortError';
 }
 
 // Non-streaming version (for backwards compatibility)
@@ -39,6 +46,7 @@ export async function askBeeHive(content: string, opts: AskOptions = {}): Promis
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter, conversationId: opts.conversationId }),
+      signal: opts.signal,
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -49,6 +57,7 @@ export async function askBeeHive(content: string, opts: AskOptions = {}): Promis
     const reply = messages[messages.length - 1];
     return typeof reply?.content === 'string' ? reply.content : 'Não consegui gerar uma resposta agora.';
   } catch (err) {
+    if (isAbortError(err)) throw err; // deixa o chamador tratar o cancelamento
     console.error('[beehiveApi] falha ao chamar o backend real:', err);
     return 'Não consegui falar com o servidor de IA agora (o backend do Railway pode estar fora do ar). Tente de novo em instantes.';
   }
@@ -65,6 +74,7 @@ export async function askBeeHiveStream(
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
       body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter, conversationId: opts.conversationId }),
+      signal: opts.signal,
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -79,14 +89,16 @@ export async function askBeeHiveStream(
     // Simulate streaming by chunking words with realistic timing
     const words = fullContent.split(/(\s+)/).filter(w => w.length > 0);
     let accumulated = '';
-    
+
     for (const word of words) {
+      if (opts.signal?.aborted) return; // usuário clicou em pausar — para a "digitação" no meio
       accumulated += word;
       onChunk(accumulated);
       // Variable delay for more natural feel: 20-80ms per chunk
       await new Promise(r => setTimeout(r, 20 + Math.random() * 60));
     }
   } catch (err) {
+    if (isAbortError(err)) return; // cancelado antes mesmo da resposta chegar — não sobrescreve com msg de erro
     console.error('[beehiveApi] falha no streaming:', err);
     onChunk('Não consegui falar com o servidor de IA agora. Tente de novo em instantes.');
   }

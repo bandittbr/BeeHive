@@ -102,12 +102,12 @@ function extractJson(text: string): any | null {
  * Gera um plano a partir de um comando único do usuário.
  * Nunca lança: em caso de falha, devolve um plano conversacional (fallback seguro).
  */
-export async function planTask(userMessage: string): Promise<Plan> {
+export async function planTask(userMessage: string, signal?: AbortSignal): Promise<Plan> {
   const prompt = `${PLANNER_SYSTEM}\n\nComando do usuário:\n"""${userMessage}"""\n\nJSON:`;
 
   let raw = '';
   try {
-    raw = await askBeeHive(prompt);
+    raw = await askBeeHive(prompt, { signal });
   } catch {
     return { conversational: true, intent: userMessage, steps: [] };
   }
@@ -147,7 +147,7 @@ export async function planTask(userMessage: string): Promise<Plan> {
  * resolvidos pelo LLM. Agentes de runtime rodam no Cowork Nuvem (se configurado)
  * ou ficam bloqueados pedindo configuração.
  */
-export async function runStep(step: PlanStep, context: { intent: string; previous: PlanStep[] }): Promise<PlanStep> {
+export async function runStep(step: PlanStep, context: { intent: string; previous: PlanStep[] }, signal?: AbortSignal): Promise<PlanStep> {
   if (step.needsRuntime) {
     // Sem worker configurado: etapa fica pendente (honesto, não finge que rodou).
     if (!isWorkerConfigured()) {
@@ -158,7 +158,7 @@ export async function runStep(step: PlanStep, context: { intent: string; previou
       };
     }
     // Com worker: traduz a etapa em uma ação concreta e executa no worker.
-    return runOnWorker(step, context);
+    return runOnWorker(step, context, signal);
   }
 
   const prior = context.previous
@@ -173,15 +173,18 @@ Etapa atual: ${step.title}
 Entregue o resultado desta etapa de forma objetiva e pronta para uso (sem preâmbulo).`;
 
   try {
-    const result = await askBeeHive(prompt);
+    const result = await askBeeHive(prompt, { signal });
     return { ...step, status: 'done', result: result.trim() };
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
+    }
     return { ...step, status: 'error', detail: 'Falha ao executar esta etapa.' };
   }
 }
 
 // Traduz uma etapa de runtime em um job concreto (via LLM) e executa no worker.
-async function runOnWorker(step: PlanStep, context: { intent: string; previous: PlanStep[] }): Promise<PlanStep> {
+async function runOnWorker(step: PlanStep, context: { intent: string; previous: PlanStep[] }, signal?: AbortSignal): Promise<PlanStep> {
   const prior = context.previous
     .filter((s) => s.result)
     .map((s) => `- ${s.title}: ${typeof s.result === 'string' ? s.result.slice(0, 400) : JSON.stringify(s.result).slice(0, 400)}`)
@@ -205,7 +208,7 @@ Regras:
 
   let job: WorkerJob | null = null;
   try {
-    const raw = await askBeeHive(translatePrompt);
+    const raw = await askBeeHive(translatePrompt, { signal });
     const parsed = extractJson(raw);
     if (parsed && typeof parsed === 'object' && parsed.type && parsed.payload) {
       const payload = parsed.payload as Record<string, unknown>;
@@ -213,7 +216,10 @@ Regras:
       if (parsed.type === 'shell' && payload.timeoutMs == null) payload.timeoutMs = 280000;
       job = { type: parsed.type, payload, label: step.title };
     }
-  } catch {
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
+    }
     /* cai no erro abaixo */
   }
 
@@ -227,18 +233,27 @@ Etapa atual: ${step.title}
 
 Gere o arquivo HTML completo e pronto pra uso (com CSS embutido em <style>, responsivo).
 Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown fences (sem \`\`\`).`;
-      const raw = await askBeeHive(directPrompt);
+      const raw = await askBeeHive(directPrompt, { signal });
       const content = raw.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
       // pasta única por geração — senão a próxima landing page sobrescreve a anterior
       if (content) job = { type: 'writeFile', payload: { path: `sites/${Date.now()}/index.html`, content }, label: step.title };
-    } catch { /* cai no erro abaixo */ }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
+      }
+      /* cai no erro abaixo */
+    }
+  }
+
+  if (signal?.aborted) {
+    return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
   }
 
   if (!job) {
     return { ...step, status: 'error', detail: 'Não consegui traduzir esta etapa em uma ação executável.' };
   }
 
-  const outcome = await runWorkerJob(job, { timeoutMs: 300000 });
+  const outcome = await runWorkerJob(job, { timeoutMs: 300000, signal });
   if (outcome.status === 'done') {
     let resultText = outcome.output?.trim()
       || (typeof outcome.result === 'string' ? outcome.result : JSON.stringify(outcome.result ?? {}));
@@ -252,6 +267,9 @@ Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown 
       }
     }
     return { ...step, status: 'done', detail: `Executado no Cowork (${job.type}).`, result: resultText || 'OK' };
+  }
+  if (signal?.aborted || outcome.error === 'Cancelado pelo usuário.') {
+    return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
   }
   return { ...step, status: 'error', detail: `Cowork: ${outcome.error ?? 'falha na execução'}`, result: outcome.output };
 }

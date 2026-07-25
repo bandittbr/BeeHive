@@ -23,6 +23,7 @@ import {
   Key as KeyIcon,
   Menu,
   Shuffle,
+  Pause,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { me as fetchAuthUser, logout as authLogout, type AuthUser } from './services/authService';
@@ -89,9 +90,19 @@ const { projects } = useAppStore();
     conversations,
     loading: conversationsLoading,
     createConversation,
+    deleteConversation,
     loadMore: loadMoreConversations,
     hasMore: hasMoreConversations,
   } = useConversations(firstProjectId);
+
+  const handleDeleteConversation = async (id: string, title: string) => {
+    if (!confirm(`Excluir a conversa "${title}"? Essa ação não pode ser desfeita.`)) return;
+    await deleteConversation(id);
+    if (activeConversationId === id) {
+      setActiveConversationId(null);
+      setChatResetKey((k) => k + 1);
+    }
+  };
 
   useEffect(() => { fetchAuthUser().then(setAuthUser).catch(() => {}); }, []);
 
@@ -164,15 +175,24 @@ const { projects } = useAppStore();
             <div className="sidebar-section-label">Conversas Recentes</div>
             <div className="recent-list">
               {conversations.slice(0, 8).map((c) => (
-                <button
-                  key={c.id}
-                  className={`recent-row${activeArea === 'chat' && activeConversationId === c.id ? ' active' : ''}`}
-                  onClick={() => openConversation(c.id)}
-                  title={c.title}
-                >
-                  <span className="recent-icon"><MessageSquare size={13} /></span>
-                  <span className="recent-name">{c.title}</span>
-                </button>
+                <div key={c.id} className="recent-row-wrap">
+                  <button
+                    className={`recent-row${activeArea === 'chat' && activeConversationId === c.id ? ' active' : ''}`}
+                    onClick={() => openConversation(c.id)}
+                    title={c.title}
+                  >
+                    <span className="recent-icon"><MessageSquare size={13} /></span>
+                    <span className="recent-name">{c.title}</span>
+                  </button>
+                  <button
+                    className="recent-row-delete"
+                    onClick={(e) => { e.stopPropagation(); handleDeleteConversation(c.id, c.title); }}
+                    title="Excluir conversa"
+                    aria-label="Excluir conversa"
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               ))}
               {conversations.length === 0 && !conversationsLoading && <div className="recent-empty">Nenhuma conversa ainda</div>}
             </div>
@@ -297,6 +317,12 @@ function HomeChat({
   const [plan, setPlan] = useState<Plan | null>(null);
   const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const { messages, loading: messagesLoading, sendMessage, setMessages } = useMessages(activeConversationId);
+  // Botão de enviar vira "pausar" enquanto a IA trabalha — clicar aborta a
+  // chamada em andamento (fetch + animação de digitação + etapas do plano).
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const handleStop = () => {
+    abortControllerRef.current?.abort();
+  };
 
   // Painel de artefatos (site/imagem/arquivo gerado): abre sozinho quando um
   // artefato novo aparece na conversa, estilo Claude Desktop/opencode.
@@ -370,12 +396,16 @@ function HomeChat({
     setMessages((prev) => [...prev, { id: userMsgId, role: 'user', content: userContent, createdAt: new Date().toISOString() }]);
     setSending(true);
 
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
+
     // 1) O cérebro decide: conversa simples ou tarefa multi-etapa?
-    const decided = await planTask(value);
+    const decided = await planTask(value, controller.signal);
+    if (controller.signal.aborted) { setSending(false); return; }
 
     if (!decided.conversational && decided.steps.length > 0) {
       // Tarefa: mostra o plano e executa etapa por etapa (progresso ao vivo)
-      await runPlan(decided);
+      await runPlan(decided, controller.signal);
       setSending(false);
       return;
     }
@@ -392,26 +422,37 @@ function HomeChat({
       setMessages((prev) => prev.map((m) =>
         m.id === assistantMsgId ? { ...m, content: fullContent } : m
       ));
-    }, { modelID: selectedModel, omnirouter: omniRouterEnabled, conversationId: conversationId ?? undefined });
+    }, { modelID: selectedModel, omnirouter: omniRouterEnabled, conversationId: conversationId ?? undefined, signal: controller.signal });
 
     setMessages((prev) => prev.map((m) =>
-      m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m
+      m.id === assistantMsgId
+        ? { ...m, content: fullContent || (controller.signal.aborted ? '_(parado)_' : 'Não consegui gerar uma resposta.') }
+        : m
     ));
     setSending(false);
   };
 
   // Executa um plano etapa por etapa, atualizando o painel de progresso ao vivo.
-  const runPlan = async (initial: Plan) => {
+  const runPlan = async (initial: Plan, signal: AbortSignal) => {
     let steps: PlanStep[] = initial.steps.map((s) => ({ ...s }));
     setPlan({ ...initial, steps });
 
     for (let i = 0; i < steps.length; i++) {
+      if (signal.aborted) break;
       steps = steps.map((s, idx) => (idx === i ? { ...s, status: 'running' } : s));
       setPlan({ ...initial, steps });
 
-      const updated = await runStep(steps[i], { intent: initial.intent, previous: steps.slice(0, i) });
+      const updated = await runStep(steps[i], { intent: initial.intent, previous: steps.slice(0, i) }, signal);
       steps = steps.map((s, idx) => (idx === i ? updated : s));
       setPlan({ ...initial, steps });
+    }
+
+    if (signal.aborted) {
+      // Marca as etapas que nem chegaram a rodar como paradas (não fica "pending" pra sempre).
+      steps = steps.map((s) => (s.status === 'pending' ? { ...s, status: 'blocked', detail: 'Parado pelo usuário.' } : s));
+      setPlan({ ...initial, steps });
+      setMessages((prev) => [...prev, { id: String(Date.now() + 2), role: 'assistant', content: 'Parado.', createdAt: new Date().toISOString() }]);
+      return;
     }
 
     // Resumo final no chat
@@ -451,15 +492,6 @@ function HomeChat({
               onPreviewArtifact={(a) => { setActiveArtifact(a); setArtifactPanelClosed(false); }}
             />
             {plan && !plan.conversational && <TaskPlan intent={plan.intent} steps={plan.steps} />}
-            {sending && (
-              <div className="msg assistant">
-                <div className="msg-avatar"><Bot size={16} /></div>
-                <div className="msg-body">
-                  <div className="msg-header"><span className="msg-role">BeeHive</span></div>
-                  <div className="msg-content msg-typing">digitando...</div>
-                </div>
-              </div>
-            )}
           </div>
         )}
 
@@ -468,6 +500,7 @@ function HomeChat({
           setInput={setInput}
           sending={sending}
           handleSend={handleSend}
+          onStop={handleStop}
           promptHistory={promptHistory}
           attachedFiles={attachedFiles}
           setAttachedFiles={setAttachedFiles}
@@ -516,11 +549,13 @@ function ChatInputArea({
   setFileOperations,
   showFilePanel,
   setShowFilePanel,
+  onStop,
 }: {
   input: string;
   setInput: (v: string) => void;
   sending: boolean;
   handleSend: () => void;
+  onStop?: () => void;
   promptHistory?: string[];
   attachedFiles: File[];
   setAttachedFiles: React.Dispatch<React.SetStateAction<File[]>>;
@@ -721,10 +756,16 @@ function ChatInputArea({
             />
           </div>
 
-          {/* Enviar — no canto direito da linha de baixo */}
-          <button className="chat-send-btn" onClick={() => { setHistoryIndex(null); handleSend(); }} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
-            <Send size={18} />
-          </button>
+          {/* Enviar — vira botão de pausar enquanto a IA trabalha */}
+          {sending ? (
+            <button className="chat-send-btn chat-send-btn-stop" onClick={onStop} aria-label="Parar">
+              <Pause size={18} />
+            </button>
+          ) : (
+            <button className="chat-send-btn" onClick={() => { setHistoryIndex(null); handleSend(); }} disabled={!input.trim() && attachedFiles.length === 0} aria-label="Enviar">
+              <Send size={18} />
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -918,6 +959,8 @@ function ProjectChat({ project }: { project: Project }) {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<{ id: string; role: 'user' | 'assistant'; content: string; time: string }[]>([]);
+  const abortControllerRef = useRef<AbortController | null>(null);
+  const handleStop = () => { abortControllerRef.current?.abort(); };
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -927,6 +970,8 @@ function ProjectChat({ project }: { project: Project }) {
     setInput('');
     setMessages((prev) => [...prev, { id: String(Date.now()), role: 'user', content: value, time: now() }]);
     setSending(true);
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     const assistantMsgId = String(Date.now() + 1);
     setMessages((prev) => [...prev, { id: assistantMsgId, role: 'assistant', content: '', time: now() }]);
@@ -937,8 +982,10 @@ function ProjectChat({ project }: { project: Project }) {
     await askBeeHiveStream(contextPrefix + value, (chunk) => {
       fullContent = chunk;
       setMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent } : m)));
-    });
-    setMessages((prev) => prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m)));
+    }, { signal: controller.signal });
+    setMessages((prev) => prev.map((m) => (m.id === assistantMsgId
+      ? { ...m, content: fullContent || (controller.signal.aborted ? '_(parado)_' : 'Não consegui gerar uma resposta.') }
+      : m)));
     setSending(false);
   };
 
@@ -989,9 +1036,15 @@ function ProjectChat({ project }: { project: Project }) {
           </div>
           {/* Linha 2: enviar no canto direito */}
           <div className="input-controls-row" style={{ justifyContent: 'flex-end', paddingTop: '4px', background: 'transparent' }}>
-            <button className="chat-send-btn" onClick={handleSend} disabled={sending || !input.trim()} aria-label="Enviar">
-              <Send size={18} />
-            </button>
+            {sending ? (
+              <button className="chat-send-btn chat-send-btn-stop" onClick={handleStop} aria-label="Parar">
+                <Pause size={18} />
+              </button>
+            ) : (
+              <button className="chat-send-btn" onClick={handleSend} disabled={!input.trim()} aria-label="Enviar">
+                <Send size={18} />
+              </button>
+            )}
           </div>
         </div>
       </div>
