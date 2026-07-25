@@ -1,8 +1,8 @@
 import { useState } from "react";
-import { 
-  ArrowLeft, ChevronDown, X, Cpu, SlidersHorizontal, Paintbrush, 
+import {
+  ArrowLeft, ChevronDown, X, Cpu, SlidersHorizontal, Paintbrush,
   Terminal, Puzzle, Sparkles, Shield, Zap, RefreshCcw, Wrench,
-  Bug, Network, BarChart3, Cloud, Settings as SettingsIcon
+  Bug, Network, BarChart3, Cloud, Settings as SettingsIcon, Globe
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -17,12 +17,13 @@ import { EnvironmentView } from "./environment-view";
 import { ExtensionsView } from "./extensions-view";
 import { CoworkView } from "./cowork-view";
 import { ConnectionsView } from "./connections-view";
+import { GeneratedSitesView } from "./generated-sites-view";
 import { McpSettingsPanel } from "@/components/chat/McpSettingsPanel";
 import { useProviders } from "@/hooks/useProviders";
 
 export type SettingsTab =
   | "general" | "ai" | "preferences" | "appearance" | "extensions"
-  | "cowork" | "connections" | "environment" | "mcp" | "skills" | "plugins" | "advanced" | "debug";
+  | "cowork" | "connections" | "sites" | "environment" | "mcp" | "skills" | "plugins" | "advanced" | "debug";
 
 export function getSettingsTabIcon(tab: SettingsTab) {
   switch (tab) {
@@ -32,6 +33,7 @@ export function getSettingsTabIcon(tab: SettingsTab) {
     case "extensions": return Puzzle;
     case "cowork": return Cloud;
     case "connections": return Network;
+    case "sites": return Globe;
     case "environment": return Terminal;
     case "mcp": return Network;
     case "skills": return Sparkles;
@@ -50,6 +52,7 @@ export function getSettingsTabLabel(tab: SettingsTab) {
     case "extensions": return "Extensions";
     case "cowork": return "Cowork Nuvem";
     case "connections": return "Conexões";
+    case "sites": return "Sites Gerados";
     case "environment": return "Environment";
     case "mcp": return "MCP Servers";
     case "skills": return "Skills";
@@ -68,6 +71,7 @@ export function getSettingsTabDescription(tab: SettingsTab) {
     case "extensions": return "MCP servers, plugins, and skills";
     case "cowork": return "Worker que executa terminal, arquivos, git e browser";
     case "connections": return "Credenciais das redes sociais para postagem automática";
+    case "sites": return "Landing pages e páginas criadas pelo BeeHive";
     case "environment": return "Environment variables and API keys";
     case "mcp": return "Model Context Protocol servers";
     case "skills": return "Install and manage skills";
@@ -81,7 +85,7 @@ export function getSettingsTabDescription(tab: SettingsTab) {
 const SETTINGS_SECTIONS = [
   { label: null, tabs: ["general"] as SettingsTab[] },
   { label: "System", tabs: ["ai", "preferences", "appearance", "extensions"] as SettingsTab[] },
-  { label: "Runtime", tabs: ["cowork", "connections"] as SettingsTab[] },
+  { label: "Runtime", tabs: ["cowork", "connections", "sites"] as SettingsTab[] },
   { label: "Data", tabs: ["environment", "mcp"] as SettingsTab[] },
   { label: "Developer", tabs: ["advanced", "debug"] as SettingsTab[] },
 ];
@@ -235,6 +239,8 @@ function SettingsTabContent({ activeTab }: SettingsTabContentProps) {
       return <CoworkView />;
     case "connections":
       return <ConnectionsView />;
+    case "sites":
+      return <GeneratedSitesView />;
     case "environment":
       return <EnvironmentView />;
     case "mcp":

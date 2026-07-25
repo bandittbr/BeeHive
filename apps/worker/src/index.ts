@@ -3,6 +3,7 @@
 import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
+import path from 'node:path';
 import { nanoid } from 'nanoid';
 import { ensureWorkspace, WORKSPACE_ROOT, resolveInWorkspace } from './workspace.js';
 import { runShell } from './executors/shell.js';
@@ -109,6 +110,70 @@ app.get('/files/:name(*)', (req, res) => {
     if (!fs.existsSync(abs)) return res.status(404).json({ error: 'not found' });
     res.sendFile(abs);
   } catch { res.status(400).json({ error: 'bad path' }); }
+});
+
+// --- Sites/páginas geradas (cada landing page vira uma pasta única em
+// sites/<timestamp>/index.html — ver runOnWorker no control-center). Como
+// isso vive no disco do worker (Railway) e não tem limpeza automática, essa
+// listagem existe pra dar visibilidade e permitir apagar o que acumular. ---
+interface GeneratedSite {
+  id: string;
+  path: string;
+  title: string;
+  sizeBytes: number;
+  createdAt: string;
+  url: string;
+}
+
+function siteUrl(req: express.Request, relPath: string): string {
+  const base = PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+  const token = AUTH_TOKEN ? `?t=${encodeURIComponent(AUTH_TOKEN)}` : '';
+  return `${base}/files/${encodeURIComponent(relPath)}${token}`;
+}
+
+function extractTitle(html: string): string | null {
+  const m = html.match(/<title>([^<]{1,120})<\/title>/i);
+  return m ? m[1].trim() : null;
+}
+
+function listGeneratedSites(req: express.Request): GeneratedSite[] {
+  const sitesDir = resolveInWorkspace('sites');
+  if (!fs.existsSync(sitesDir)) return [];
+  const entries = fs.readdirSync(sitesDir, { withFileTypes: true }).filter((e) => e.isDirectory());
+  const sites: GeneratedSite[] = [];
+  for (const entry of entries) {
+    const indexPath = path.join(sitesDir, entry.name, 'index.html');
+    if (!fs.existsSync(indexPath)) continue;
+    const stat = fs.statSync(indexPath);
+    let title = entry.name;
+    try {
+      title = extractTitle(fs.readFileSync(indexPath, 'utf8').slice(0, 5000)) || title;
+    } catch { /* ignore */ }
+    const relPath = `sites/${entry.name}/index.html`;
+    sites.push({ id: entry.name, path: relPath, title, sizeBytes: stat.size, createdAt: stat.mtime.toISOString(), url: siteUrl(req, relPath) });
+  }
+  return sites.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+}
+
+function deleteGeneratedSite(id: string): boolean {
+  if (!/^[0-9]+$/.test(id)) return false; // só timestamps — evita path traversal
+  const dir = resolveInWorkspace(`sites/${id}`);
+  if (!fs.existsSync(dir)) return false;
+  fs.rmSync(dir, { recursive: true, force: true });
+  return true;
+}
+
+app.get('/api/generated-sites', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  try {
+    res.json({ sites: listGeneratedSites(req) });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro interno' });
+  }
+});
+app.delete('/api/generated-sites/:id', (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ ok: deleteGeneratedSite((req.params as Record<string, string>).id) });
 });
 
 // --- credenciais YouTube ---
