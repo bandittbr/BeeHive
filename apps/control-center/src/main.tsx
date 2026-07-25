@@ -21,6 +21,12 @@ class ErrorBoundary extends React.Component<
       return (
         <div style={{ padding: 32, color: '#fa4444', fontFamily: 'monospace', background: '#1a1a1a', minHeight: '100vh' }}>
           <h2 style={{ color: '#fa4444' }}>Runtime Error</h2>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ margin: '12px 0 20px', padding: '8px 16px', background: '#fa4444', color: '#1a1a1a', border: 'none', borderRadius: 6, fontFamily: 'inherit', fontWeight: 600, cursor: 'pointer' }}
+          >
+            Recarregar
+          </button>
           <pre style={{ whiteSpace: 'pre-wrap', color: '#ffcccc' }}>{this.state.error.message}</pre>
           <pre style={{ whiteSpace: 'pre-wrap', color: '#999', fontSize: 12, marginTop: 16 }}>{this.state.error.stack}</pre>
         </div>

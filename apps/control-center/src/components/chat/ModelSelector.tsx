@@ -20,6 +20,7 @@ import {
   CommandGroupLabel,
   CommandHeader,
   CommandInput,
+  CommandItem,
   CommandList,
 } from "@/components/ui/command";
 import { ProviderIcon } from "./ProviderIcon";

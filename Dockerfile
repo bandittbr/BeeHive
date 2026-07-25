@@ -2,7 +2,7 @@ FROM node:22-slim
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg python3 python3-pip curl \
+RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg python3 python3-pip curl file \
   && rm -rf /var/lib/apt/lists/* \
   && pip3 install --no-cache-dir --break-system-packages yt-dlp
 
