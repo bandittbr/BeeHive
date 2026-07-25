@@ -484,7 +484,10 @@ function HomeChat({
       <main className={`chat-main${showArtifactPanel ? ' with-artifact-panel' : ''}`}>
         {!started && !activeConversationId ? (
           <div className="chat-hero">
-            <div className="chat-hero-icon"><Sparkles size={32} /></div>
+            <div className="chat-hero-icon">
+              <img src="/logo.png" alt="BeeHive" className="logo-img-dark" />
+              <img src="/logo-dark.png" alt="BeeHive" className="logo-img-light" />
+            </div>
             <h1>Olá, Gabriel! 👋</h1>
             <p>O que vamos criar hoje?</p>
           </div>
@@ -1010,7 +1013,10 @@ function ProjectChat({ project }: { project: Project }) {
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="chat-hero">
-            <div className="chat-hero-icon"><Sparkles size={28} /></div>
+            <div className="chat-hero-icon">
+              <img src="/logo.png" alt="BeeHive" className="logo-img-dark" />
+              <img src="/logo-dark.png" alt="BeeHive" className="logo-img-light" />
+            </div>
             <h1>Cowork — {project.name}</h1>
             <p>Dê um prompt e o BeeHive trabalha no contexto deste projeto.</p>
           </div>
