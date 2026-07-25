@@ -217,6 +217,22 @@ Regras:
     /* cai no erro abaixo */
   }
 
+  // Fallback pra etapas de código: em vez de pedir JSON (frágil — o modelo às
+  // vezes não devolve um formato parseável), pede o arquivo direto e grava.
+  if (!job && step.agent === 'coding') {
+    try {
+      const directPrompt = `Você é o agente "coding" do BeeHive, trabalhando na tarefa: "${context.intent}".
+${prior ? `Contexto das etapas anteriores:\n${prior}\n` : ''}
+Etapa atual: ${step.title}
+
+Gere o arquivo HTML completo e pronto pra uso (com CSS embutido em <style>, responsivo).
+Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown fences (sem \`\`\`).`;
+      const raw = await askBeeHive(directPrompt);
+      const content = raw.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
+      if (content) job = { type: 'writeFile', payload: { path: 'index.html', content }, label: step.title };
+    } catch { /* cai no erro abaixo */ }
+  }
+
   if (!job) {
     return { ...step, status: 'error', detail: 'Não consegui traduzir esta etapa em uma ação executável.' };
   }

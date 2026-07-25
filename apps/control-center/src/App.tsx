@@ -304,7 +304,9 @@ function HomeChat() {
 
     let fullContent = '';
     await askBeeHiveStream(value, (chunk) => {
-      fullContent += chunk;
+      // askBeeHiveStream já manda a string acumulada inteira a cada chamada
+      // (não um pedaço novo) — atribuir, nunca concatenar (senão duplica/embaralha).
+      fullContent = chunk;
       setMessages((prev) => prev.map((m) =>
         m.id === assistantMsgId ? { ...m, content: fullContent } : m
       ));
