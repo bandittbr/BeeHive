@@ -243,6 +243,7 @@ function HomeChat() {
   const [fileOperations, setFileOperations] = useState<{ id: string; name: string; type: 'created' | 'edited' | 'read'; content?: string }[]>([]);
   const [showFilePanel, setShowFilePanel] = useState(false);
   const [plan, setPlan] = useState<Plan | null>(null);
+  const [promptHistory, setPromptHistory] = useState<string[]>([]);
   const { messages, loading: messagesLoading, sendMessage, setMessages } = useMessages(activeConversationId);
 
   const now = () => new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
@@ -261,6 +262,9 @@ function HomeChat() {
   const handleSend = async (text?: string) => {
     const value = (text ?? input).trim();
     if (!value || sending) return;
+
+    // Histórico de prompts (seta ↑/↓ no campo de texto navega por aqui).
+    setPromptHistory((prev) => (prev[prev.length - 1] === value ? prev : [...prev, value]));
 
     // Persistência de conversa é opcional (backend pode não estar disponível);
     // nunca bloqueia o envio. Guarda o id numa variável local (não só no state)
@@ -401,6 +405,7 @@ function HomeChat() {
           setInput={setInput}
           sending={sending}
           handleSend={handleSend}
+          promptHistory={promptHistory}
           attachedFiles={attachedFiles}
           setAttachedFiles={setAttachedFiles}
           selectedModel={selectedModel}
@@ -446,6 +451,7 @@ function ChatInputArea({
   setInput,
   sending,
   handleSend,
+  promptHistory,
   attachedFiles,
   setAttachedFiles,
   selectedModel,
@@ -463,6 +469,7 @@ function ChatInputArea({
   setInput: (v: string) => void;
   sending: boolean;
   handleSend: () => void;
+  promptHistory?: string[];
   attachedFiles: File[];
   setAttachedFiles: React.Dispatch<React.SetStateAction<File[]>>;
   selectedModel: string;
@@ -479,6 +486,13 @@ function ChatInputArea({
   const [modelOpen, setModelOpen] = useState(false);
   const [effortOpen, setEffortOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Navegação do histórico de prompts com ↑/↓ (como terminal): ↑ no campo
+  // vazio carrega o último prompt enviado, ↑ de novo carrega o anterior, ↓
+  // volta. historyIndex null = não está navegando.
+  const [historyIndex, setHistoryIndex] = useState<number | null>(null);
+  const [draftBeforeHistory, setDraftBeforeHistory] = useState('');
+  const history = promptHistory ?? [];
 
   // Modelos grátis do gateway padrão (OpenCode Zen — ver plugins/ai-manager/
   // src/capabilities/ai.complete.ts). Custo zero: nenhum cobra por token.
@@ -508,7 +522,39 @@ function ChatInputArea({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      if (!sending && (input.trim() || attachedFiles.length > 0)) handleSend();
+      if (!sending && (input.trim() || attachedFiles.length > 0)) { setHistoryIndex(null); handleSend(); }
+      return;
+    }
+    if (e.key === 'ArrowUp' && history.length > 0) {
+      // só entra em modo histórico se o campo já estiver vazio (senão deixa
+      // a seta mover o cursor normalmente dentro do texto).
+      if (historyIndex === null) {
+        if (input.trim() !== '') return;
+        e.preventDefault();
+        setDraftBeforeHistory(input);
+        const idx = history.length - 1;
+        setHistoryIndex(idx);
+        setInput(history[idx]);
+      } else if (historyIndex > 0) {
+        e.preventDefault();
+        const idx = historyIndex - 1;
+        setHistoryIndex(idx);
+        setInput(history[idx]);
+      } else {
+        e.preventDefault();
+      }
+      return;
+    }
+    if (e.key === 'ArrowDown' && historyIndex !== null) {
+      e.preventDefault();
+      if (historyIndex < history.length - 1) {
+        const idx = historyIndex + 1;
+        setHistoryIndex(idx);
+        setInput(history[idx]);
+      } else {
+        setHistoryIndex(null);
+        setInput(draftBeforeHistory);
+      }
     }
   };
 
@@ -557,10 +603,10 @@ function ChatInputArea({
             ref={(el) => { if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; } }}
             className="chat-input-field"
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => { setInput(e.target.value); if (historyIndex !== null) setHistoryIndex(null); }}
             onInput={(e) => { const el = e.currentTarget; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 220) + 'px'; }}
             onKeyDown={handleKeyDown}
-            placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha)"
+            placeholder="Pergunte qualquer coisa... (Enter envia, Shift+Enter nova linha · ↑ recupera o último prompt)"
             rows={1}
             disabled={sending}
             style={{
@@ -624,7 +670,7 @@ function ChatInputArea({
           </div>
 
           {/* Enviar — no canto direito da linha de baixo */}
-          <button className="chat-send-btn" onClick={() => handleSend()} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
+          <button className="chat-send-btn" onClick={() => { setHistoryIndex(null); handleSend(); }} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
             <Send size={18} />
           </button>
         </div>
