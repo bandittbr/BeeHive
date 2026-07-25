@@ -469,6 +469,20 @@ function HomeChat({
 
   const showArtifactPanel = !!activeArtifact && !artifactPanelClosed;
 
+  // Indicador "trabalhando": mostra a ação real (título da etapa em
+  // execução) em vez de um "Pensando..."/"digitando..." genérico. Some
+  // assim que a bolha real já tem conteúdo aparecendo (streaming de texto).
+  const lastMessage = messages[messages.length - 1];
+  const hasVisibleStreamingContent = sending && lastMessage?.role === 'assistant' && !!lastMessage.content;
+  const showThinkingIndicator = sending && !hasVisibleStreamingContent;
+  const currentActivityLabel = (() => {
+    if (plan && !plan.conversational) {
+      const running = plan.steps.find((s) => s.status === 'running');
+      if (running) return running.title;
+    }
+    return 'Pensando...';
+  })();
+
   return (
     <div className="home-chat-layout">
       <main className={`chat-main${showArtifactPanel ? ' with-artifact-panel' : ''}`}>
@@ -488,7 +502,8 @@ function HomeChat({
                 time: new Date(m.createdAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
                 streaming: sending && m.id === messages[messages.length - 1]?.id,
               }))}
-              streaming={sending}
+              streaming={showThinkingIndicator}
+              streamingLabel={currentActivityLabel}
               onPreviewArtifact={(a) => { setActiveArtifact(a); setArtifactPanelClosed(false); }}
             />
             {plan && !plan.conversational && <TaskPlan intent={plan.intent} steps={plan.steps} />}

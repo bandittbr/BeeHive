@@ -190,7 +190,34 @@ async function runOnWorker(step: PlanStep, context: { intent: string; previous: 
     .map((s) => `- ${s.title}: ${typeof s.result === 'string' ? s.result.slice(0, 400) : JSON.stringify(s.result).slice(0, 400)}`)
     .join('\n');
 
-  const translatePrompt = `Você converte uma etapa de trabalho em UMA ação executável por um worker (ambiente Linux: bash, git, node, python, navegador; Vercel CLI disponível).
+  let job: WorkerJob | null = null;
+
+  // Etapas de código vão DIRETO pro caminho confiável (pede o arquivo puro e
+  // grava via writeFile) — nunca passam pelo tradutor JSON genérico abaixo.
+  // Motivo: o tradutor às vezes decide sozinho usar "shell" (ex.: heredoc)
+  // pra "escrever" o site; isso pode até funcionar no worker, mas como não é
+  // um job writeFile, o link "🔗 Ver página" nunca é gerado — a etapa
+  // aparece como concluída e o site simplesmente some (bug real reportado).
+  if (step.agent === 'coding') {
+    try {
+      const directPrompt = `Você é o agente "coding" do BeeHive, trabalhando na tarefa: "${context.intent}".
+${prior ? `Contexto das etapas anteriores:\n${prior}\n` : ''}
+Etapa atual: ${step.title}
+
+Gere o arquivo HTML completo e pronto pra uso (com CSS embutido em <style>, responsivo).
+Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown fences (sem \`\`\`).`;
+      const raw = await askBeeHive(directPrompt, { signal });
+      const content = raw.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
+      // pasta única por geração — senão a próxima landing page sobrescreve a anterior
+      if (content) job = { type: 'writeFile', payload: { path: `sites/${Date.now()}/index.html`, content }, label: step.title };
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
+      }
+      /* cai no erro abaixo */
+    }
+  } else {
+    const translatePrompt = `Você converte uma etapa de trabalho em UMA ação executável por um worker (ambiente Linux: bash, git, node, python, navegador; Vercel CLI disponível).
 Tarefa geral: "${context.intent}".
 ${prior ? `Contexto anterior:\n${prior}\n` : ''}
 Etapa a executar: "${step.title}" (agente: ${step.agent})
@@ -206,37 +233,15 @@ Regras:
 - Para DEPLOY na Vercel use EXATAMENTE este comando: { "type": "shell", "payload": { "command": "npx --yes vercel deploy --prod --yes --token=$VERCEL_TOKEN 2>&1 | tee /tmp/v.log; echo; echo URL_PUBLICADA:; grep -Eo 'https://[a-zA-Z0-9.-]+vercel.app' /tmp/v.log | tail -1" } } — a URL final aparece depois de "URL_PUBLICADA:".
 - Nada de comandos destrutivos. Escolha o tipo mais adequado. JSON apenas.`;
 
-  let job: WorkerJob | null = null;
-  try {
-    const raw = await askBeeHive(translatePrompt, { signal });
-    const parsed = extractJson(raw);
-    if (parsed && typeof parsed === 'object' && parsed.type && parsed.payload) {
-      const payload = parsed.payload as Record<string, unknown>;
-      // dá mais tempo a comandos longos (build/deploy) sem travar em 120s
-      if (parsed.type === 'shell' && payload.timeoutMs == null) payload.timeoutMs = 280000;
-      job = { type: parsed.type, payload, label: step.title };
-    }
-  } catch (err) {
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };
-    }
-    /* cai no erro abaixo */
-  }
-
-  // Fallback pra etapas de código: em vez de pedir JSON (frágil — o modelo às
-  // vezes não devolve um formato parseável), pede o arquivo direto e grava.
-  if (!job && step.agent === 'coding') {
     try {
-      const directPrompt = `Você é o agente "coding" do BeeHive, trabalhando na tarefa: "${context.intent}".
-${prior ? `Contexto das etapas anteriores:\n${prior}\n` : ''}
-Etapa atual: ${step.title}
-
-Gere o arquivo HTML completo e pronto pra uso (com CSS embutido em <style>, responsivo).
-Responda SOMENTE com o conteúdo do arquivo — sem explicações, sem markdown fences (sem \`\`\`).`;
-      const raw = await askBeeHive(directPrompt, { signal });
-      const content = raw.replace(/^```(?:html)?\s*/i, '').replace(/```\s*$/, '').trim();
-      // pasta única por geração — senão a próxima landing page sobrescreve a anterior
-      if (content) job = { type: 'writeFile', payload: { path: `sites/${Date.now()}/index.html`, content }, label: step.title };
+      const raw = await askBeeHive(translatePrompt, { signal });
+      const parsed = extractJson(raw);
+      if (parsed && typeof parsed === 'object' && parsed.type && parsed.payload) {
+        const payload = parsed.payload as Record<string, unknown>;
+        // dá mais tempo a comandos longos (build/deploy) sem travar em 120s
+        if (parsed.type === 'shell' && payload.timeoutMs == null) payload.timeoutMs = 280000;
+        job = { type: parsed.type, payload, label: step.title };
+      }
     } catch (err) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         return { ...step, status: 'blocked', detail: 'Parado pelo usuário.' };

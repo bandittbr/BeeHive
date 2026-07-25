@@ -96,11 +96,25 @@ function targetFromFile(path: string, confidence: number, reason: string): OpenT
   }
 }
 
+// Links de contato/mensageria (botão "fale no WhatsApp" de uma landing page,
+// por exemplo) não são artefatos — não tem preview e sequestravam o
+// auto-open do painel (ex.: link do wa.me abrindo em vez do site gerado).
+const NON_ARTIFACT_HOSTNAMES = new Set([
+  "wa.me", "api.whatsapp.com", "chat.whatsapp.com", "web.whatsapp.com",
+  "t.me", "telegram.me", "m.me", "messenger.com",
+])
+
+function isNonArtifactHostname(hostname: string) {
+  return NON_ARTIFACT_HOSTNAMES.has(hostname.toLowerCase().replace(/^www\./, ""))
+}
+
 function targetFromUrl(url: string, confidence: number, reason: string): OpenTarget | null {
   const stripped = url.trim().replace(/[.,;:`\\]+$/, "")
   let clean = stripped
+  let hostname = ""
   try {
     const parsed = new URL(stripped)
+    hostname = parsed.hostname
     if (/^\/+$/i.test(parsed.pathname) && !parsed.search && !parsed.hash) {
       clean = parsed.origin
     }
@@ -108,6 +122,7 @@ function targetFromUrl(url: string, confidence: number, reason: string): OpenTar
     // Keep the stripped value
   }
   if (!clean) return null
+  if (hostname && isNonArtifactHostname(hostname)) return null
   return {
     id: `url:${clean}`,
     kind: "url",

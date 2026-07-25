@@ -25,15 +25,16 @@ async function getHighlighter() {
   return highlighterPromise;
 }
 
-export function StreamingMessage() {
+// label: ação real que está rolando ("Gerando imagens...", "Escrevendo o
+// código...", etc.) — cai pra "Pensando..." só quando não há nada mais
+// específico pra mostrar (ex.: antes do orquestrador decidir o plano).
+export function StreamingMessage({ label = "Pensando..." }: { label?: string } = {}) {
   return (
     <div className="msg assistant streaming">
       <div className="msg-avatar"><Bot size={16} /></div>
       <div className="msg-body">
         <div className="msg-header"><span className="msg-role">BeeHive</span></div>
-        <div className="msg-content msg-typing">
-          <span>P</span><span>e</span><span>n</span><span>s</span><span>a</span><span>n</span><span>d</span><span>o</span><span>.</span><span>.</span><span>.</span>
-        </div>
+        <div className="msg-content msg-typing">{label}</div>
       </div>
     </div>
   );

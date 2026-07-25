@@ -168,12 +168,13 @@ function MessageBubble({ message, onCopy, onRegenerate, isLast }: MessageBubbleP
 interface MessageListProps {
   messages: Message[];
   streaming?: boolean;
+  streamingLabel?: string;
   onRegenerate?: (messageId: string) => void;
   onCopy?: (content: string) => void;
   onPreviewArtifact?: (artifact: ArtifactItem) => void;
 }
 
-export function MessageList({ messages, streaming, onRegenerate, onCopy, onPreviewArtifact }: MessageListProps) {
+export function MessageList({ messages, streaming, streamingLabel, onRegenerate, onCopy, onPreviewArtifact }: MessageListProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [copiedIds, setCopiedIds] = useState<Set<string>>(new Set());
 
@@ -239,7 +240,7 @@ export function MessageList({ messages, streaming, onRegenerate, onCopy, onPrevi
           />
         ))}
         {streaming && (
-          <StreamingMessage />
+          <StreamingMessage label={streamingLabel} />
         )}
         <div ref={messagesEndRef} />
       </div>
@@ -421,16 +422,3 @@ function StreamingInput({
   );
 }
 
-export function StreamingMessage() {
-  return (
-    <div className="msg assistant streaming">
-      <div className="msg-avatar"><Bot size={16} /></div>
-      <div className="msg-body">
-        <div className="msg-header"><span className="msg-role">BeeHive</span></div>
-        <div className="msg-content msg-typing">
-          <span>P</span><span>e</span><span>n</span><span>s</span><span>a</span><span>n</span><span>d</span><span>o</span><span>.</span><span>.</span><span>.</span>
-        </div>
-      </div>
-    </div>
-  );
-}
