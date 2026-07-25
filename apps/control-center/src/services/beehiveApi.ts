@@ -14,23 +14,22 @@
 // e só devolvia fallback. O domínio real do serviço @beehive/worker é
 // beehive-production-d895.up.railway.app.
 
-import { getAuthToken } from './authToken';
+import { authHeaders } from './authToken';
 
 export const BEEHIVE_API_URL = 'https://beehive-production-d895.up.railway.app';
-
-function authHeaders(): Record<string, string> {
-  const token = getAuthToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
-}
 
 // modelID: slug do modelo no OpenRouter (ex.: "deepseek/deepseek-v4-pro").
 // Se omitido, o worker usa o padrão do ambiente (AI_MODEL / deepseek-v4-pro).
 // omnirouter: quando true, o backend troca de modelo sozinho na cadeia de
 // fallback (plugins/ai-manager/src/capabilities/ai.complete.ts) se o modelo
 // pedido ficar sem crédito ou bater rate limit.
+// conversationId: se informado (e o usuário estiver logado), o worker carrega
+// o histórico real da conversa (Supabase) em vez de só a última mensagem, e
+// persiste a pergunta + resposta — é isso que faz o chat "lembrar" entre sessões.
 export interface AskOptions {
   modelID?: string;
   omnirouter?: boolean;
+  conversationId?: string;
 }
 
 // Non-streaming version (for backwards compatibility)
@@ -39,7 +38,7 @@ export async function askBeeHive(content: string, opts: AskOptions = {}): Promis
     const res = await fetch(`${BEEHIVE_API_URL}/api/conversation/respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter }),
+      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter, conversationId: opts.conversationId }),
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');
@@ -65,7 +64,7 @@ export async function askBeeHiveStream(
     const res = await fetch(`${BEEHIVE_API_URL}/api/conversation/respond`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeaders() },
-      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter }),
+      body: JSON.stringify({ message: { role: 'user', content }, model: opts.modelID, omnirouter: opts.omnirouter, conversationId: opts.conversationId }),
     });
     if (!res.ok) {
       const errBody = await res.text().catch(() => '');

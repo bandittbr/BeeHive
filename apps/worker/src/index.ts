@@ -22,6 +22,8 @@ import {
   listPosts, getDuePosts, addPost, updatePost, removePost, storageMode,
   getUserByEmail, getUserById, createUser, setCurrentSelection,
   listProviders, getProvider, addProvider, updateProviderTestResult, removeProvider,
+  listConversations, getConversation, createConversation, updateConversation, deleteConversation,
+  listMessages, addMessage,
   type ScheduledPost, type PlatformId,
 } from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
@@ -452,6 +454,68 @@ app.delete('/api/providers/:id', requireUser(async (req, res, user) => {
   res.json({ ok });
 }));
 
+// --- Conversas + mensagens (persistência real do chat) ---
+app.get('/api/conversations', requireUser(async (req, res, user) => {
+  const projectId = typeof req.query.projectId === 'string' ? req.query.projectId : undefined;
+  const rows = await listConversations(user.id, projectId);
+  const conversations = await Promise.all(rows.map(async (c) => {
+    const msgs = await listMessages(c.id, user.id);
+    const last = msgs[msgs.length - 1];
+    return {
+      id: c.id, title: c.title, projectId: c.projectId ?? null, model: c.model ?? null,
+      reasoningEffort: c.reasoningEffort ?? 'default', createdAt: c.createdAt, updatedAt: c.updatedAt,
+      messageCount: msgs.length,
+      lastMessage: last ? { role: last.role, content: last.content, createdAt: last.createdAt } : null,
+    };
+  }));
+  res.json({ conversations });
+}));
+
+app.post('/api/conversations', requireUser(async (req, res, user) => {
+  const title = String(req.body?.title ?? 'Nova conversa');
+  const projectId = req.body?.projectId ? String(req.body.projectId) : undefined;
+  const model = req.body?.model ? String(req.body.model) : undefined;
+  const reasoningEffort = req.body?.reasoningEffort ? String(req.body.reasoningEffort) : 'default';
+  const row = await createConversation({ userId: user.id, projectId, title, model, reasoningEffort });
+  res.json({ conversation: { id: row.id, title: row.title, projectId: row.projectId ?? null, model: row.model ?? null, reasoningEffort: row.reasoningEffort ?? 'default', createdAt: row.createdAt, updatedAt: row.updatedAt, messageCount: 0, lastMessage: null } });
+}));
+
+app.put('/api/conversations/:id', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const fields: { title?: string; model?: string; reasoningEffort?: string } = {};
+  if (req.body?.title !== undefined) fields.title = String(req.body.title);
+  if (req.body?.model !== undefined) fields.model = String(req.body.model);
+  if (req.body?.reasoningEffort !== undefined) fields.reasoningEffort = String(req.body.reasoningEffort);
+  const row = await updateConversation(id, user.id, fields);
+  if (!row) return res.status(404).json({ error: 'conversa não encontrada' });
+  res.json({ conversation: { id: row.id, title: row.title, projectId: row.projectId ?? null, model: row.model ?? null, reasoningEffort: row.reasoningEffort ?? 'default', createdAt: row.createdAt, updatedAt: row.updatedAt } });
+}));
+
+app.delete('/api/conversations/:id', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const ok = await deleteConversation(id, user.id);
+  res.json({ ok });
+}));
+
+app.get('/api/conversations/:id/messages', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const rows = await listMessages(id, user.id);
+  res.json({ messages: rows.map((m) => ({ id: m.id, role: m.role, content: m.content, model: m.model ?? undefined, reasoningEffort: m.reasoningEffort ?? undefined, createdAt: m.createdAt })) });
+}));
+
+app.post('/api/conversations/:id/messages', requireUser(async (req, res, user) => {
+  const id = (req.params as Record<string, string>).id;
+  const conv = await getConversation(id, user.id);
+  if (!conv) return res.status(404).json({ error: 'conversa não encontrada' });
+  const role = String(req.body?.role ?? '');
+  const content = String(req.body?.content ?? '');
+  if (!role || !content) return res.status(400).json({ error: 'role e content são obrigatórios' });
+  const model = req.body?.model ? String(req.body.model) : undefined;
+  const reasoningEffort = req.body?.reasoningEffort ? String(req.body.reasoningEffort) : undefined;
+  const row = await addMessage({ conversationId: id, userId: user.id, role, content, model, reasoningEffort });
+  res.json({ message: { id: row.id, role: row.role, content: row.content, model: row.model ?? undefined, reasoningEffort: row.reasoningEffort ?? undefined, createdAt: row.createdAt } });
+}));
+
 // --- Chat (compat: frontend usa POST /api/conversation/respond) ---
 app.post('/api/conversation/respond', async (req, res) => {
   try {
@@ -459,9 +523,23 @@ app.post('/api/conversation/respond', async (req, res) => {
     if (!msg || msg.role !== 'user' || !msg.content) {
       return res.status(400).json({ error: 'formato: { message: { role: "user", content: string } }' });
     }
+    const user = await currentUser(req);
+    const conversationId = typeof req.body?.conversationId === 'string' ? req.body.conversationId : undefined;
+
+    // Se a conversa existe e pertence ao usuário, manda o histórico real pro
+    // modelo (não só a última mensagem) e persiste os dois lados no Supabase.
+    let history: { role: string; content: string }[] = [{ role: 'user', content: msg.content }];
+    let conv: Awaited<ReturnType<typeof getConversation>> = null;
+    if (user && conversationId) {
+      conv = await getConversation(conversationId, user.id);
+      if (conv) {
+        const prior = await listMessages(conversationId, user.id);
+        history = [...prior.map((m) => ({ role: m.role, content: m.content })), { role: 'user', content: msg.content }].slice(-30);
+        await addMessage({ conversationId, userId: user.id, role: 'user', content: msg.content });
+      }
+    }
 
     // Usuário logado com um provider BYOK selecionado → usa a chave dele, direto.
-    const user = await currentUser(req);
     if (user?.currentProviderId) {
       const provider = await getProvider(user.currentProviderId, user.id);
       if (provider) {
@@ -471,11 +549,14 @@ app.post('/api/conversation/respond', async (req, res) => {
         const model = user.currentModel || (typeof req.body?.model === 'string' && req.body.model) || provider.models[0] || '';
         try {
           const apiKey = decryptSecret(provider.encryptedKey, provider.keyIv, provider.keyTag);
-          const result = await callProviderCompletion(provider.providerType, apiKey, provider.baseUrl, model, [{ role: 'user', content: msg.content }]);
-          return res.json({ messages: [{ role: 'assistant', content: result.content || 'Não consegui gerar uma resposta agora.' }], model, provider: provider.providerType });
+          const result = await callProviderCompletion(provider.providerType, apiKey, provider.baseUrl, model, history);
+          const content = result.content || 'Não consegui gerar uma resposta agora.';
+          if (conv) await addMessage({ conversationId: conv.id, userId: user.id, role: 'assistant', content, model });
+          return res.json({ messages: [{ role: 'assistant', content }], model, provider: provider.providerType });
         } catch (e) {
           console.error('[chat] erro no provider BYOK do usuário:', e);
-          return res.json({ messages: [{ role: 'assistant', content: `Não consegui falar com ${provider.name} agora (${e instanceof Error ? e.message : 'erro'}).` }] });
+          const content = `Não consegui falar com ${provider.name} agora (${e instanceof Error ? e.message : 'erro'}).`;
+          return res.json({ messages: [{ role: 'assistant', content }] });
         }
       }
     }
@@ -487,14 +568,16 @@ app.post('/api/conversation/respond', async (req, res) => {
       : (process.env.AI_MODEL ?? 'big-pickle');
     const omnirouter = req.body?.omnirouter === true;
     const result = await executeCapability('ai.complete', {
-      messages: [{ role: 'user', content: msg.content }],
+      messages: history,
       model,
       omnirouter,
     }) as { outputs?: { content?: string; modelUsed?: string } };
     const content = typeof result?.outputs?.content === 'string'
       ? result.outputs.content
       : 'Não consegui gerar uma resposta agora.';
-    res.json({ messages: [{ role: 'assistant', content }], model: result?.outputs?.modelUsed ?? model });
+    const modelUsed = result?.outputs?.modelUsed ?? model;
+    if (conv && user) await addMessage({ conversationId: conv.id, userId: user.id, role: 'assistant', content, model: modelUsed });
+    res.json({ messages: [{ role: 'assistant', content }], model: modelUsed });
   } catch (e) {
     console.error('[chat] erro:', e);
     res.json({ messages: [{ role: 'assistant', content: 'Não consegui falar com o servidor de IA agora.' }] });

@@ -261,12 +261,18 @@ function HomeChat() {
     if (!value || sending) return;
 
     // Persistência de conversa é opcional (backend pode não estar disponível);
-    // nunca bloqueia o envio.
-    if (!activeConversationId && firstProjectId) {
+    // nunca bloqueia o envio. Guarda o id numa variável local (não só no state)
+    // porque o setState é assíncrono e essa mesma chamada de handleSend precisa
+    // do id pra já persistir a 1ª mensagem da conversa nova.
+    let conversationId = activeConversationId;
+    if (!conversationId && firstProjectId) {
       try {
         const title = `Conversa ${new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}`;
         const conversation = await createConversation(title, selectedModel, 'default');
-        if (conversation) setActiveConversationId(conversation.id);
+        if (conversation) {
+          conversationId = conversation.id;
+          setActiveConversationId(conversation.id);
+        }
       } catch { /* segue sem persistir */ }
     }
 
@@ -300,7 +306,7 @@ function HomeChat() {
       setMessages((prev) => prev.map((m) =>
         m.id === assistantMsgId ? { ...m, content: fullContent } : m
       ));
-    }, { modelID: selectedModel, omnirouter: omniRouterEnabled });
+    }, { modelID: selectedModel, omnirouter: omniRouterEnabled, conversationId: conversationId ?? undefined });
 
     setMessages((prev) => prev.map((m) =>
       m.id === assistantMsgId ? { ...m, content: fullContent || 'Não consegui gerar uma resposta.' } : m

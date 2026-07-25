@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { BEEHIVE_API_URL } from "../services/beehiveApi";
+import { authHeaders } from "../services/authToken";
 
 export interface Conversation {
   id: string;
@@ -54,7 +56,7 @@ export function useConversations(projectId: string | null) {
       if (nextCursor && append) params.set("cursor", nextCursor);
       params.set("limit", "20");
 
-      const res = await fetch(`/api/conversations?${params.toString()}`);
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations?${params.toString()}`, { headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch conversations");
       
       const data: ConversationsResponse = await res.json();
@@ -90,9 +92,9 @@ export function useConversations(projectId: string | null) {
     if (!projectId) return null;
 
     try {
-      const res = await fetch("/api/conversations", {
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ projectId, title, model, reasoningEffort }),
       });
       if (!res.ok) throw new Error("Failed to create conversation");
@@ -108,7 +110,7 @@ export function useConversations(projectId: string | null) {
 
   const deleteConversation = useCallback(async (id: string) => {
     try {
-      const res = await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations/${id}`, { method: "DELETE", headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to delete conversation");
       setConversations(prev => prev.filter(c => c.id !== id));
     } catch (err) {
@@ -118,9 +120,9 @@ export function useConversations(projectId: string | null) {
 
   const updateConversation = useCallback(async (id: string, updates: Partial<Conversation>) => {
     try {
-      const res = await fetch(`/api/conversations/${id}`, {
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify(updates),
       });
       if (!res.ok) throw new Error("Failed to update conversation");
@@ -161,7 +163,7 @@ export function useMessages(conversationId: string | null) {
       if (nextCursor && append) params.set("cursor", nextCursor);
       params.set("limit", "50");
 
-      const res = await fetch(`/api/conversations/${conversationId}/messages?${params.toString()}`);
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations/${conversationId}/messages?${params.toString()}`, { headers: authHeaders() });
       if (!res.ok) throw new Error("Failed to fetch messages");
       
       const data: MessagesResponse = await res.json();
@@ -193,9 +195,9 @@ export function useMessages(conversationId: string | null) {
     if (!conversationId) return null;
 
     try {
-      const res = await fetch(`/api/conversations/${conversationId}/messages`, {
+      const res = await fetch(`${BEEHIVE_API_URL}/api/conversations/${conversationId}/messages`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ role, content, model, reasoningEffort }),
       });
       if (!res.ok) throw new Error("Failed to send message");

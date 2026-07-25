@@ -480,3 +480,181 @@ export async function removeProvider(id: string, userId: string): Promise<boolea
   authFileSave(d);
   return d.providers.length < before;
 }
+
+// ---------- Conversas + mensagens (persistência real do chat) ----------
+export interface ConversationRow {
+  id: string;
+  userId: string;
+  projectId?: string;
+  title: string;
+  model?: string;
+  reasoningEffort?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export interface MessageRow {
+  id: string;
+  conversationId: string;
+  userId: string;
+  role: string;
+  content: string;
+  model?: string;
+  reasoningEffort?: string;
+  createdAt: string;
+}
+
+const CONVERSATIONS = `${SUPABASE_URL}/rest/v1/beehive_conversations`;
+const MESSAGES = `${SUPABASE_URL}/rest/v1/beehive_messages`;
+
+function rowToConversation(r: any): ConversationRow {
+  return {
+    id: String(r.id),
+    userId: String(r.user_id),
+    projectId: r.project_id ?? undefined,
+    title: r.title,
+    model: r.model ?? undefined,
+    reasoningEffort: r.reasoning_effort ?? undefined,
+    createdAt: r.created_at,
+    updatedAt: r.updated_at,
+  };
+}
+function rowToMessage(r: any): MessageRow {
+  return {
+    id: String(r.id),
+    conversationId: String(r.conversation_id),
+    userId: String(r.user_id),
+    role: r.role,
+    content: r.content,
+    model: r.model ?? undefined,
+    reasoningEffort: r.reasoning_effort ?? undefined,
+    createdAt: r.created_at,
+  };
+}
+
+// arquivo (fallback, uso local/dev sem Supabase)
+interface ChatFileData { conversations: ConversationRow[]; messages: MessageRow[] }
+const CHAT_FILE = path.join(WORKSPACE_ROOT, '.beehive-chat.json');
+function chatFileLoad(): ChatFileData {
+  try {
+    const d = JSON.parse(fs.readFileSync(CHAT_FILE, 'utf8')) as ChatFileData;
+    if (!Array.isArray(d.conversations)) d.conversations = [];
+    if (!Array.isArray(d.messages)) d.messages = [];
+    return d;
+  } catch { return { conversations: [], messages: [] }; }
+}
+function chatFileSave(d: ChatFileData): void {
+  try { fs.mkdirSync(WORKSPACE_ROOT, { recursive: true }); fs.writeFileSync(CHAT_FILE, JSON.stringify(d, null, 2), 'utf8'); } catch { /* ignore */ }
+}
+
+export async function listConversations(userId: string, projectId?: string): Promise<ConversationRow[]> {
+  if (useSupabase) {
+    const q = projectId
+      ? `?user_id=eq.${encodeURIComponent(userId)}&project_id=eq.${encodeURIComponent(projectId)}&select=*&order=updated_at.desc`
+      : `?user_id=eq.${encodeURIComponent(userId)}&select=*&order=updated_at.desc`;
+    const res = await fetch(`${CONVERSATIONS}${q}`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToConversation);
+  }
+  const all = chatFileLoad().conversations.filter((c) => c.userId === userId && (!projectId || c.projectId === projectId));
+  return all.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+}
+
+export async function getConversation(id: string, userId: string): Promise<ConversationRow | null> {
+  if (useSupabase) {
+    const res = await fetch(`${CONVERSATIONS}?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}&select=*`, { headers: sbHeaders() });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToConversation(rows[0]) : null;
+  }
+  return chatFileLoad().conversations.find((c) => c.id === id && c.userId === userId) ?? null;
+}
+
+export async function createConversation(input: { userId: string; projectId?: string; title: string; model?: string; reasoningEffort?: string }): Promise<ConversationRow> {
+  if (useSupabase) {
+    const res = await fetch(CONVERSATIONS, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'return=representation' }),
+      body: JSON.stringify({ user_id: input.userId, project_id: input.projectId ?? null, title: input.title, model: input.model ?? null, reasoning_effort: input.reasoningEffort ?? 'default' }),
+    });
+    if (!res.ok) throw new Error(`Falha ao criar conversa: HTTP ${res.status}`);
+    const rows = (await res.json()) as any[];
+    return rowToConversation(rows[0]);
+  }
+  const now = new Date().toISOString();
+  const row: ConversationRow = { id: crypto.randomUUID(), userId: input.userId, projectId: input.projectId, title: input.title, model: input.model, reasoningEffort: input.reasoningEffort ?? 'default', createdAt: now, updatedAt: now };
+  const d = chatFileLoad(); d.conversations.push(row); chatFileSave(d);
+  return row;
+}
+
+export async function updateConversation(id: string, userId: string, fields: Partial<Pick<ConversationRow, 'title' | 'model' | 'reasoningEffort'>>): Promise<ConversationRow | null> {
+  const now = new Date().toISOString();
+  if (useSupabase) {
+    const body: Record<string, unknown> = { updated_at: now };
+    if (fields.title !== undefined) body.title = fields.title;
+    if (fields.model !== undefined) body.model = fields.model;
+    if (fields.reasoningEffort !== undefined) body.reasoning_effort = fields.reasoningEffort;
+    const res = await fetch(`${CONVERSATIONS}?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=representation' }), body: JSON.stringify(body) });
+    if (!res.ok) return null;
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows[0] ? rowToConversation(rows[0]) : null;
+  }
+  const d = chatFileLoad();
+  const c = d.conversations.find((x) => x.id === id && x.userId === userId);
+  if (!c) return null;
+  Object.assign(c, fields, { updatedAt: now });
+  chatFileSave(d);
+  return c;
+}
+
+export async function touchConversation(id: string): Promise<void> {
+  if (useSupabase) {
+    await fetch(`${CONVERSATIONS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=minimal' }), body: JSON.stringify({ updated_at: new Date().toISOString() }) });
+    return;
+  }
+  const d = chatFileLoad();
+  const c = d.conversations.find((x) => x.id === id);
+  if (c) { c.updatedAt = new Date().toISOString(); chatFileSave(d); }
+}
+
+export async function deleteConversation(id: string, userId: string): Promise<boolean> {
+  if (useSupabase) {
+    const res = await fetch(`${CONVERSATIONS}?id=eq.${encodeURIComponent(id)}&user_id=eq.${encodeURIComponent(userId)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
+    return res.ok;
+  }
+  const d = chatFileLoad();
+  const before = d.conversations.length;
+  d.conversations = d.conversations.filter((c) => !(c.id === id && c.userId === userId));
+  d.messages = d.messages.filter((m) => m.conversationId !== id);
+  chatFileSave(d);
+  return d.conversations.length < before;
+}
+
+export async function listMessages(conversationId: string, userId: string): Promise<MessageRow[]> {
+  if (useSupabase) {
+    const res = await fetch(`${MESSAGES}?conversation_id=eq.${encodeURIComponent(conversationId)}&user_id=eq.${encodeURIComponent(userId)}&select=*&order=created_at.asc`, { headers: sbHeaders() });
+    if (!res.ok) return [];
+    const rows = (await res.json().catch(() => [])) as any[];
+    return rows.map(rowToMessage);
+  }
+  return chatFileLoad().messages.filter((m) => m.conversationId === conversationId && m.userId === userId).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+}
+
+export async function addMessage(input: { conversationId: string; userId: string; role: string; content: string; model?: string; reasoningEffort?: string }): Promise<MessageRow> {
+  if (useSupabase) {
+    const res = await fetch(MESSAGES, {
+      method: 'POST',
+      headers: sbHeaders({ prefer: 'return=representation' }),
+      body: JSON.stringify({ conversation_id: input.conversationId, user_id: input.userId, role: input.role, content: input.content, model: input.model ?? null, reasoning_effort: input.reasoningEffort ?? null }),
+    });
+    if (!res.ok) throw new Error(`Falha ao salvar mensagem: HTTP ${res.status}`);
+    const rows = (await res.json()) as any[];
+    await touchConversation(input.conversationId);
+    return rowToMessage(rows[0]);
+  }
+  const now = new Date().toISOString();
+  const row: MessageRow = { id: crypto.randomUUID(), conversationId: input.conversationId, userId: input.userId, role: input.role, content: input.content, model: input.model, reasoningEffort: input.reasoningEffort, createdAt: now };
+  const d = chatFileLoad(); d.messages.push(row); chatFileSave(d);
+  await touchConversation(input.conversationId);
+  return row;
+}
