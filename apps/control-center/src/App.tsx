@@ -618,7 +618,7 @@ function ChatInputArea({
           </div>
 
           {/* Enviar — no canto direito da linha de baixo */}
-          <button className="chat-send-btn" onClick={handleSend} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
+          <button className="chat-send-btn" onClick={() => handleSend()} disabled={sending || (!input.trim() && attachedFiles.length === 0)} aria-label="Enviar">
             <Send size={18} />
           </button>
         </div>
