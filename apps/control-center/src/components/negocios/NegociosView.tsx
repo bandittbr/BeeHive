@@ -1,13 +1,17 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
-import { useState } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2 } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
 import { publishToYoutube } from '../../services/publish';
 import { hasYoutubeCreds, hasInstagramCreds, hasFacebookCreds, hasTiktokCreds } from '../../services/credentials';
 import { computeSlots, schedulePost, listAccounts, type PlatformId } from '../../services/scheduler';
+import {
+  listClipChannels, addClipChannel, removeClipChannel, getClipConfig, setClipConfig,
+  listClipHistory, runAutoclipNow, type ClipChannel, type ClipConfig, type ClipHistoryEntry,
+} from '../../services/autoclip';
 import { ScheduleView } from './ScheduleView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
@@ -57,12 +61,178 @@ export function NegociosView() {
         </div>
       </div>
 
+      <AutopilotPanel />
+
       <ScheduleView />
 
       <div className="biz-types">
         {BIZ_TYPES.map((type) => <BizTypeSection key={type.id} type={type} />)}
       </div>
     </div>
+  );
+}
+
+// Piloto automático: o agente descobre vídeo novo nos canais cadastrados,
+// corta e agenda a publicação sozinho, sem precisar abrir o app. Fala direto
+// com o worker (Settings → Cowork Nuvem precisa estar configurado).
+function AutopilotPanel() {
+  const [channels, setChannels] = useState<ClipChannel[]>([]);
+  const [config, setConfig] = useState<ClipConfig>({ active: false, postsPerDay: 1 });
+  const [history, setHistory] = useState<ClipHistoryEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [savedMsg, setSavedMsg] = useState('');
+  const [running, setRunning] = useState(false);
+  const [runMsg, setRunMsg] = useState('');
+  const [newChannelUrl, setNewChannelUrl] = useState('');
+  const [newChannelLabel, setNewChannelLabel] = useState('');
+  const [addingChannel, setAddingChannel] = useState(false);
+
+  const reload = async () => {
+    setLoading(true);
+    const [ch, cfg, hist] = await Promise.all([listClipChannels(), getClipConfig(), listClipHistory()]);
+    setChannels(ch);
+    if (cfg) setConfig(cfg);
+    setHistory(hist);
+    setLoading(false);
+  };
+  useEffect(() => { reload(); }, []);
+
+  const save = async () => {
+    setSaving(true); setSavedMsg('');
+    const res = await setClipConfig(config);
+    setSavedMsg(res.ok ? 'Salvo!' : (res.error || 'Falha ao salvar.'));
+    setSaving(false);
+    setTimeout(() => setSavedMsg(''), 2500);
+  };
+
+  const addChannel = async () => {
+    if (!newChannelUrl.trim() || addingChannel) return;
+    setAddingChannel(true);
+    const res = await addClipChannel(newChannelUrl.trim(), newChannelLabel.trim() || undefined);
+    if (res.ok) { setNewChannelUrl(''); setNewChannelLabel(''); await reload(); }
+    setAddingChannel(false);
+  };
+
+  const removeChannel = async (id: string) => {
+    if (await removeClipChannel(id)) setChannels((cs) => cs.filter((c) => c.id !== id));
+  };
+
+  const runNow = async () => {
+    setRunning(true); setRunMsg('');
+    const res = await runAutoclipNow();
+    setRunMsg(res.ok ? 'Rodando em segundo plano — confira o histórico em alguns minutos.' : (res.error || 'Falha ao iniciar.'));
+    setRunning(false);
+    setTimeout(() => reload(), 8000);
+  };
+
+  const statusLabel = (s: ClipHistoryEntry['status']) => s === 'done' ? { text: 'ok', color: '#22c55e' } : s === 'skipped' ? { text: 'pulado', color: 'var(--text-muted)' } : { text: 'erro', color: 'var(--danger)' };
+
+  return (
+    <section className="biz-type-section" style={{ marginBottom: 24 }}>
+      <div className="biz-type-header" style={{ '--biz-color': '#F59E0B' } as React.CSSProperties}>
+        <div className="biz-type-icon" style={{ background: '#F59E0B1f', color: '#F59E0B' }}><Bot size={20} /></div>
+        <div className="biz-type-info">
+          <h2>Piloto automático de cortes</h2>
+          <p>O agente monitora os canais abaixo, baixa vídeo novo, corta os melhores momentos com legenda e agenda a publicação sozinho — mesmo com o app fechado.</p>
+        </div>
+        <button
+          className="status-pill"
+          onClick={() => setConfig((c) => ({ ...c, active: !c.active }))}
+          style={{ background: config.active ? 'rgba(34,197,94,0.15)' : undefined, color: config.active ? '#22c55e' : undefined, cursor: 'pointer', border: 'none' }}
+        >
+          {config.active ? 'Ativo' : 'Inativo'}
+        </button>
+      </div>
+
+      {loading ? (
+        <p style={{ fontSize: 12, color: 'var(--text-muted)', padding: '8px 0' }}>Carregando...</p>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14, marginTop: 4 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 10 }}>
+            <div className="form-group">
+              <label>Posts por dia</label>
+              <input type="number" min={1} max={20} value={config.postsPerDay}
+                onChange={(e) => setConfig((c) => ({ ...c, postsPerDay: Math.max(1, Number(e.target.value) || 1) }))} />
+            </div>
+            <div className="form-group">
+              <label>Horários (opcional)</label>
+              <input type="text" placeholder="Ex: 12:00, 18:00, 21:00" value={config.times || ''}
+                onChange={(e) => setConfig((c) => ({ ...c, times: e.target.value }))} />
+            </div>
+            <div className="form-group">
+              <label>Nicho / hashtags</label>
+              <input type="text" placeholder="Ex: humor, motivação..." value={config.niche || ''}
+                onChange={(e) => setConfig((c) => ({ ...c, niche: e.target.value }))} />
+            </div>
+          </div>
+          <div className="form-group">
+            <label>Descrição padrão dos posts (opcional)</label>
+            <textarea rows={2} placeholder="Texto/legenda que acompanha todo corte publicado" value={config.description || ''}
+              onChange={(e) => setConfig((c) => ({ ...c, description: e.target.value }))} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="btn-primary" onClick={save} disabled={saving}>
+              {saving ? <Loader2 size={13} className="spin" /> : null} {savedMsg || 'Salvar configuração'}
+            </button>
+            <button className="btn-ghost" onClick={runNow} disabled={running || !config.active}
+              title={config.active ? '' : 'Ative o piloto antes de rodar'}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              {running ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Rodar agora
+            </button>
+          </div>
+          {runMsg && <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{runMsg}</p>}
+
+          <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Canais fonte ({channels.length})</span>
+            <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+              <input type="text" placeholder="Link do canal (ex: youtube.com/@canal)" value={newChannelUrl}
+                onChange={(e) => setNewChannelUrl(e.target.value)}
+                style={{ flex: '1 1 220px', minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, padding: '7px 9px', outline: 'none' }} />
+              <input type="text" placeholder="Rótulo (opcional)" value={newChannelLabel}
+                onChange={(e) => setNewChannelLabel(e.target.value)}
+                style={{ flex: '0 1 140px', minWidth: 0, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text)', fontSize: 12, padding: '7px 9px', outline: 'none' }} />
+              <button onClick={addChannel} disabled={addingChannel || !newChannelUrl.trim()}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '7px 12px', borderRadius: 6, border: 'none', cursor: 'pointer', color: 'white', background: '#F59E0B', opacity: addingChannel || !newChannelUrl.trim() ? 0.6 : 1 }}>
+                {addingChannel ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Adicionar
+              </button>
+            </div>
+            {channels.length === 0 ? (
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8 }}>Nenhum canal cadastrado ainda. Adicione canais com autorização (parceria/revenue share) ou os seus próprios.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
+                {channels.map((c) => (
+                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 10px' }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {c.label ? <strong style={{ color: 'var(--text)' }}>{c.label}: </strong> : null}{c.channelUrl}
+                    </span>
+                    <button onClick={() => removeChannel(c.id)} style={{ color: 'var(--text-muted)', background: 'none', border: 'none', cursor: 'pointer', display: 'flex' }}><Trash2 size={13} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {history.length > 0 && (
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+              <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Histórico recente</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 8 }}>
+                {history.slice(0, 10).map((h) => {
+                  const st = statusLabel(h.status);
+                  return (
+                    <div key={`${h.videoId}_${h.processedAt}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, fontSize: 11.5 }}>
+                      <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{h.title || h.videoId}</span>
+                      <span style={{ color: st.color, flexShrink: 0 }}>{st.text}{h.status === 'done' ? ` · ${h.clipsGenerated} corte(s)` : ''}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

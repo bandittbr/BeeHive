@@ -24,8 +24,10 @@ import {
   listProviders, getProvider, addProvider, updateProviderTestResult, removeProvider,
   listConversations, getConversation, createConversation, updateConversation, deleteConversation,
   listMessages, addMessage,
+  listClipChannels, addClipChannel, removeClipChannel, getClipConfig, setClipConfig, listClipHistory,
   type ScheduledPost, type PlatformId,
 } from './store.js';
+import { autoclipTick } from './autoclip.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, isValidEmail } from './auth.js';
@@ -235,6 +237,48 @@ app.delete('/schedule/:id', async (req, res) => {
   res.json({ ok: await removePost((req.params as Record<string, string>).id) });
 });
 
+// --- Piloto automático de cortes (canais fonte + config + histórico) ---
+app.get('/api/autoclip/channels', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ channels: await listClipChannels() });
+});
+app.post('/api/autoclip/channels', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const channelUrl = String(req.body?.channelUrl ?? '').trim();
+  if (!/^https?:\/\//i.test(channelUrl)) return res.status(400).json({ error: 'channelUrl inválido' });
+  const label = req.body?.label ? String(req.body.label) : undefined;
+  res.json({ channel: await addClipChannel({ channelUrl, label }) });
+});
+app.delete('/api/autoclip/channels/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ ok: await removeClipChannel((req.params as Record<string, string>).id) });
+});
+app.get('/api/autoclip/config', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ config: await getClipConfig() });
+});
+app.put('/api/autoclip/config', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const b = req.body ?? {};
+  await setClipConfig({
+    active: !!b.active,
+    postsPerDay: Math.max(1, Math.min(20, Number(b.postsPerDay) || 1)),
+    times: b.times ? String(b.times) : undefined,
+    niche: b.niche ? String(b.niche) : undefined,
+    description: b.description ? String(b.description) : undefined,
+  });
+  res.json({ ok: true, config: await getClipConfig() });
+});
+app.get('/api/autoclip/history', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ history: await listClipHistory(30) });
+});
+app.post('/api/autoclip/run-now', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ ok: true, started: true });
+  autoclipTick().catch((e) => console.error('[autoclip] run-now falhou:', e));
+});
+
 // --- jobs ---
 app.post('/jobs', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
@@ -365,6 +409,10 @@ async function schedulerTick() {
   }
 }
 setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
+
+// --- Piloto automático de cortes: roda a cada 15min, gera no máximo o que
+// faltar pra bater posts/dia (checa isso no início do tick). ---
+setInterval(() => { autoclipTick().catch((e) => console.error('[autoclip] tick falhou:', e)); }, 15 * 60 * 1000);
 
 // --- Auth (login por email/senha) ---
 app.post('/api/auth/signup', async (req, res) => {
