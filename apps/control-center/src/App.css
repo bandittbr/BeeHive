@@ -69,6 +69,10 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 }
 .logo-mark img { width: 100%; height: 100%; object-fit: cover; }
 .logo-mark:hover { transform: scale(1.05); }
+/* Logo troca conforme o tema: amarelo (logo.png) no escuro, preto (logo-dark.png) no claro. */
+.logo-img-light { display: none; }
+html.light .logo-img-dark { display: none; }
+html.light .logo-img-light { display: block; }
 .logo-text { font-size: 14px; font-weight: 700; color: var(--text); letter-spacing: -0.2px; }
 .sidebar-nav { display: flex; flex-direction: column; gap: 8px; }
 .nav-group { display: flex; flex-direction: column; gap: 2px; }
