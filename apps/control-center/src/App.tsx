@@ -210,13 +210,6 @@ const { projects } = useAppStore();
 // HOME CHAT — centralizado, estilo Claude Desktop
 // ============================================================
 
-const QUICK_ACTIONS = [
-  { icon: MessageSquare, label: 'Nova conversa', desc: 'Iniciar do zero' },
-  { icon: BarChart3, label: 'Analisar dados', desc: 'Gerar insights' },
-  { icon: Image, label: 'Criar imagem', desc: 'Gerar com IA' },
-  { icon: Workflow, label: 'Executar workflow', desc: 'Automatizar tarefas' },
-];
-
 function HomeChat() {
   const { projects } = useAppStore();
   const [started, setStarted] = useState(false);
@@ -345,19 +338,7 @@ function HomeChat() {
             <div className="chat-hero-icon"><Sparkles size={32} /></div>
             <h1>Olá, Gabriel! 👋</h1>
             <p>O que vamos criar hoje?</p>
-            <div className="quick-actions-grid">
-              {QUICK_ACTIONS.map((a) => {
-                const Icon = a.icon;
-                return (
-                  <button key={a.label} className="quick-action" onClick={() => a.label === 'Nova conversa' ? handleNewConversation() : handleSend(a.label)}>
-                    <Icon size={20} />
-                    <span className="quick-action-label">{a.label}</span>
-                    <span className="quick-action-desc">{a.desc}</span>
-                  </button>
-                );
-              })}
-            </div>
-            
+
             {/* Conversation list sidebar */}
             {conversations.length > 0 && (
               <div className="conversation-list">
