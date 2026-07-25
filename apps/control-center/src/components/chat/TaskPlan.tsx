@@ -1,6 +1,7 @@
-// Painel de progresso ao vivo do orquestrador.
-// Mostra as etapas planejadas pelo cérebro do BeeHive e o status de cada uma.
-import { CheckCircle2, Circle, Loader2, Lock, XCircle, Bot } from 'lucide-react';
+// Painel de progresso ao vivo do orquestrador ("Progresso" — estilo Claude
+// Code): checklist colapsável com o plano que o cérebro do BeeHive montou.
+import { useState } from 'react';
+import { Check, ChevronDown, Loader2, Lock, X } from 'lucide-react';
 import type { PlanStep, AgentKind } from '../../services/orchestrator';
 import './TaskPlan.css';
 
@@ -23,46 +24,51 @@ const AGENT_LABEL: Record<AgentKind, string> = {
 function StatusIcon({ step }: { step: PlanStep }) {
   switch (step.status) {
     case 'running':
-      return <Loader2 size={15} className="tp-spin" />;
+      return <span className="tp-dot tp-dot-running"><Loader2 size={11} className="tp-spin" /></span>;
     case 'done':
-      return <CheckCircle2 size={15} className="tp-done" />;
+      return <span className="tp-dot tp-dot-done"><Check size={11} strokeWidth={3} /></span>;
     case 'blocked':
-      return <Lock size={15} className="tp-blocked" />;
+      return <span className="tp-dot tp-dot-blocked"><Lock size={9} /></span>;
     case 'error':
-      return <XCircle size={15} className="tp-error" />;
+      return <span className="tp-dot tp-dot-error"><X size={11} strokeWidth={3} /></span>;
     default:
-      return <Circle size={15} className="tp-pending" />;
+      return <span className="tp-dot tp-dot-pending" />;
   }
 }
 
 export function TaskPlan({ intent, steps }: { intent: string; steps: PlanStep[] }) {
+  const [collapsed, setCollapsed] = useState(false);
   if (steps.length === 0) return null;
   const done = steps.filter((s) => s.status === 'done').length;
   const total = steps.length;
 
   return (
     <div className="task-plan">
-      <div className="tp-header">
-        <div className="tp-title"><Bot size={15} /> Plano do BeeHive</div>
+      <button className="tp-header" onClick={() => setCollapsed((v) => !v)}>
+        <ChevronDown size={14} className={`tp-chevron${collapsed ? ' collapsed' : ''}`} />
+        <span className="tp-title">Progresso</span>
         <span className="tp-progress">{done}/{total}</span>
-      </div>
-      <div className="tp-intent">{intent}</div>
-      <div className="tp-track"><div className="tp-track-fill" style={{ width: `${total ? (done / total) * 100 : 0}%` }} /></div>
-      <ol className="tp-steps">
-        {steps.map((s) => (
-          <li key={s.id} className={`tp-step ${s.status}`}>
-            <span className="tp-step-icon"><StatusIcon step={s} /></span>
-            <div className="tp-step-body">
-              <div className="tp-step-line">
-                <span className="tp-step-title">{s.title}</span>
-                <span className="tp-agent-badge">{AGENT_LABEL[s.agent]}</span>
-              </div>
-              {s.detail && <div className="tp-step-detail">{s.detail}</div>}
-              {s.result && <div className="tp-step-result">{s.result}</div>}
-            </div>
-          </li>
-        ))}
-      </ol>
+      </button>
+      {!collapsed && (
+        <>
+          <div className="tp-intent">{intent}</div>
+          <ol className="tp-steps">
+            {steps.map((s) => (
+              <li key={s.id} className={`tp-step ${s.status}`}>
+                <StatusIcon step={s} />
+                <div className="tp-step-body">
+                  <div className="tp-step-line">
+                    <span className="tp-step-title">{s.title}</span>
+                    <span className="tp-agent-badge">{AGENT_LABEL[s.agent]}</span>
+                  </div>
+                  {s.detail && <div className="tp-step-detail">{s.detail}</div>}
+                  {s.result && <div className="tp-step-result">{s.result}</div>}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </>
+      )}
     </div>
   );
 }

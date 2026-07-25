@@ -1,7 +1,7 @@
 ﻿import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
-  BarChart3, FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
+  FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
   Globe, Package, Layers, Clock, Users, Sparkles,
   Terminal, Database, Shield, Bell, Palette, Key, Cpu, HardDrive,
   FileCode, CheckCircle2, XCircle, Send, Paperclip,
@@ -34,6 +34,7 @@ import { planTask, runStep, type Plan, type PlanStep } from './services/orchestr
 import { generateContentPackage } from './services/contentPipeline';
 import { generateCortes, type CorteClip } from './services/cortesPipeline';
 import { TaskPlan } from './components/chat/TaskPlan';
+import { ThinkingLog } from './components/chat/ThinkingLog';
 import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
@@ -43,7 +44,6 @@ import { ArtifactPanel } from './components/chat/artifact-panel';
 
 import { PipelineBuilder } from './components/pipeline/PipelineBuilder';
 import { CostDashboard } from './components/cost/CostDashboard';
-import { EvaluationRunner } from './components/evaluation/EvaluationRunner';
 import { ModelSelect } from './components/chat/ModelSelector';
 import { ReasoningEffortSelect } from './components/chat/ReasoningEffortSelect';
 import { Composer } from './components/chat/Composer';
@@ -65,13 +65,12 @@ import './App.css';
 // APP SHELL — Sidebar rotulada + Topbar + Áreas
 // ============================================================
 
-type MainArea = 'chat' | 'projetos' | 'negocios' | 'evaluations' | 'settings';
+type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
 
 const AREA_LABELS: Record<MainArea, string> = {
   chat: 'Chat',
   projetos: 'Projetos',
   negocios: 'Negócios',
-  evaluations: 'Avaliações',
   settings: 'Settings',
 };
 
@@ -165,9 +164,6 @@ const { projects } = useAppStore();
             </div>
             <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`}>
               <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); setSidebarOpen(false); }}><Globe size={16} /> Negócios</button>
-            </div>
-            <div className={`nav-row${activeArea === 'evaluations' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('evaluations'); setOpenedProject(null); setSidebarOpen(false); }}><BarChart3 size={16} /> Avaliações</button>
             </div>
           </div>
           <div className="sidebar-divider" />
@@ -266,9 +262,6 @@ const { projects } = useAppStore();
           {activeArea === 'projetos' && !openedProject && <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />}
           {activeArea === 'projetos' && openedProject && <ProjectView project={openedProject} activeView={projectView} onViewChange={setProjectView} rightPanel={rightPanel} onRightPanelChange={setRightPanel} onBack={goToProjectsList} />}
           {activeArea === 'negocios' && <NegociosView />}
-          {activeArea === 'evaluations' && (projects[0]
-            ? <EvaluationRunner project={projects[0]} />
-            : <div className="page-header"><div><h1>Avaliações</h1><p>Crie um projeto primeiro para rodar avaliações.</p></div></div>)}
           {activeArea === 'settings' && <SettingsView />}
         </main>
       </div>
@@ -506,7 +499,12 @@ function HomeChat({
               streamingLabel={currentActivityLabel}
               onPreviewArtifact={(a) => { setActiveArtifact(a); setArtifactPanelClosed(false); }}
             />
-            {plan && !plan.conversational && <TaskPlan intent={plan.intent} steps={plan.steps} />}
+            {plan && !plan.conversational && (
+              <>
+                <ThinkingLog steps={plan.steps} currentLabel={currentActivityLabel} />
+                <TaskPlan intent={plan.intent} steps={plan.steps} />
+              </>
+            )}
           </div>
         )}
 
