@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { Loader2, Sparkles, AlertCircle, LogOut } from "lucide-react";
-import { login, signup, me, logout as logoutRequest, type AuthUser } from "@/services/authService";
+import { Loader2, Sparkles, AlertCircle } from "lucide-react";
+import { login, signup, me, type AuthUser } from "@/services/authService";
 import { getAuthToken } from "@/services/authToken";
 
 const inputCls = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
@@ -21,11 +21,6 @@ export function AuthGate({ children }: AuthGateProps) {
     me().then((u) => { setUser(u); setChecking(false); }).catch(() => setChecking(false));
   }, []);
 
-  const handleLogout = () => {
-    logoutRequest();
-    setUser(null);
-  };
-
   if (checking) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh' }}>
@@ -38,28 +33,7 @@ export function AuthGate({ children }: AuthGateProps) {
     return <AuthForm onAuthenticated={setUser} />;
   }
 
-  return (
-    <>
-      {children}
-      <button
-        type="button"
-        onClick={handleLogout}
-        title={`Sair (${user.email})`}
-        style={{
-          position: 'fixed', bottom: 12, left: 12, zIndex: 9999,
-          display: 'flex', alignItems: 'center', gap: 6,
-          padding: '6px 10px', borderRadius: 8, fontSize: 12,
-          border: '1px solid var(--border, #2a2a2e)', background: 'var(--bg, #0b0b0f)',
-          color: 'var(--text-muted, #999)', cursor: 'pointer', opacity: 0.7,
-        }}
-        onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }}
-        onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.7'; }}
-      >
-        <LogOut size={12} />
-        {user.email}
-      </button>
-    </>
-  );
+  return <>{children}</>;
 }
 
 function AuthForm({ onAuthenticated }: { onAuthenticated: (u: AuthUser) => void }) {

@@ -25,6 +25,7 @@ import {
   Shuffle,
 } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
+import { me as fetchAuthUser, logout as authLogout, type AuthUser } from './services/authService';
 import { chatService } from './services/chat.service';
 import { projectService } from './services/project.service';
 import { askBeeHive, askBeeHiveStream } from './services/beehiveApi';
@@ -78,6 +79,14 @@ const { projects } = useAppStore();
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
   const [chatResetKey, setChatResetKey] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  useEffect(() => { fetchAuthUser().then(setAuthUser).catch(() => {}); }, []);
+
+  const handleLogout = () => {
+    authLogout();
+    window.location.reload();
+  };
 
   const openProject = (project: Project) => {
     setOpenedProject(project);
@@ -151,13 +160,6 @@ const { projects } = useAppStore();
               <button className="nav-row-main" onClick={() => { setActiveArea('settings'); setOpenedProject(null); setSidebarOpen(false); }}><Settings size={16} /> Settings</button>
             </div>
           </div>
-          <div className="sidebar-user">
-            <div className="user-avatar">GT</div>
-            <div className="user-info">
-              <span className="user-name">Gabriel T.</span>
-              <span className="user-plan">Pro Plan</span>
-            </div>
-          </div>
         </div>
       </aside>
 
@@ -181,13 +183,13 @@ const { projects } = useAppStore();
           <div className="topbar-right">
             <button className="topbar-icon-btn" title="Buscar"><Search size={16} /></button>
             <button className="topbar-icon-btn" title="Notificações"><Bell size={16} /></button>
-            <div className="topbar-user">
-              <div className="user-avatar">GT</div>
+            <button className="topbar-user" onClick={handleLogout} title="Sair" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}>
+              <div className="user-avatar">{(authUser?.email || '?').slice(0, 2).toUpperCase()}</div>
               <div className="user-info">
-                <span className="user-name">Gabriel T.</span>
-                <span className="user-plan">Pro Plan</span>
+                <span className="user-name">{authUser?.email || 'Carregando...'}</span>
+                <span className="user-plan">Sair</span>
               </div>
-            </div>
+            </button>
           </div>
         </header>
 
