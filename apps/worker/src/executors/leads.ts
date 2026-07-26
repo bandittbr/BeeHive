@@ -1,13 +1,13 @@
 // Executor de leads: scraping Google Maps + IA.
-// Chama o scraper Python e retorna os resultados como JSON.
-import { spawn } from 'node:child_process';
+// Usa Puppeteer diretamente (Node.js) — sem dependências Python.
 import fs from 'node:fs';
 import path from 'node:path';
+import puppeteer, { Browser } from 'puppeteer';
 import { WORKSPACE_ROOT } from '../workspace.js';
 import { executeCapability } from '../kernel-bridge.js';
+import { scrapeGoogleMaps } from './googleMapsScraper.js';
 
-const SCRAPPER_SCRIPT = path.join(WORKSPACE_ROOT, 'services', 'leads_scraper', 'scraper_service.py');
-const SCREENSHOT_SCRIPT = path.join(WORKSPACE_ROOT, 'services', 'leads_scraper', 'screenshot.py');
+export type { ScrapedPlace, ScrapeRequest } from './googleMapsScraper.js';
 
 export interface LeadScrapeRequest {
   search: string;
@@ -30,81 +30,32 @@ export interface RawLead {
 }
 
 /**
- * Run the Python scraper and return raw leads.
+ * Run the Google Maps scraper (Node.js/Puppeteer) and return raw leads.
  */
 export async function runScraper(
   req: LeadScrapeRequest,
   onChunk?: (kind: 'stdout' | 'stderr', data: string) => void,
 ): Promise<RawLead[]> {
-  const args: string[] = [
-    SCRAPPER_SCRIPT,
-    '--search', req.search,
-    '--total', String(req.total ?? 20),
-    '--output', 'json',
-  ];
-
-  if (req.categories) {
-    args.push('--categories', req.categories);
-  }
-
-  if (req.headless !== false) {
-    args.push('--headless');
-  } else {
-    args.push('--visible');
-  }
-
-  const log = (kind: 'stdout' | 'stderr', data: string) => {
-    if (onChunk) onChunk(kind, data);
-  };
-
-  return new Promise<RawLead[]>((resolve, reject) => {
-    const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-    const child = spawn(pythonCmd, args, {
-      cwd: WORKSPACE_ROOT,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    child.stdout.on('data', (data: Buffer) => {
-      const text = data.toString('utf-8');
-      stdout += text;
-      log('stdout', text);
-    });
-
-    child.stderr.on('data', (data: Buffer) => {
-      const text = data.toString('utf-8');
-      stderr += text;
-      log('stderr', text);
-    });
-
-    child.on('error', (err) => {
-      reject(new Error(`Falha ao iniciar scraper: ${err.message}`));
-    });
-
-    child.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Scraper exit code ${code}: ${stderr.slice(0, 500)}`));
-        return;
-      }
-
-      try {
-        const leads: RawLead[] = JSON.parse(stdout.trim());
-        resolve(leads);
-      } catch (e) {
-        reject(new Error(`Falha ao parsear resultado do scraper: ${e instanceof Error ? e.message : String(e)}`));
-      }
-    });
-
-    // Timeout after 5 minutes
-    const timeout = setTimeout(() => {
-      child.kill();
-      reject(new Error('Scraper timeout após 5 minutos'));
-    }, 5 * 60 * 1000);
-
-    child.on('close', () => clearTimeout(timeout));
+  const result = await scrapeGoogleMaps({
+    search: req.search,
+    total: req.total ?? 20,
+    headless: req.headless !== false,
   });
+
+  onChunk?.('stdout', `[maps-scraper] Encontrados ${result.stats.found}, extraídos ${result.stats.extracted}, erros ${result.stats.errors}\n`);
+
+  return result.places.map((p) => ({
+    name: p.name,
+    address: p.address,
+    website: p.website,
+    phone_number: p.phone_number,
+    reviews_count: p.reviews_count,
+    reviews_average: p.reviews_average,
+    place_type: p.place_type,
+    opens_at: p.opens_at,
+    introduction: p.introduction,
+    category: p.category,
+  }));
 }
 
 /**
@@ -166,48 +117,51 @@ Responda APENAS com o texto da mensagem, sem aspas.`;
 }
 
 /**
- * Converte um arquivo HTML em uma imagem PNG usando o Playwright (Python).
+ * Converte um arquivo HTML em uma imagem PNG usando Puppeteer.
  */
 async function htmlToPng(
   htmlPath: string,
   outputPng: string,
 ): Promise<void> {
-  const pythonCmd = process.platform === 'win32' ? 'python' : 'python3';
-  const args = [
-    SCREENSHOT_SCRIPT,
-    htmlPath,
-    outputPng,
-    '--width', '1280',
-    '--no-full-page', // captura só o viewport (mais bonito pra preview)
-  ];
-
-  return new Promise<void>((resolve, reject) => {
-    const child = spawn(pythonCmd, args, {
-      cwd: WORKSPACE_ROOT,
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+  let browser: Browser | null = null;
+  try {
+    browser = await puppeteer.launch({
+      headless: 'new',
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+      ],
     });
 
-    let stderr = '';
-    child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
+    const page = await browser.newPage();
+    await page.setViewport({ width: 1280, height: 900 });
 
-    child.on('error', (err) => reject(new Error(`Falha ao iniciar screenshot: ${err.message}`)));
-    child.on('close', (code) => {
-      if (code !== 0) {
-        reject(new Error(`Screenshot exit code ${code}: ${stderr.slice(0, 500)}`));
-        return;
-      }
-      resolve();
+    // Load the HTML file
+    await page.goto(`file://${htmlPath}`, {
+      waitUntil: 'networkidle0',
+      timeout: 15000,
     });
 
-    setTimeout(() => { child.kill(); reject(new Error('Screenshot timeout após 30s')); }, 30000);
-  });
+    // Wait for fonts and images to load
+    await page.evaluate(() => document.fonts?.ready);
+    await new Promise((r) => setTimeout(r, 1000));
+
+    // Screenshot just the viewport (not full page)
+    await page.screenshot({ path: outputPng, type: 'png' });
+  } finally {
+    if (browser) {
+      await browser.close().catch(() => {});
+    }
+  }
 }
 
 /**
  * Gera um preview em PNG do site de amostra para o lead.
  * Passo 1: IA gera o HTML do site.
  * Passo 2: Salva o HTML em arquivo temporário.
- * Passo 3: Converte o HTML em PNG via Playwright.
+ * Passo 3: Converte o HTML em PNG via Puppeteer.
  * Passo 4: Retorna o caminho do PNG.
  *
  * @returns O caminho absoluto do arquivo PNG gerado.
@@ -338,7 +292,7 @@ function generateFallbackSite(name: string, segment: string): string {
     <h3>Entre em Contato</h3>
     <p>📍 Endereço: Av. Principal, 1000</p>
     <p>📞 (11) 99999-9999</p>
-    <p>✉️ contato@${name.toLowerCase().replace(/\\s+/g, '')}.com.br</p>
+    <p>✉️ contato@${name.toLowerCase().replace(/\s+/g, '')}.com.br</p>
     <p style="margin-top: 1rem; font-size: 0.9rem; color: #888;">Funcionamento: Seg-Sáb 08h-18h</p>
   </section>
 
