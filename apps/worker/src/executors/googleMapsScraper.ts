@@ -8,7 +8,8 @@
  *   const leads = await scrapeGoogleMaps({ search: "pizzaria em Goiânia", total: 20 });
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer';
+import puppeteer, { Browser } from 'puppeteer';
+import { resolveChromiumPath } from '../chromium.js';
 
 export interface ScrapeRequest {
   search: string;
@@ -68,7 +69,8 @@ export async function scrapeGoogleMaps(
   let browser: Browser | null = null;
 
   try {
-    browser = await puppeteer.launch({
+    const chromePath = await resolveChromiumPath();
+    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: headless ? 'new' : false,
       args: [
         '--no-sandbox',
@@ -77,7 +79,11 @@ export async function scrapeGoogleMaps(
         '--disable-gpu',
         '--window-size=1920,1080',
       ],
-    });
+    };
+    if (chromePath) {
+      launchOptions.executablePath = chromePath;
+    }
+    browser = await puppeteer.launch(launchOptions);
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1920, height: 1080 });

@@ -6,6 +6,7 @@ import puppeteer, { Browser } from 'puppeteer';
 import { WORKSPACE_ROOT } from '../workspace.js';
 import { executeCapability } from '../kernel-bridge.js';
 import { scrapeGoogleMaps } from './googleMapsScraper.js';
+import { resolveChromiumPath } from '../chromium.js';
 
 export type { ScrapedPlace, ScrapeRequest } from './googleMapsScraper.js';
 
@@ -125,7 +126,8 @@ async function htmlToPng(
 ): Promise<void> {
   let browser: Browser | null = null;
   try {
-    browser = await puppeteer.launch({
+    const chromePath = await resolveChromiumPath();
+    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: 'new',
       args: [
         '--no-sandbox',
@@ -133,7 +135,11 @@ async function htmlToPng(
         '--disable-dev-shm-usage',
         '--disable-gpu',
       ],
-    });
+    };
+    if (chromePath) {
+      launchOptions.executablePath = chromePath;
+    }
+    browser = await puppeteer.launch(launchOptions);
 
     const page = await browser.newPage();
     await page.setViewport({ width: 1280, height: 900 });
