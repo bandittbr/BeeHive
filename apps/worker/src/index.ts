@@ -656,6 +656,35 @@ app.get('/api/debug/logs', (_req, res): void => {
   res.send(logs.join('\n') || '(no debug logs yet)');
 });
 
+// GET /api/debug/qr-check — verifica estado do QR_CACHE no servidor
+app.get('/api/debug/qr-check', (_req, res): void => {
+  import('./executors/whatsapp.js').then(mod => {
+    const qrPath = mod.whatsappGetQrImagePath();
+    const exists = qrPath !== null;
+    const info: Record<string, unknown> = {
+      exists,
+      qrPath,
+      cwd: process.cwd(),
+      WORKSPACE_ROOT: process.env.WORKSPACE_ROOT || '(not set)',
+    };
+    if (exists && qrPath) {
+      try {
+        const stat = fs.statSync(qrPath);
+        info.size = stat.size;
+        info.mtime = stat.mtime.toISOString();
+      } catch (e) { info.statError = e instanceof Error ? e.message : String(e); }
+    }
+    // Lista o diretório do workspace
+    const workspaceDir = WORKSPACE_ROOT || process.cwd();
+    try {
+      info.workspaceFiles = fs.readdirSync(workspaceDir).filter((f: string) => f.startsWith('.beehive'));
+    } catch (e) { info.readdirError = e instanceof Error ? e.message : String(e); }
+    res.json(info);
+  }).catch(e => {
+    res.status(500).json({ error: String(e) });
+  });
+});
+
 // GET /api/whatsapp/qr-image — serve o screenshot do QR Code (modo headless)
 app.get('/api/whatsapp/qr-image', (req, res): void => {
   const qrPath = whatsappGetQrImagePath();
