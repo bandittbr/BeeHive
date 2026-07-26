@@ -200,13 +200,30 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       // Espera um pouco pro QR carregar
       await page.waitForTimeout(6000);
 
+      // Debug: verifica estado da página
+      try {
+        const title = await page.title().catch(() => 'sem título');
+        const url = page.url();
+        const canvasCount = await page.evaluate(() => document.querySelectorAll('canvas').length).catch(() => -1);
+        const qrCanvas = await page.evaluate(() => {
+          const c = document.querySelector('canvas');
+          return c ? `canvas: ${c.width}x${c.height}` : 'no canvas';
+        }).catch(() => 'evaluate error');
+        console.log(`[whatsapp] Page: "${title}" url: ${url} canvas: ${canvasCount} ${qrCanvas}`);
+      } catch (e) {
+        console.error('[whatsapp] Debug error:', e);
+      }
+
       // Tenta extrair QR do canvas (mais confiável) ou fallback pra screenshot
       const qrOk = await captureQrFromCanvas(page);
       if (!qrOk) {
         console.log('[whatsapp] Canvas QR não encontrado, tentando screenshot...');
-        await page.screenshot({ path: QR_CACHE, fullPage: false }).catch((err: unknown) => {
+        try {
+          await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
+          console.log('[whatsapp] Screenshot salvo em', QR_CACHE);
+        } catch (err: unknown) {
           console.error('[whatsapp] Screenshot fallback falhou:', err instanceof Error ? err.message : err);
-        });
+        }
       } else {
         console.log('[whatsapp] QR Code extraído do canvas com sucesso');
       }
