@@ -1,15 +1,12 @@
 /**
- * Google Maps Scraper (Node.js + Puppeteer)
- * ==========================================
+ * Google Maps Scraper (Node.js + Playwright)
+ * ===========================================
  * Searches Google Maps and extracts place data.
- * Replaces the legacy Python scraper for Railway compatibility.
- *
- * Usage:
- *   const leads = await scrapeGoogleMaps({ search: "pizzaria em Goiânia", total: 20 });
+ * Uses Playwright (already installed for whatsapp-web.js) instead of Puppeteer,
+ * to avoid Chromium compatibility issues on Railway.
  */
 
-import puppeteer, { Browser } from 'puppeteer';
-import { resolveChromiumPath } from '../chromium.js';
+import { chromium, Browser, Page } from 'playwright';
 
 export interface ScrapeRequest {
   search: string;
@@ -36,20 +33,14 @@ interface ScrapeStats {
   errors: number;
 }
 
-// ─── Helpers ────────────────────────────────────────────────────────────────────
-
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function safeText(page: Page, selector: string, attr?: string): Promise<string> {
+async function safeText(page: Page, selector: string): Promise<string> {
   try {
-    const el = await page.$(selector);
-    if (!el) return '';
-    if (attr) {
-      return (await el.evaluate((e, a) => e.getAttribute(a as string), attr)) ?? '';
-    }
-    return (await el.evaluate((e) => e.textContent?.trim() ?? ''));
+    const el = page.locator(selector).first();
+    return (await el.textContent())?.trim() ?? '';
   } catch {
     return '';
   }
@@ -68,192 +59,161 @@ export async function scrapeGoogleMaps(
 
   let browser: Browser | null = null;
 
-  // Overall timeout: 4 minutes
-  const TIMEOUT_MS = 4 * 60 * 1000;
-  const timeoutPromise = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`Scraper timeout após ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS),
-  );
+  const TIMEOUT_MS = 3 * 60 * 1000;
+  const deadline = Date.now() + TIMEOUT_MS;
 
-  const scrapePromise = (async () => {
-    const chromePath = await resolveChromiumPath();
-    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
-      headless: headless ? 'new' : false,
-      protocolTimeout: 120_000, // 2 min for individual CDP calls
+  try {
+    browser = await chromium.launch({
+      headless,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
-        '--window-size=1920,1080',
       ],
-    };
-    if (chromePath) {
-      launchOptions.executablePath = chromePath;
-    }
-    browser = await puppeteer.launch(launchOptions);
+    });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1920, height: 1080 });
-    await page.setUserAgent(
-      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
-    );
-    page.setDefaultNavigationTimeout(90_000);
-    page.setDefaultTimeout(30_000);
+    const context = await browser.newContext({
+      viewport: { width: 1920, height: 1080 },
+      userAgent:
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+      locale: 'pt-BR',
+    });
+
+    const page = await context.newPage();
 
     // Navigate to Google Maps
-    // NOTA: Não usar 'networkidle2' — Google Maps é SPA e nunca fica idle.
-    // 'domcontentloaded' é suficiente, depois esperamos um tempo fixo.
     await page.goto('https://www.google.com/maps/@-14.23,-51.92,4z', {
       timeout: 60_000,
       waitUntil: 'domcontentloaded',
     });
-    // Give Maps time to render the search box
+    // Wait for Maps UI to settle
     await sleep(5000);
-    await sleep(3000);
 
-    // Accept cookies if present (try multiple selectors)
-    for (const sel of ['[jsname="b3VHJd"]', 'button:has-text("Aceitar")', 'button:has-text("Accept all")']) {
-      try {
-        const btn = await page.$(sel);
-        if (btn) { await btn.click(); await sleep(1000); break; }
-      } catch { /* next */ }
+    if (Date.now() > deadline) throw new Error('Timeout: page load');
+
+    // Accept cookies if present
+    try {
+      const cookieBtn = page.locator('[jsname="b3VHJd"], button:has-text("Aceitar"), button:has-text("Accept all")').first();
+      if (await cookieBtn.isVisible({ timeout: 3000 })) {
+        await cookieBtn.click();
+        await sleep(1500);
+      }
+    } catch {
+      // no cookie popup
     }
+
+    if (Date.now() > deadline) throw new Error('Timeout: cookies');
 
     // Type search and press Enter
-    const searchInputSel = 'input[name="q"]';
+    const searchInput = page.locator('input[name="q"]');
     try {
-      await page.waitForSelector(searchInputSel, { timeout: 15000 });
+      await searchInput.waitFor({ state: 'visible', timeout: 15000 });
     } catch {
-      // If search box not found directly, try clicking the search button first
+      // Try clicking search button first
       try {
-        const searchBtn = await page.$('button[aria-label="Search"]');
-        if (searchBtn) await searchBtn.click();
-        await sleep(2000);
-        await page.waitForSelector(searchInputSel, { timeout: 10000 });
+        const searchBtn = page.locator('button[aria-label="Search"]').first();
+        if (await searchBtn.isVisible({ timeout: 3000 })) {
+          await searchBtn.click();
+          await sleep(2000);
+        }
       } catch { /* last attempt */ }
+      await searchInput.waitFor({ state: 'visible', timeout: 10000 });
     }
-    await page.type(searchInputSel, search, { delay: 40 }); // faster typing
+
+    if (Date.now() > deadline) throw new Error('Timeout: search input');
+
+    await searchInput.fill(search);
     await page.keyboard.press('Enter');
 
-    // Wait for results panel to appear
+    // Wait for results
     await sleep(3000);
     try {
-      await page.waitForSelector('a[href*="maps/place"]', { timeout: 30000 });
+      await page.locator('a[href*="maps/place"]').first().waitFor({ state: 'visible', timeout: 30000 });
     } catch {
-      // Maybe Google Maps changed layout — try alternative selector
-      await page.waitForSelector('[role="feed"]', { timeout: 20000 }).catch(() => {});
+      await page.locator('[role="feed"]').first().waitFor({ state: 'visible', timeout: 20000 }).catch(() => {});
     }
     await sleep(2000);
 
+    if (Date.now() > deadline) throw new Error('Timeout: results');
+
     // ── Scroll results panel to load more ────────────────────────────────────
-    const resultsPanel = 'div[role="feed"]';
-    await page.waitForSelector(resultsPanel, { timeout: 15000 }).catch(() => {});
-    const panel = await page.$(resultsPanel);
+    const panel = page.locator('div[role="feed"]');
+    const panelEl = await panel.first().elementHandle().catch(() => null);
 
     let prevCount = 0;
     let sameCountTries = 0;
     const MAX_SAME = 3;
 
     for (let i = 0; i < 30; i++) {
+      if (Date.now() > deadline) break;
       if (places.length >= total) break;
 
       // Count visible result links
-      const links = await page.$$('a[href*="maps/place"]');
-      stats.found = Math.max(stats.found, links.length);
+      const links = page.locator('a[href*="maps/place"]');
+      const linkCount = await links.count();
+      stats.found = Math.max(stats.found, linkCount);
 
-      if (links.length === prevCount) {
+      if (linkCount === prevCount) {
         sameCountTries++;
         if (sameCountTries >= MAX_SAME) break;
       } else {
         sameCountTries = 0;
-        prevCount = links.length;
+        prevCount = linkCount;
       }
 
-      // Extract places from currently visible results
-      if (links.length > 0) {
-        for (let j = places.length; j < Math.min(links.length, total); j++) {
+      // Extract places
+      if (linkCount > 0) {
+        for (let j = places.length; j < Math.min(linkCount, total); j++) {
+          if (Date.now() > deadline) break;
+
           try {
-            const link = links[j];
-            if (!link) continue;
+            const link = links.nth(j);
 
-            // Get basic info from the search result card before clicking
-            const name = await link.evaluate((el) => {
-              const nameEl = el.querySelector('.fontHeadlineSmall');
-              return nameEl?.textContent?.trim() ?? '';
-            });
+            // Get basic info before clicking
+            const cardName = await link.locator('.fontHeadlineSmall').textContent().catch(() => '');
+            const name = (cardName ?? '').trim();
 
-            const address = await link.evaluate((el) => {
-              const addrEl = el.querySelector('.fontBodyMedium > span');
-              return addrEl?.textContent?.trim() ?? '';
-            });
+            const cardAddress = await link.locator('.fontBodyMedium > span').first().textContent().catch(() => '');
+            const address = (cardAddress ?? '').trim();
 
-            // Rating from the search cards
+            // Rating
             let rating: number | null = null;
             let reviewsCount: number | null = null;
-            const ratingText = await link.evaluate((el) => {
-              const r = el.querySelector('.fontBodyMedium > span[role="img"]');
-              return r?.getAttribute('aria-label') ?? '';
-            });
-            if (ratingText) {
-              const parts = ratingText.match(/([\d,.]+)/g);
+            const ratingAria = await link.locator('.fontBodyMedium > span[role="img"]').getAttribute('aria-label').catch(() => '');
+            if (ratingAria) {
+              const parts = ratingAria.match(/([\d,.]+)/g);
               if (parts && parts.length >= 1) {
                 rating = parseFloat(parts[0].replace(',', '.'));
               }
-              const numMatch = ratingText.match(/([\d,.]+)\s*avaliaco?e?s/i);
+              const numMatch = ratingAria.match(/([\d,.]+)\s*avaliaco?e?s/i);
               if (numMatch) {
                 reviewsCount = parseInt(numMatch[1].replace(/\./g, '').replace(',', '.'));
               }
             }
 
-            // Click to open detail panel
-            await link.click();
-            await sleep(2000);
-            await page.waitForTimeout(500);
-
-            // Check if already have this place (dedup by name)
+            // Dedup by name
             if (places.some((p) => p.name === name && name !== '')) {
               continue;
             }
 
-            // ── Extract details from the side panel ──
-            const detailPanel = 'div[role="main"]';
+            // Click to open detail panel
+            await link.click();
+            await sleep(2000);
 
-            // Name (from detail panel header)
+            // Extract details
             const detailName = await safeText(page, 'h1.DUwDvf.fontHeadlineLarge');
 
-            // Address
-            const detailAddress = await safeText(
-              page,
-              'button[data-item-id="address"] .fontBodyMedium',
-            );
-
-            // Website
-            const detailWebsite = await safeText(
-              page,
-              'a[data-item-id="authority"] .fontBodyMedium',
-            );
-
-            // Phone
-            const detailPhone = await safeText(
-              page,
-              'button[data-item-id*="phone:tel:"] .fontBodyMedium',
-            );
-
-            // Introduction/description
+            const detailAddress = await safeText(page, 'button[data-item-id="address"] .fontBodyMedium');
+            const detailWebsite = await safeText(page, 'a[data-item-id="authority"] .fontBodyMedium');
+            const detailPhone = await safeText(page, 'button[data-item-id*="phone:tel:"] .fontBodyMedium');
             const detailIntro = await safeText(page, '.WeS02d.fontBodyMedium .PYvSYb');
-
-            // Place type (category)
             const detailType = await safeText(page, '.LBgpqf button.DkEaL');
+            const detailHours = await safeText(page, 'button[data-item-id*="oh"] .fontBodyMedium');
 
-            // Opening hours
-            const detailHours = await safeText(
-              page,
-              'button[data-item-id*="oh"] .fontBodyMedium',
-            );
-
-            const place: ScrapedPlace = {
+            places.push({
               name: detailName || name,
-              address: detailAddress || address || '',
+              address: detailAddress || address,
               website: detailWebsite || '',
               phone_number: detailPhone || '',
               reviews_count: reviewsCount,
@@ -262,24 +222,18 @@ export async function scrapeGoogleMaps(
               opens_at: detailHours || '',
               introduction: detailIntro || '',
               category: detailType || '',
-            };
-
-            places.push(place);
+            });
             stats.extracted++;
           } catch (err) {
             stats.errors++;
-            console.error(
-              `[maps-scraper] Erro extraindo place #${j}: ${err instanceof Error ? err.message : String(err)}`,
-            );
+            console.error(`[maps-scraper] Erro extraindo place #${j}: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
 
-      // Scroll the results panel to load more
-      if (panel) {
-        await panel.evaluate((el) => {
-          el.scrollTop = el.scrollHeight;
-        });
+      // Scroll
+      if (panelEl) {
+        await page.evaluate((el) => { el.scrollTop = el.scrollHeight; }, panelEl);
       } else {
         await page.evaluate(() => window.scrollBy(0, 800));
       }
@@ -287,10 +241,6 @@ export async function scrapeGoogleMaps(
     }
 
     return { places, stats };
-  })();
-
-  try {
-    return await Promise.race([scrapePromise, timeoutPromise]);
   } finally {
     if (browser) {
       await browser.close().catch(() => {});

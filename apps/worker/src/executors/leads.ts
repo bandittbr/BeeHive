@@ -2,11 +2,10 @@
 // Usa Puppeteer diretamente (Node.js) — sem dependências Python.
 import fs from 'node:fs';
 import path from 'node:path';
-import puppeteer, { Browser } from 'puppeteer';
+import { chromium, Browser } from 'playwright';
 import { WORKSPACE_ROOT } from '../workspace.js';
 import { executeCapability } from '../kernel-bridge.js';
 import { scrapeGoogleMaps } from './googleMapsScraper.js';
-import { resolveChromiumPath } from '../chromium.js';
 
 export type { ScrapedPlace, ScrapeRequest } from './googleMapsScraper.js';
 
@@ -118,7 +117,7 @@ Responda APENAS com o texto da mensagem, sem aspas.`;
 }
 
 /**
- * Converte um arquivo HTML em uma imagem PNG usando Puppeteer.
+ * Converte um arquivo HTML em uma imagem PNG usando Playwright.
  */
 async function htmlToPng(
   htmlPath: string,
@@ -126,32 +125,29 @@ async function htmlToPng(
 ): Promise<void> {
   let browser: Browser | null = null;
   try {
-    const chromePath = await resolveChromiumPath();
-    const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
-      headless: 'new',
+    browser = await chromium.launch({
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
       ],
-    };
-    if (chromePath) {
-      launchOptions.executablePath = chromePath;
-    }
-    browser = await puppeteer.launch(launchOptions);
+    });
 
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 900 });
+    const context = await browser.newContext({
+      viewport: { width: 1280, height: 900 },
+    });
+    const page = await context.newPage();
 
     // Load the HTML file
     await page.goto(`file://${htmlPath}`, {
-      waitUntil: 'networkidle0',
+      waitUntil: 'networkidle',
       timeout: 15000,
     });
 
     // Wait for fonts and images to load
-    await page.evaluate(() => document.fonts?.ready);
+    await page.evaluate(() => document.fonts?.ready).catch(() => {});
     await new Promise((r) => setTimeout(r, 1000));
 
     // Screenshot just the viewport (not full page)
