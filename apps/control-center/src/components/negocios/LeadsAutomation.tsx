@@ -260,43 +260,43 @@ export function LeadsAutomation() {
         </div>
         <div className="leads-panel-body">
           {waitingQr ? (
-            /* QR Code em modo headless */
-            <div style={{ textAlign: 'center', padding: '12px 0' }}>
-              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+            /* QR Code em modo headless — centralizado */
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '20px 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6, textAlign: 'center', maxWidth: 360 }}>
                 1. Abra o WhatsApp no seu celular<br />
                 2. Toque em <strong>Menu</strong> ou <strong>Configurações</strong> e selecione <strong>WhatsApp Web</strong><br />
                 3. Aponte para o QR Code abaixo
               </p>
-              <img
-                key={qrRefreshKey}
-                src={getQrImageUrl()}
-                alt="QR Code do WhatsApp"
-                style={{
-                  width: 256, height: 256,
-                  border: '2px solid var(--border-color, #333)',
-                  borderRadius: 12,
-                  background: '#fff',
-                  padding: 8,
-                  imageRendering: 'pixelated',
-                }}
-                onError={(e) => {
-                  // Se a imagem falhar, mostra placeholder com texto
-                  const el = e.target as HTMLImageElement;
-                  el.style.display = 'none';
-                  const parent = el.parentElement;
-                  if (parent) {
-                    const placeholder = document.createElement('div');
-                    placeholder.style.cssText = 'width:256px;height:256px;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:auto;font-size:12px;color:#888;';
-                    placeholder.textContent = 'QR Code não disponível. Reconecte.';
-                    // Só adiciona se não existir
-                    if (!parent.querySelector('[data-qr-placeholder]')) {
-                      placeholder.setAttribute('data-qr-placeholder', '1');
-                      parent.appendChild(placeholder);
+              <div style={{ display: 'flex', justifyContent: 'center' }}>
+                <img
+                  key={qrRefreshKey}
+                  src={getQrImageUrl()}
+                  alt="QR Code do WhatsApp"
+                  style={{
+                    width: 256, height: 256,
+                    border: '2px solid var(--border-color, #333)',
+                    borderRadius: 12,
+                    background: '#fff',
+                    padding: 8,
+                    imageRendering: 'pixelated',
+                  }}
+                  onError={(e) => {
+                    const el = e.target as HTMLImageElement;
+                    el.style.display = 'none';
+                    const parent = el.parentElement;
+                    if (parent) {
+                      const placeholder = document.createElement('div');
+                      placeholder.style.cssText = 'width:256px;height:256px;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:12px;color:#888;';
+                      placeholder.textContent = 'QR Code não disponível. Reconecte.';
+                      if (!parent.querySelector('[data-qr-placeholder]')) {
+                        placeholder.setAttribute('data-qr-placeholder', '1');
+                        parent.appendChild(placeholder);
+                      }
                     }
-                  }
-                }}
-              />
-              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>
+                  }}
+                />
+              </div>
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12, textAlign: 'center' }}>
                 O QR Code atualiza automaticamente. Escaneie com seu celular.
               </p>
               <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
