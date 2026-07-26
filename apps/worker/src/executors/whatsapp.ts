@@ -133,13 +133,21 @@ function startQrPolling(page: any): void {
         return;
       }
 
-      // Extrai QR do canvas (mais confiável que screenshot)
+      // Só sobrescreve QR_CACHE se o canvas realmente apareceu
       const captured = await captureQrFromCanvas(_qrPage);
       if (!captured) {
-        // Fallback: tenta screenshot tradicional
-        await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch((err: unknown) => {
-          dbg('[whatsapp] ERROR QR fallback screenshot falhou: ' + (err instanceof Error ? err.message : String(err)));
-        });
+        const hasCanvasNow = await _qrPage.evaluate(() => {
+          const c = document.querySelector('canvas');
+          return c && c.width > 0;
+        }).catch(() => false);
+        if (hasCanvasNow) {
+          await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
+          dbg('[whatsapp] QR atualizado via screenshot (canvas novo)');
+        } else {
+          dbg('[whatsapp] QR polling: canvas ainda não disponível');
+        }
+      } else {
+        dbg('[whatsapp] QR atualizado via canvas');
       }
       saveStatus({ ...loadStatus(), waitingQr: true, lastCheckAt: Date.now() });
     } catch {
@@ -206,47 +214,72 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     if (isHeadless) {
       // Modo headless: abre e captura QR como screenshot
       launchOpts.headless = true;
+      launchOpts.args = (launchOpts.args as string[]).concat([
+        '--disable-gpu',
+        '--disable-software-rasterizer',
+      ]);
       browser = await chromium.launchPersistentContext(SESSION_DIR, launchOpts);
       const pages = browser.pages();
       const page = pages.length > 0 ? pages[0] : await browser.newPage();
-      await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-      // Espera um pouco pro QR carregar
-      await page.waitForTimeout(6000);
+      // WhatsApp Web pode levar bastante tempo pra carregar o QR em headless
+      await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 90000 });
+      dbg('[whatsapp] Página carregada, aguardando renderização do QR...');
 
-      // Debug: verifica estado da página
-      try {
-        const title = await page.title().catch(() => 'sem título');
-        const url = page.url();
-        const canvasCount = await page.evaluate(() => document.querySelectorAll('canvas').length).catch(() => -1);
-        const qrCanvas = await page.evaluate(() => {
-          const c = document.querySelector('canvas');
-          return c ? `canvas: ${c.width}x${c.height}` : 'no canvas';
-        }).catch(() => 'evaluate error');
-        dbg(`[whatsapp] Page: "${title}" url: ${url} canvas: ${canvasCount} ${qrCanvas}`);
-      } catch (e) {
-        dbg('[whatsapp] ERROR Debug error: ' + (e instanceof Error ? e.message : String(e)));
+      // Espera progressivamente até o canvas aparecer (max 25s)
+      let canvasFound = false;
+      for (let i = 0; i < 10; i++) {
+        await page.waitForTimeout(2500);
+        const hasCanvas = await page.evaluate(() => {
+          const canvases = document.querySelectorAll('canvas');
+          return canvases.length > 0 && canvases[0].width > 0;
+        }).catch(() => false);
+        if (hasCanvas) {
+          canvasFound = true;
+          dbg('[whatsapp] Canvas do QR encontrado após ' + ((i + 1) * 2500) + 'ms');
+          break;
+        }
+        dbg('[whatsapp] Aguardando canvas... tentativa ' + (i + 1) + '/10');
       }
 
-      // Tenta extrair QR do canvas (mais confiável) ou fallback pra screenshot
+      // Debug final
+      try {
+        const title = await page.title().catch(() => 'sem título');
+        const canvasCount = await page.evaluate(() => document.querySelectorAll('canvas').length).catch(() => -1);
+        dbg(`[whatsapp] Page: "${title}" canvas: ${canvasCount} found: ${canvasFound}`);
+      } catch (e) {
+        dbg('[whatsapp] ERROR Debug: ' + (e instanceof Error ? e.message : String(e)));
+      }
+
+      // Extrai QR do canvas
       const qrOk = await captureQrFromCanvas(page);
-      if (!qrOk) {
-        dbg('[whatsapp] Canvas QR não encontrado, tentando screenshot...');
+      if (qrOk) {
+        dbg('[whatsapp] QR Code extraído do canvas com sucesso');
+      } else if (canvasFound) {
+        // Canvas existe mas toDataURL falhou — tenta screenshot
+        dbg('[whatsapp] Canvas encontrado mas extração falhou, tentando screenshot...');
         try {
           await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
           dbg('[whatsapp] Screenshot salvo em ' + QR_CACHE);
         } catch (err: unknown) {
-          dbg('[whatsapp] ERROR Screenshot fallback falhou: ' + (err instanceof Error ? err.message : String(err)));
+          dbg('[whatsapp] ERROR Screenshot: ' + (err instanceof Error ? err.message : String(err)));
         }
       } else {
-        dbg('[whatsapp] QR Code extraído do canvas com sucesso');
+        // Canvas não encontrado — screenshot anyway pra debug
+        dbg('[whatsapp] Canvas não encontrado, salvando screenshot de debug');
+        try {
+          await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
+          dbg('[whatsapp] Screenshot de debug salvo');
+        } catch (err: unknown) {
+          dbg('[whatsapp] ERROR Screenshot debug: ' + (err instanceof Error ? err.message : String(err)));
+        }
       }
 
       // Armazena referências globais
       _qrBrowser = browser;
       _qrPage = page;
 
-      // Inicia polling
+      // Inicia polling (NÃO sobrescreve QR_CACHE com screenshots em branco)
       saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
       startQrPolling(page);
 
