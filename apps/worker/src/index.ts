@@ -37,6 +37,7 @@ import {
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
   whatsappGetStatus, whatsappDisconnect, whatsappGetQrImagePath,
+  getDebugLogs,
 } from './executors/whatsapp.js';
 import {
   listLeads, getLead, addLead, addLeadsBatch, updateLead, deleteLead, getLeadsDashboard,
@@ -646,6 +647,13 @@ app.get('/api/whatsapp/status', async (req, res): Promise<void> => {
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
   }
+});
+
+// GET /api/debug/logs — últimas mensagens de debug do módulo WhatsApp
+app.get('/api/debug/logs', (_req, res): void => {
+  const logs = getDebugLogs();
+  res.type('text/plain; charset=utf-8');
+  res.send(logs.join('\n') || '(no debug logs yet)');
 });
 
 // GET /api/whatsapp/qr-image — serve o screenshot do QR Code (modo headless)

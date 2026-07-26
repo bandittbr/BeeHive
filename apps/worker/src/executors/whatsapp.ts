@@ -19,6 +19,20 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { WORKSPACE_ROOT } from '../workspace.js';
 
+// In-memory debug log ring buffer
+const __debugLogs: string[] = [];
+const MAX_DEBUG_LOGS = 200;
+function dbg(msg: string): void {
+  const ts = new Date().toISOString().slice(11, 23);
+  const line = `[${ts}] ${msg}`;
+  console.log(line);
+  __debugLogs.push(line);
+  if (__debugLogs.length > MAX_DEBUG_LOGS) __debugLogs.splice(0, __debugLogs.length - MAX_DEBUG_LOGS);
+}
+export function getDebugLogs(): string[] {
+  return [...__debugLogs];
+}
+
 const SESSION_DIR = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-session');
 const STATUS_FILE = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-status.json');
 const QR_CACHE = path.join(WORKSPACE_ROOT, '.beehive-qr-cache.png');
@@ -114,7 +128,7 @@ function startQrPolling(page: any): void {
           phone,
           waitingQr: false,
         });
-        console.log('[whatsapp] QR escaneado! WhatsApp conectado.');
+        dbg('[whatsapp] QR escaneado! WhatsApp conectado.');
         stopQrPolling();
         return;
       }
@@ -124,7 +138,7 @@ function startQrPolling(page: any): void {
       if (!captured) {
         // Fallback: tenta screenshot tradicional
         await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch((err: unknown) => {
-          console.error('[whatsapp] QR fallback screenshot falhou:', err instanceof Error ? err.message : err);
+          dbg('[whatsapp] ERROR QR fallback screenshot falhou: ' + (err instanceof Error ? err.message : String(err)));
         });
       }
       saveStatus({ ...loadStatus(), waitingQr: true, lastCheckAt: Date.now() });
@@ -209,23 +223,23 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
           const c = document.querySelector('canvas');
           return c ? `canvas: ${c.width}x${c.height}` : 'no canvas';
         }).catch(() => 'evaluate error');
-        console.log(`[whatsapp] Page: "${title}" url: ${url} canvas: ${canvasCount} ${qrCanvas}`);
+        dbg(`[whatsapp] Page: "${title}" url: ${url} canvas: ${canvasCount} ${qrCanvas}`);
       } catch (e) {
-        console.error('[whatsapp] Debug error:', e);
+        dbg('[whatsapp] ERROR Debug error: ' + (e instanceof Error ? e.message : String(e)));
       }
 
       // Tenta extrair QR do canvas (mais confiável) ou fallback pra screenshot
       const qrOk = await captureQrFromCanvas(page);
       if (!qrOk) {
-        console.log('[whatsapp] Canvas QR não encontrado, tentando screenshot...');
+        dbg('[whatsapp] Canvas QR não encontrado, tentando screenshot...');
         try {
           await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
-          console.log('[whatsapp] Screenshot salvo em', QR_CACHE);
+          dbg('[whatsapp] Screenshot salvo em ' + QR_CACHE);
         } catch (err: unknown) {
-          console.error('[whatsapp] Screenshot fallback falhou:', err instanceof Error ? err.message : err);
+          dbg('[whatsapp] ERROR Screenshot fallback falhou: ' + (err instanceof Error ? err.message : String(err)));
         }
       } else {
-        console.log('[whatsapp] QR Code extraído do canvas com sucesso');
+        dbg('[whatsapp] QR Code extraído do canvas com sucesso');
       }
 
       // Armazena referências globais
@@ -240,7 +254,7 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       setTimeout(() => {
         const s = loadStatus();
         if (s.waitingQr) {
-          console.log('[whatsapp] Timeout aguardando QR scan');
+          dbg('[whatsapp] Timeout aguardando QR scan');
           saveStatus({ connected: false, error: 'Tempo esgotado para scan do QR Code', waitingQr: false });
           stopQrPolling();
         }
