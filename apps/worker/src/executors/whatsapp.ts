@@ -1,25 +1,22 @@
 /**
  * Executor WhatsApp Web
  * ======================
- * Usa Playwright para controlar o WhatsApp Web:
- *   - Conectar via QR Code (headless com screenshot ou navegador visível)
- *   - Enviar mensagens de texto (headless)
- *   - Enviar imagens com legenda
+ * Usa whatsapp-web.js + Puppeteer para conectar via QR Code e enviar mensagens.
+ * O whatsapp-web.js já lida com evasão de detecção, sessão persistente, etc.
  *
- * A sessão fica salva em .beehive-whatsapp-session/ para reconexão automática.
- *
- * Conexão headless (Railway/headless servers):
- *   1. whatsappConnect({ headless: true }) abre Chromium headless
- *   2. Captura screenshot da área do QR Code → salva em .beehive-qr-cache.png
- *   3. Endpoint /api/whatsapp/qr-image serve essa imagem para o usuário ver no navegador
- *   4. Um polling interno detecta quando o QR foi escaneado
- *   5. Sessão salva, browser fechado
+ * Fluxo headless (Railway):
+ *   1. whatsappConnect({ headless: true }) → cria Client do whatsapp-web.js
+ *   2. Evento 'qr' → salva QR Code como PNG em .beehive-qr-cache.png
+ *   3. GET /api/whatsapp/qr-image → serve o PNG pro frontend
+ *   4. Evento 'ready' → WhatsApp conectado, sessão salva em .beehive-whatsapp-session/
+ *   5. Envio de mensagens usa o Client autenticado
  */
 import path from 'node:path';
 import fs from 'node:fs';
+import QRCode from 'qrcode';
 import { WORKSPACE_ROOT } from '../workspace.js';
 
-// In-memory debug log ring buffer
+// ── Debug log ring buffer ───────────────────────────────────────
 const __debugLogs: string[] = [];
 const MAX_DEBUG_LOGS = 200;
 function dbg(msg: string): void {
@@ -29,578 +26,310 @@ function dbg(msg: string): void {
   __debugLogs.push(line);
   if (__debugLogs.length > MAX_DEBUG_LOGS) __debugLogs.splice(0, __debugLogs.length - MAX_DEBUG_LOGS);
 }
-export function getDebugLogs(): string[] {
-  return [...__debugLogs];
-}
+export function getDebugLogs(): string[] { return [...__debugLogs]; }
 
+// ── Paths ───────────────────────────────────────────────────────
 const SESSION_DIR = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-session');
 const STATUS_FILE = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-status.json');
 const QR_CACHE = path.join(WORKSPACE_ROOT, '.beehive-qr-cache.png');
+const AUTH_DIR = path.join(WORKSPACE_ROOT, '.wwebjs_auth');
 
+// ── Types ───────────────────────────────────────────────────────
 interface WhatsAppStatus {
   connected: boolean;
   connectedAt?: number;
   phone?: string;
+  waitingQr?: boolean;
+  qrWaitStartedAt?: number;
   lastCheckAt?: number;
   error?: string;
-  /** Quando está em modo headless aguardando scan do QR */
-  waitingQr?: boolean;
-  /** Timestamp do início da espera do QR */
-  qrWaitStartedAt?: number;
 }
 
-/** Referência global para o browser headless durante espera do QR */
-let _qrBrowser: any = null;
-let _qrPage: any = null;
-let _qrPollTimer: ReturnType<typeof setInterval> | null = null;
-
-function loadStatus(): WhatsAppStatus {
-  try { return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8')); } catch { return { connected: false }; }
-}
-function saveStatus(s: WhatsAppStatus): void {
-  try { fs.writeFileSync(STATUS_FILE, JSON.stringify(s, null, 2), 'utf8'); } catch { /* ignore */ }
-}
-
-/**
- * Para a sessão headless de QR e limpa recursos.
- */
-function stopQrPolling(): void {
-  if (_qrPollTimer) { clearInterval(_qrPollTimer); _qrPollTimer = null; }
-  _qrPage = null;
-  if (_qrBrowser) {
-    try { _qrBrowser.close().catch(() => {}); } catch { /* ignore */ }
-    _qrBrowser = null;
-  }
-  // Limpa status de waiting
-  const s = loadStatus();
-  if (s.waitingQr) {
-    s.waitingQr = false;
-    delete s.qrWaitStartedAt;
-    saveStatus(s);
-  }
-}
-
-/**
- * Extrai o QR Code do canvas do WhatsApp Web e salva como PNG.
- * É mais confiável que screenshot porque obtém a imagem nativa do canvas.
- */
-async function captureQrFromCanvas(page: any): Promise<boolean> {
-  try {
-    const dataUrl = await page.evaluate(() => {
-      const canvas = document.querySelector('canvas');
-      if (!canvas) return null;
-      return canvas.toDataURL('image/png');
-    }).catch(() => null);
-
-    if (dataUrl && typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png;base64,')) {
-      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
-      fs.writeFileSync(QR_CACHE, Buffer.from(base64, 'base64'));
-      return true;
-    }
-    return false;
-  } catch { return false; }
-}
-
-/**
- * Polling interno: a cada 3s verifica se o QR foi escaneado.
- * Se sim, salva status de conectado e limpa recursos.
- */
-function startQrPolling(page: any): void {
-  if (_qrPollTimer) clearInterval(_qrPollTimer);
-
-  _qrPollTimer = setInterval(async () => {
-    try {
-      if (!_qrPage) return;
-
-      // Verifica se apareceu a lista de chats (logado)
-      const chatCount = await _qrPage.locator('[data-testid="chat-list"], #side').count().catch(() => 0);
-      if (chatCount > 0) {
-        // Conectado! Tenta pegar número
-        let phone = '';
-        try {
-          await _qrPage.waitForTimeout(1000);
-          phone = await _qrPage.locator('header span[title]').first().textContent().catch(() => '') || '';
-        } catch { /* opcional */ }
-
-        saveStatus({
-          connected: true,
-          connectedAt: Date.now(),
-          phone,
-          waitingQr: false,
-        });
-        dbg('[whatsapp] QR escaneado! WhatsApp conectado.');
-        stopQrPolling();
-        return;
-      }
-
-      // Só sobrescreve QR_CACHE se o canvas realmente apareceu
-      const captured = await captureQrFromCanvas(_qrPage);
-      if (!captured) {
-        const hasCanvasNow = await _qrPage.evaluate(() => {
-          const c = document.querySelector('canvas');
-          return c && c.width > 0;
-        }).catch(() => false);
-        if (hasCanvasNow) {
-          await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
-          dbg('[whatsapp] QR atualizado via screenshot (canvas novo)');
-        } else {
-          dbg('[whatsapp] QR polling: canvas ainda não disponível');
-        }
-      } else {
-        dbg('[whatsapp] QR atualizado via canvas');
-      }
-      saveStatus({ ...loadStatus(), waitingQr: true, lastCheckAt: Date.now() });
-    } catch {
-      // Se página foi fechada, limpa
-      stopQrPolling();
-    }
-  }, 3000);
-}
-
-/**
- * Conecta ao WhatsApp Web.
- *
- * @param options.headless - Se true (Railway), captura QR como screenshot.
- *                           Se false (PC local), abre navegador visível.
- *                           Default: false (compatibilidade).
- * @param options.timeout  - Tempo máximo em ms para aguardar QR (default: 120s).
- *
- * Modo headless:
- *   - Retorna { ok: true, waitingQr: true, qrPath: '...' } imediatamente
- *   - O QR screenshot é atualizado a cada 3s em .beehive-qr-cache.png
- *   - Use GET /api/whatsapp/qr-image (ou /files/.beehive-qr-cache.png) para ver
- *   - Quando escaneado, status muda para connected
- *
- * Modo visível:
- *   - Abre janela do Chromium, bloqueia até scan ou timeout
- */
-export async function whatsappConnect(options?: { headless?: boolean; timeout?: number }): Promise<{
+interface ConnectResult {
   ok: boolean;
   message: string;
   waitingQr?: boolean;
   qrPath?: string;
-}> {
+}
+
+let _whatsAppClient: any = null;       // whatsapp-web.js Client instance
+let _clientReady = false;              // true after 'ready' event
+let _qrBuffer: Buffer | null = null;   // last QR code as PNG buffer
+let _connecting = false;               // guard against concurrent connections
+
+// ── Status helpers ──────────────────────────────────────────────
+function saveStatus(s: Partial<WhatsAppStatus>): void {
+  const current = loadStatus();
+  const merged = { ...current, ...s };
+  try { fs.writeFileSync(STATUS_FILE, JSON.stringify(merged, null, 2), 'utf8'); } catch { /* ok */ }
+}
+
+function loadStatus(): WhatsAppStatus {
+  try {
+    if (fs.existsSync(STATUS_FILE)) {
+      return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8'));
+    }
+  } catch { /* ok */ }
+  return { connected: false };
+}
+
+// ── QR: buffer → PNG file ──────────────────────────────────────
+function saveQrBufferToFile(buffer: Buffer): void {
+  try {
+    fs.writeFileSync(QR_CACHE, buffer);
+    dbg('[whatsapp] QR PNG salvo (' + buffer.length + ' bytes)');
+  } catch (e) {
+    dbg('[whatsapp] ERROR salvando QR: ' + (e instanceof Error ? e.message : String(e)));
+  }
+}
+
+// ── Get Chromium path from Playwright ───────────────────────────
+async function getChromiumPath(): Promise<string | null> {
+  try {
+    const pw = await import('playwright');
+    const path = pw.chromium.executablePath();
+    dbg('[whatsapp] Chromium path: ' + path);
+    return path;
+  } catch {
+    dbg('[whatsapp] Playwright não disponível para obter Chromium path');
+    return null;
+  }
+}
+
+// ── Connect ─────────────────────────────────────────────────────
+export async function whatsappConnect(options?: { headless?: boolean; timeout?: number }): Promise<ConnectResult> {
   const status = loadStatus();
-  if (status.connected) {
-    stopQrPolling();
+  if (status.connected && _clientReady) {
     return { ok: true, message: 'Já conectado ao WhatsApp Web' };
   }
 
-  // Se já está aguardando QR em headless, não duplica
-  if (status.waitingQr && _qrBrowser) {
+  if (_connecting) {
     return { ok: true, message: 'Já aguardando scan do QR Code', waitingQr: true, qrPath: '.beehive-qr-cache.png' };
   }
 
-  const isHeadless = options?.headless ?? false;
   const timeout = options?.timeout ?? 120000;
+  const isHeadless = options?.headless !== false;
 
-  let chromium: any;
+  _connecting = true;
+  _qrBuffer = null;
+  _clientReady = false;
+
   try {
-    // playwright-extra com StealthPlugin → bypassa detecção de automação do WhatsApp Web
-    chromium = (await import('playwright-extra')).chromium;
-    const StealthPlugin = (await import('puppeteer-extra-plugin-stealth')).default;
-    chromium.use(StealthPlugin());
-    dbg('[whatsapp] playwright-extra + StealthPlugin ativado');
-  } catch {
-    return { ok: false, message: 'Playwright não instalado. Execute: npx playwright install --with-deps chromium' };
-  }
+    // ── Get Chromium executable ──
+    const chromiumPath = await getChromiumPath();
 
-  // Garante diretório de sessão
-  fs.mkdirSync(SESSION_DIR, { recursive: true });
+    // ── Import whatsapp-web.js ──
+    const wweb = await import('whatsapp-web.js');
+    const { Client, LocalAuth } = wweb;
 
-  let browser: any = null;
-  try {
-    const launchOpts: Record<string, unknown> = {
-      args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'],
-      viewport: { width: 1280, height: 800 },
-    };
-
-    if (isHeadless) {
-      // Modo headless: abre e captura QR como screenshot
-      launchOpts.headless = true;
-      launchOpts.args = (launchOpts.args as string[]).concat([
+    // ── Build puppeteer options ──
+    const puppeteerOpts: Record<string, unknown> = {
+      headless: isHeadless ? 'shell' : false,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
-      ]);
-      browser = await chromium.launchPersistentContext(SESSION_DIR, launchOpts);
-      const pages = browser.pages();
-      const page = pages.length > 0 ? pages[0] : await browser.newPage();
+      ],
+    };
+    if (chromiumPath) {
+      puppeteerOpts.executablePath = chromiumPath;
+    }
 
-      // WhatsApp Web pode levar bastante tempo pra carregar o QR em headless
-      await page.goto('https://web.whatsapp.com', { waitUntil: 'networkidle', timeout: 90000 });
-      dbg('[whatsapp] Página carregada, aguardando renderização do QR...');
+    // ── Create client ──
+    const client = new Client({
+      authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
+      puppeteer: puppeteerOpts,
+      qrMaxRetries: 3,
+      takeoverOnConflict: true,
+      takeoverTimeoutMs: 0,
+      bypassCSP: true,
+    });
 
-      // Espera progressivamente até o canvas aparecer (max 25s)
-      let canvasFound = false;
-      for (let i = 0; i < 10; i++) {
-        await page.waitForTimeout(2500);
-        const hasCanvas = await page.evaluate(() => {
-          const canvases = document.querySelectorAll('canvas');
-          return canvases.length > 0 && canvases[0].width > 0;
-        }).catch(() => false);
-        if (hasCanvas) {
-          canvasFound = true;
-          dbg('[whatsapp] Canvas do QR encontrado após ' + ((i + 1) * 2500) + 'ms');
-          break;
-        }
-        dbg('[whatsapp] Aguardando canvas... tentativa ' + (i + 1) + '/10');
-      }
+    _whatsAppClient = client;
 
-      // Debug final
+    // ── Event handlers ──
+    client.on('qr', async (qrRaw: string) => {
+      dbg('[whatsapp] QR Code recebido do evento (raw len=' + qrRaw.length + ')');
       try {
-        const title = await page.title().catch(() => 'sem título');
-        const canvasCount = await page.evaluate(() => document.querySelectorAll('canvas').length).catch(() => -1);
-        dbg(`[whatsapp] Page: "${title}" canvas: ${canvasCount} found: ${canvasFound}`);
+        // qrRaw é a string crua do QR (ex: "1@abc123,...") — geramos o PNG
+        const pngBuf: Buffer = await QRCode.toBuffer(qrRaw, {
+          type: 'png',
+          width: 400,
+          margin: 2,
+          color: { dark: '#000000', light: '#ffffff' },
+        });
+        _qrBuffer = pngBuf;
+        saveQrBufferToFile(pngBuf);
+        saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
       } catch (e) {
-        dbg('[whatsapp] ERROR Debug: ' + (e instanceof Error ? e.message : String(e)));
+        dbg('[whatsapp] ERROR processando QR: ' + (e instanceof Error ? e.message : String(e)));
       }
+    });
 
-      // Extrai QR do canvas
-      const qrOk = await captureQrFromCanvas(page);
-      if (qrOk) {
-        dbg('[whatsapp] QR Code extraído do canvas com sucesso');
-      } else if (canvasFound) {
-        // Canvas existe mas toDataURL falhou — tenta screenshot
-        dbg('[whatsapp] Canvas encontrado mas extração falhou, tentando screenshot...');
-        try {
-          await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
-          dbg('[whatsapp] Screenshot salvo em ' + QR_CACHE);
-        } catch (err: unknown) {
-          dbg('[whatsapp] ERROR Screenshot: ' + (err instanceof Error ? err.message : String(err)));
+    client.on('authenticated', () => {
+      dbg('[whatsapp] Autenticado!');
+      saveStatus({ connected: true, connectedAt: Date.now(), waitingQr: false, error: undefined });
+    });
+
+    client.on('auth_failure', (msg: string) => {
+      dbg('[whatsapp] Auth failure: ' + msg);
+      saveStatus({ connected: false, error: 'Falha de autenticação: ' + msg, waitingQr: false });
+    });
+
+    client.on('ready', () => {
+      _clientReady = true;
+      _connecting = false;
+      let phone = '';
+      try {
+        const info = (client as any).info;
+        if (info && info.wid && info.wid.user) {
+          phone = info.wid.user;
         }
-      } else {
-        // Canvas não encontrado — screenshot anyway pra debug
-        dbg('[whatsapp] Canvas não encontrado, salvando screenshot de debug');
-        try {
-          await page.screenshot({ path: QR_CACHE, fullPage: true, type: 'png' });
-          dbg('[whatsapp] Screenshot de debug salvo');
-        } catch (err: unknown) {
-          dbg('[whatsapp] ERROR Screenshot debug: ' + (err instanceof Error ? err.message : String(err)));
-        }
+      } catch { /* opcional */ }
+      dbg('[whatsapp] Cliente pronto! Telefone: ' + (phone || 'desconhecido'));
+      saveStatus({ connected: true, connectedAt: Date.now(), phone, waitingQr: false, error: undefined });
+    });
+
+    client.on('disconnected', (reason: string) => {
+      dbg('[whatsapp] Desconectado: ' + reason);
+      _clientReady = false;
+      if (_whatsAppClient === client) {
+        _whatsAppClient = null;
       }
+      saveStatus({ connected: false, error: 'Desconectado: ' + reason, waitingQr: false });
+    });
 
-      // Armazena referências globais
-      _qrBrowser = browser;
-      _qrPage = page;
+    // ── Initialize client ──
+    dbg('[whatsapp] Inicializando client whatsapp-web.js (headless=' + isHeadless + ')');
+    client.initialize().catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      dbg('[whatsapp] ERROR initialize: ' + msg);
+      saveStatus({ connected: false, error: msg });
+      _connecting = false;
+    });
 
-      // Inicia polling (NÃO sobrescreve QR_CACHE com screenshots em branco)
-      saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
-      startQrPolling(page);
+    // ── Wait for QR or ready ──
+    // We wait up to 10 seconds for the QR event, then return
+    const qrPromise = new Promise<void>((resolve) => {
+      const onQr = () => { client.removeListener('qr', onQr); resolve(); };
+      client.on('qr', onQr);
+      // Also resolve on error/ready/authenticated
+      client.on('authenticated', () => resolve());
+      client.on('ready', () => resolve());
+      client.on('auth_failure', () => resolve());
+      setTimeout(resolve, 10000); // timeout 10s
+    });
+    await qrPromise;
 
-      // Timeout: se não escaneou em X ms, limpa
-      setTimeout(() => {
-        const s = loadStatus();
-        if (s.waitingQr) {
-          dbg('[whatsapp] Timeout aguardando QR scan');
-          saveStatus({ connected: false, error: 'Tempo esgotado para scan do QR Code', waitingQr: false });
-          stopQrPolling();
-        }
-      }, timeout);
-
+    if (_qrBuffer) {
       return {
         ok: true,
         message: 'QR Code gerado. Escaneie com o WhatsApp do celular.',
         waitingQr: true,
         qrPath: '.beehive-qr-cache.png',
       };
-    } else {
-      // Modo VISÍVEL (PC local): abre janela para scan direto
-      launchOpts.headless = false;
-      browser = await chromium.launchPersistentContext(SESSION_DIR, launchOpts);
-      const pages = browser.pages();
-      const page = pages.length > 0 ? pages[0] : await browser.newPage();
-      await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
-
-      // Espera até logar
-      try {
-        await page.waitForSelector('[data-testid="chat-list"], #side', { timeout });
-      } catch {
-        // Pode estar na tela de QR ainda
-      }
-
-      const chatListCount = await page.locator('[data-testid="chat-list"], #side').count();
-      const loggedIn = chatListCount > 0;
-
-      if (loggedIn) {
-        let phone = '';
-        try {
-          await page.waitForTimeout(3000);
-          phone = await page.locator('header span[title]').first().textContent().catch(() => '') || '';
-        } catch { /* opcional */ }
-        saveStatus({ connected: true, connectedAt: Date.now(), phone });
-        await browser.close().catch(() => {});
-        return { ok: true, message: 'WhatsApp conectado com sucesso!' };
-      }
-
-      await browser.close().catch(() => {});
-      return { ok: false, message: 'Tempo esgotado. Escaneie o QR Code e tente novamente.' };
     }
+
+    // Check if somehow already connected
+    if (_clientReady || loadStatus().connected) {
+      return { ok: true, message: 'WhatsApp já conectado' };
+    }
+
+    // QR not received yet but initialization is in progress
+    return {
+      ok: true,
+      message: 'Aguardando QR Code...',
+      waitingQr: true,
+      qrPath: '.beehive-qr-cache.png',
+    };
+
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro desconhecido';
+    _connecting = false;
+    const msg = e instanceof Error ? e.message : String(e);
+    dbg('[whatsapp] ERROR connect: ' + msg);
     saveStatus({ connected: false, error: msg });
-    stopQrPolling();
-    if (browser && browser !== _qrBrowser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
-    return { ok: false, message: `Erro ao conectar: ${msg}` };
+    return { ok: false, message: 'Erro ao conectar: ' + msg };
   }
 }
 
-/**
- * Retorna o caminho do último screenshot do QR Code (para servir via API).
- */
+// ── Get status ──────────────────────────────────────────────────
+export function whatsappGetStatus(): WhatsAppStatus {
+  return loadStatus();
+}
+
+// ── Get QR image path ──────────────────────────────────────────
 export function whatsappGetQrImagePath(): string | null {
   return fs.existsSync(QR_CACHE) ? QR_CACHE : null;
 }
 
-/**
- * Envia uma mensagem de texto para um número via WhatsApp Web.
- * Usa a sessão salva (modo headless, invisível).
- */
+// ── Disconnect ──────────────────────────────────────────────────
+export async function whatsappDisconnect(): Promise<{ ok: boolean; message: string }> {
+  _connecting = false;
+  if (_whatsAppClient) {
+    try {
+      await _whatsAppClient.destroy();
+    } catch { /* ok */ }
+    _whatsAppClient = null;
+  }
+  _clientReady = false;
+  _qrBuffer = null;
+
+  // Clean files
+  try { if (fs.existsSync(QR_CACHE)) fs.unlinkSync(QR_CACHE); } catch { /* ok */ }
+  try { if (fs.existsSync(SESSION_DIR)) fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch { /* ok */ }
+  try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch { /* ok */ }
+
+  saveStatus({ connected: false });
+  return { ok: true, message: 'WhatsApp desconectado' };
+}
+
+// ── Send text message ──────────────────────────────────────────
 export async function whatsappSendMessage(
   phone: string,
   message: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const status = loadStatus();
-  if (!status.connected) {
-    return { ok: false, message: 'WhatsApp não está conectado. Conecte primeiro.' };
+  if (!_whatsAppClient || !_clientReady) {
+    return { ok: false, message: 'WhatsApp não conectado' };
   }
-
-  let chromium: any;
   try {
-    ({ chromium } = await import('playwright'));
-  } catch {
-    return { ok: false, message: 'Playwright não instalado.' };
-  }
-
-  let browser: any = null;
-  try {
-    if (!fs.existsSync(SESSION_DIR)) {
-      return { ok: false, message: 'Sessão do WhatsApp não encontrada. Reconecte.' };
-    }
-
-    browser = await chromium.launchPersistentContext(SESSION_DIR, {
-      headless: true,
-      args: ['--disable-blink-features=AutomationControlled'],
-    });
-
-    const pages = browser.pages();
-    const page = pages.length > 0 ? pages[0] : await browser.newPage();
-
-    // 1. Abrir WhatsApp Web
-    await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);
-
-    // 2. Verificar se ainda está logado
-    const chatCount = await page.locator('[data-testid="chat-list"], #side').count();
-    if (chatCount === 0) {
-      saveStatus({ connected: false, error: 'Sessão expirou' });
-      return { ok: false, message: 'Sessão do WhatsApp expirou. Reconecte.' };
-    }
-
-    // 3. Limpar número (só dígitos, sem formatação)
-    const cleaned = phone.replace(/\D/g, '');
-    const waNumber = cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
-
-    // 4. Abrir o link direto do número: https://web.whatsapp.com/send?phone=55XX...
-    await page.goto(`https://web.whatsapp.com/send?phone=${waNumber}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 45000,
-    });
-
-    // 5. Esperar o campo de texto da mensagem aparecer
-    // O WhatsApp Web pode mostrar tela de "clicar em continuar" em alguns casos
-    await page.waitForTimeout(5000);
-
-    // Tenta detectar se a conversa abriu
-    const textboxCount = await page.locator('div[contenteditable="true"]').count();
-    const chatReady = textboxCount > 0;
-
-    if (!chatReady) {
-      // Pode ser que o número não existe no WhatsApp ou está bloqueado
-      return { ok: false, message: `Não foi possível abrir conversa com ${phone}. O número existe no WhatsApp?` };
-    }
-
-    // 6. Digitar a mensagem
-    const textbox = await page.locator('div[contenteditable="true"]');
-    await textbox.click();
-    await page.waitForTimeout(500);
-
-    // Digita caractere por caractere (mais natural) ou de uma vez
-    await textbox.fill(message);
-    await page.waitForTimeout(1000);
-
-    // 7. Pressionar Enter para enviar
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(2000);
-
-    // 8. Confirmar que a mensagem foi enviada
-    const sentCount = await page.locator('.message-out').count();
-    const sent = sentCount > 0;
-
-    if (sent) {
-      return { ok: true, message: `Mensagem enviada para ${phone}` };
-    }
-
-    // Tenta um segundo método: Ctrl+Enter ou Enter
-    await page.keyboard.press('Enter');
-    await page.waitForTimeout(1000);
-
-    return { ok: true, message: `Mensagem enviada para ${phone} (confirmação visual)` };
+    // Format phone: remove any non-digit, add @c.us suffix
+    const clean = phone.replace(/\D/g, '');
+    const chatId = clean + '@c.us';
+    const result = await _whatsAppClient.sendMessage(chatId, message);
+    dbg('[whatsapp] Mensagem enviada para ' + phone + ': id=' + (result?.id?._serialized || '?'));
+    return { ok: true, message: 'Mensagem enviada' };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro desconhecido';
-    return { ok: false, message: `Erro ao enviar: ${msg}` };
-  } finally {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    dbg('[whatsapp] ERROR sendMessage: ' + msg);
+    return { ok: false, message: msg };
   }
 }
 
-/**
- * Envia uma imagem com legenda via WhatsApp Web.
- * imagePath: caminho absoluto ou relativo ao workspace para o arquivo PNG/JPG.
- */
+// ── Send image with caption ────────────────────────────────────
 export async function whatsappSendImage(
   phone: string,
   imagePath: string,
-  caption?: string,
+  caption: string,
 ): Promise<{ ok: boolean; message: string }> {
-  const status = loadStatus();
-  if (!status.connected) {
-    return { ok: false, message: 'WhatsApp não está conectado. Conecte primeiro.' };
+  if (!_whatsAppClient || !_clientReady) {
+    return { ok: false, message: 'WhatsApp não conectado' };
   }
-
-  // Resolve o caminho da imagem
-  const absPath = path.isAbsolute(imagePath)
-    ? imagePath
-    : path.join(WORKSPACE_ROOT, imagePath);
-
-  if (!fs.existsSync(absPath)) {
-    return { ok: false, message: `Arquivo não encontrado: ${imagePath}` };
-  }
-
-  let chromium: any;
   try {
-    ({ chromium } = await import('playwright'));
-  } catch {
-    return { ok: false, message: 'Playwright não instalado.' };
-  }
-
-  let browser: any = null;
-  try {
-    browser = await chromium.launchPersistentContext(SESSION_DIR, {
-      headless: true,
-      args: ['--disable-blink-features=AutomationControlled'],
-    });
-
-    const pages = browser.pages();
-    const page = pages.length > 0 ? pages[0] : await browser.newPage();
-
-    // 1. Abrir WhatsApp Web
-    await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 45000 });
-    await page.waitForTimeout(3000);
-
-    // 2. Verificar sessão
-    const wac = await page.locator('[data-testid="chat-list"], #side').count();
-    if (wac === 0) {
-      saveStatus({ connected: false, error: 'Sessão expirou' });
-      return { ok: false, message: 'Sessão do WhatsApp expirou. Reconecte.' };
-    }
-
-    // 3. Abrir conversa
-    const cleaned = phone.replace(/\D/g, '');
-    const waNumber = cleaned.startsWith('55') ? cleaned : `55${cleaned}`;
-
-    await page.goto(`https://web.whatsapp.com/send?phone=${waNumber}`, {
-      waitUntil: 'domcontentloaded',
-      timeout: 45000,
-    });
-    await page.waitForTimeout(5000);
-
-    // 4. Clicar no botão de anexo (clip)
-    const attachBtn = await page.locator('div[title="Anexar"], button[aria-label="Anexar"], div[data-testid="attach"]');
-    if (await attachBtn.isVisible().catch(() => false)) {
-      await attachBtn.click();
-      await page.waitForTimeout(1000);
-    }
-
-    // 5. Fazer upload da imagem
-    // O WhatsApp usa um input[type="file"] escondido
-    const fileInput = await page.locator('input[type="file"]');
-    if (await fileInput.isVisible().catch(() => false)) {
-      await fileInput.setInputFiles(absPath);
-    } else {
-      // Tenta encontrar o input por atributos
-      const fileInputs = page.locator('input[accept*="image"]');
-      await fileInputs.first().setInputFiles(absPath).catch(async () => {
-        // Alternativa: arrastar soltar ou usar o botão de mídia
-        const mediaBtn = page.locator('div[data-testid="media-picker"], button[title*="Mídia"]');
-        await mediaBtn.first().click().catch(() => {});
-        await page.waitForTimeout(1500);
-        const fi = page.locator('input[type="file"]');
-        await fi.setInputFiles(absPath);
-      });
-    }
-
-    await page.waitForTimeout(2000);
-
-    // 6. Se tiver legenda, digitar
-    if (caption) {
-      const captionBox = await page.locator('div[contenteditable="true"]');
-      if (await captionBox.isVisible().catch(() => false)) {
-        await captionBox.click();
-        await captionBox.fill(caption);
-        await page.waitForTimeout(500);
-      }
-    }
-
-    // 7. Clicar em Enviar
-    const sendBtn = await page.locator('button[data-testid="send"], button[aria-label="Enviar"], span[data-testid="send"]');
-    if (await sendBtn.isVisible().catch(() => false)) {
-      await sendBtn.click();
-    } else {
-      // Fallback: Enter
-      await page.keyboard.press('Enter');
-    }
-    await page.waitForTimeout(2000);
-
-    return { ok: true, message: `Imagem enviada para ${phone}` };
+    const { MessageMedia } = await import('whatsapp-web.js');
+    const resolvedPath = path.isAbsolute(imagePath)
+      ? imagePath
+      : path.join(WORKSPACE_ROOT, imagePath);
+    const media = MessageMedia.fromFilePath(resolvedPath);
+    const clean = phone.replace(/\D/g, '');
+    const chatId = clean + '@c.us';
+    const result = await _whatsAppClient.sendMessage(chatId, media, { caption });
+    dbg('[whatsapp] Imagem enviada para ' + phone + ': id=' + (result?.id?._serialized || '?'));
+    return { ok: true, message: 'Imagem enviada' };
   } catch (e) {
-    const msg = e instanceof Error ? e.message : 'Erro desconhecido';
-    return { ok: false, message: `Erro ao enviar imagem: ${msg}` };
-  } finally {
-    if (browser) {
-      try { await browser.close(); } catch { /* ignore */ }
-    }
+    const msg = e instanceof Error ? e.message : String(e);
+    dbg('[whatsapp] ERROR sendImage: ' + msg);
+    return { ok: false, message: msg };
   }
-}
-
-/**
- * Retorna o status atual da conexão WhatsApp.
- */
-export async function whatsappGetStatus(): Promise<WhatsAppStatus> {
-  return loadStatus();
-}
-
-/**
- * Desconecta e limpa a sessão.
- */
-export async function whatsappDisconnect(): Promise<void> {
-  // Para polling e fecha browser headless
-  stopQrPolling();
-
-  // Remove o diretório de sessão
-  if (fs.existsSync(SESSION_DIR)) {
-    try {
-      fs.rmSync(SESSION_DIR, { recursive: true, force: true });
-    } catch { /* ignore */ }
-  }
-  if (fs.existsSync(STATUS_FILE)) {
-    try { fs.unlinkSync(STATUS_FILE); } catch { /* ignore */ }
-  }
-  if (fs.existsSync(QR_CACHE)) {
-    try { fs.unlinkSync(QR_CACHE); } catch { /* ignore */ }
-  }
-  saveStatus({ connected: false });
 }
