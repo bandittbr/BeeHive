@@ -50,7 +50,9 @@ export function LeadsAutomation() {
   const [saved, setSaved] = useState(false);
   const [waMsg, setWaMsg] = useState('');
   const [waitingQr, setWaitingQr] = useState(false);
+  const [qrRefreshKey, setQrRefreshKey] = useState(0);
   const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const qrImgRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -79,31 +81,35 @@ export function LeadsAutomation() {
 
   // Polling do status WhatsApp quando aguardando QR scan
   useEffect(() => {
-    if (waitingQr && !qrPollRef.current) {
-      qrPollRef.current = setInterval(async () => {
-        try {
-          const wa = await getWhatsAppStatus();
-          setWaStatus(wa);
-          if (wa.connected) {
-            setWaitingQr(false);
-            setWaMsg('WhatsApp conectado com sucesso!');
-            if (qrPollRef.current) {
-              clearInterval(qrPollRef.current);
+    if (waitingQr) {
+      // Poll status every 3s
+      if (!qrPollRef.current) {
+        qrPollRef.current = setInterval(async () => {
+          try {
+            const wa = await getWhatsAppStatus();
+            setWaStatus(wa);
+            if (wa.connected) {
+              setWaitingQr(false);
+              setWaMsg('WhatsApp conectado com sucesso!');
+              clearInterval(qrPollRef.current!);
               qrPollRef.current = null;
             }
-          }
-        } catch { /* ignore */ }
-      }, 3000);
-    }
-    if (!waitingQr && qrPollRef.current) {
-      clearInterval(qrPollRef.current);
-      qrPollRef.current = null;
+          } catch { /* ignore */ }
+        }, 3000);
+      }
+      // Refresh QR image every 15s (QR codes expire ~60s)
+      if (!qrImgRefreshRef.current) {
+        qrImgRefreshRef.current = setInterval(() => {
+          setQrRefreshKey((k) => k + 1);
+        }, 15000);
+      }
+    } else {
+      if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
+      if (qrImgRefreshRef.current) { clearInterval(qrImgRefreshRef.current); qrImgRefreshRef.current = null; }
     }
     return () => {
-      if (qrPollRef.current) {
-        clearInterval(qrPollRef.current);
-        qrPollRef.current = null;
-      }
+      if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
+      if (qrImgRefreshRef.current) { clearInterval(qrImgRefreshRef.current); qrImgRefreshRef.current = null; }
     };
   }, [waitingQr]);
 
@@ -262,7 +268,7 @@ export function LeadsAutomation() {
                 3. Aponte para o QR Code abaixo
               </p>
               <img
-                key={Date.now()}
+                key={qrRefreshKey}
                 src={getQrImageUrl()}
                 alt="QR Code do WhatsApp"
                 style={{
