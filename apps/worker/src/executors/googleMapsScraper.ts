@@ -72,6 +72,7 @@ export async function scrapeGoogleMaps(
     const chromePath = await resolveChromiumPath();
     const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: headless ? 'new' : false,
+      protocolTimeout: 120_000, // 2 min for individual CDP calls
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -90,43 +91,60 @@ export async function scrapeGoogleMaps(
     await page.setUserAgent(
       'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
     );
+    page.setDefaultNavigationTimeout(90_000);
+    page.setDefaultTimeout(30_000);
 
     // Navigate to Google Maps
     await page.goto('https://www.google.com/maps/@-14.23,-51.92,4z', {
-      timeout: 60000,
+      timeout: 90_000,
       waitUntil: 'networkidle2',
     });
     await sleep(3000);
 
-    // Accept cookies if present
-    try {
-      const cookieBtn = await page.$('[jsname="b3VHJd"]');
-      if (cookieBtn) await cookieBtn.click();
-      await sleep(1000);
-    } catch {
-      // no cookie popup
+    // Accept cookies if present (try multiple selectors)
+    for (const sel of ['[jsname="b3VHJd"]', 'button:has-text("Aceitar")', 'button:has-text("Accept all")']) {
+      try {
+        const btn = await page.$(sel);
+        if (btn) { await btn.click(); await sleep(1000); break; }
+      } catch { /* next */ }
     }
 
     // Type search and press Enter
     const searchInputSel = 'input[name="q"]';
-    await page.waitForSelector(searchInputSel, { timeout: 10000 });
-    await page.type(searchInputSel, search, { delay: 80 });
+    try {
+      await page.waitForSelector(searchInputSel, { timeout: 15000 });
+    } catch {
+      // If search box not found directly, try clicking the search button first
+      try {
+        const searchBtn = await page.$('button[aria-label="Search"]');
+        if (searchBtn) await searchBtn.click();
+        await sleep(2000);
+        await page.waitForSelector(searchInputSel, { timeout: 10000 });
+      } catch { /* last attempt */ }
+    }
+    await page.type(searchInputSel, search, { delay: 40 }); // faster typing
     await page.keyboard.press('Enter');
 
     // Wait for results panel to appear
-    await page.waitForSelector('a[href*="maps/place"]', { timeout: 20000 });
+    await sleep(3000);
+    try {
+      await page.waitForSelector('a[href*="maps/place"]', { timeout: 30000 });
+    } catch {
+      // Maybe Google Maps changed layout — try alternative selector
+      await page.waitForSelector('[role="feed"]', { timeout: 20000 }).catch(() => {});
+    }
     await sleep(2000);
 
     // ── Scroll results panel to load more ────────────────────────────────────
     const resultsPanel = 'div[role="feed"]';
-    await page.waitForSelector(resultsPanel, { timeout: 10000 }).catch(() => {});
+    await page.waitForSelector(resultsPanel, { timeout: 15000 }).catch(() => {});
     const panel = await page.$(resultsPanel);
 
     let prevCount = 0;
     let sameCountTries = 0;
-    const MAX_SAME = 5;
+    const MAX_SAME = 3;
 
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 30; i++) {
       if (places.length >= total) break;
 
       // Count visible result links
@@ -179,7 +197,7 @@ export async function scrapeGoogleMaps(
 
             // Click to open detail panel
             await link.click();
-            await sleep(2500);
+            await sleep(2000);
             await page.waitForTimeout(500);
 
             // Check if already have this place (dedup by name)
@@ -255,7 +273,7 @@ export async function scrapeGoogleMaps(
       } else {
         await page.evaluate(() => window.scrollBy(0, 800));
       }
-      await sleep(2000);
+      await sleep(1500);
     }
 
     return { places, stats };
