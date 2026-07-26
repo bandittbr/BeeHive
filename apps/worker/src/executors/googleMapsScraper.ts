@@ -68,7 +68,13 @@ export async function scrapeGoogleMaps(
 
   let browser: Browser | null = null;
 
-  try {
+  // Overall timeout: 4 minutes
+  const TIMEOUT_MS = 4 * 60 * 1000;
+  const timeoutPromise = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error(`Scraper timeout após ${TIMEOUT_MS / 1000}s`)), TIMEOUT_MS),
+  );
+
+  const scrapePromise = (async () => {
     const chromePath = await resolveChromiumPath();
     const launchOptions: Parameters<typeof puppeteer.launch>[0] = {
       headless: headless ? 'new' : false,
@@ -95,10 +101,14 @@ export async function scrapeGoogleMaps(
     page.setDefaultTimeout(30_000);
 
     // Navigate to Google Maps
+    // NOTA: Não usar 'networkidle2' — Google Maps é SPA e nunca fica idle.
+    // 'domcontentloaded' é suficiente, depois esperamos um tempo fixo.
     await page.goto('https://www.google.com/maps/@-14.23,-51.92,4z', {
-      timeout: 90_000,
-      waitUntil: 'networkidle2',
+      timeout: 60_000,
+      waitUntil: 'domcontentloaded',
     });
+    // Give Maps time to render the search box
+    await sleep(5000);
     await sleep(3000);
 
     // Accept cookies if present (try multiple selectors)
@@ -277,6 +287,10 @@ export async function scrapeGoogleMaps(
     }
 
     return { places, stats };
+  })();
+
+  try {
+    return await Promise.race([scrapePromise, timeoutPromise]);
   } finally {
     if (browser) {
       await browser.close().catch(() => {});
