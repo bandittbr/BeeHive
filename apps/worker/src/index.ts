@@ -36,7 +36,7 @@ import {
 } from './executors/leads.js';
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
-  whatsappGetStatus, whatsappDisconnect,
+  whatsappGetStatus, whatsappDisconnect, whatsappGetQrImagePath,
 } from './executors/whatsapp.js';
 import {
   listLeads, getLead, addLead, addLeadsBatch, updateLead, deleteLead, getLeadsDashboard,
@@ -648,10 +648,22 @@ app.get('/api/whatsapp/status', async (req, res): Promise<void> => {
   }
 });
 
-// POST /api/whatsapp/connect — abre navegador para scan do QR Code
+// GET /api/whatsapp/qr-image — serve o screenshot do QR Code (modo headless)
+app.get('/api/whatsapp/qr-image', (req, res): void => {
+  const qrPath = whatsappGetQrImagePath();
+  if (!qrPath) {
+    res.status(404).json({ error: 'QR Code não disponível. Conecte primeiro.' });
+    return;
+  }
+  res.sendFile(qrPath);
+});
+
+// POST /api/whatsapp/connect — modo headless (Railway) ou visível (PC local)
 app.post('/api/whatsapp/connect', async (req, res): Promise<void> => {
   try {
-    const result = await whatsappConnect();
+    const headless = req.body?.headless !== false; // default true
+    const timeout = req.body?.timeout ? Number(req.body.timeout) : 120000;
+    const result = await whatsappConnect({ headless, timeout });
     res.json(result);
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });

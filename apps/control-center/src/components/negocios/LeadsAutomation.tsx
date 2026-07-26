@@ -1,11 +1,12 @@
 /**
  * LeadsAutomation — Painel de automação de Leads + Conexão WhatsApp.
+ * Suporta conexão headless (QR via screenshot para Railway) e visível (PC local).
  */
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play, Square, Clock, RefreshCw, CheckCircle2, XCircle,
   Loader2, AlertTriangle, Send, ChevronDown, ChevronUp,
-  Smartphone, SmartphoneOff, Globe, ExternalLink,
+  Smartphone, SmartphoneOff, Globe, ExternalLink, StopCircle,
 } from 'lucide-react';
 import {
   getLeadsAutomationConfig,
@@ -15,6 +16,7 @@ import {
   getWhatsAppStatus,
   connectWhatsApp,
   disconnectWhatsApp,
+  getQrImageUrl,
   type LeadsAutomationConfig,
   type LeadsAutomationLog,
   type WhatsAppStatus,
@@ -47,6 +49,8 @@ export function LeadsAutomation() {
   const [showLogs, setShowLogs] = useState(true);
   const [saved, setSaved] = useState(false);
   const [waMsg, setWaMsg] = useState('');
+  const [waitingQr, setWaitingQr] = useState(false);
+  const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -60,6 +64,10 @@ export function LeadsAutomation() {
       setConfig(cfg);
       setLogs(logsData);
       setWaStatus(wa);
+      // Se o servidor está esperando QR, reflete no estado
+      if (wa && 'waitingQr' in wa && (wa as any).waitingQr) {
+        setWaitingQr(true);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Erro ao carregar');
     } finally {
@@ -68,6 +76,36 @@ export function LeadsAutomation() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // Polling do status WhatsApp quando aguardando QR scan
+  useEffect(() => {
+    if (waitingQr && !qrPollRef.current) {
+      qrPollRef.current = setInterval(async () => {
+        try {
+          const wa = await getWhatsAppStatus();
+          setWaStatus(wa);
+          if (wa.connected) {
+            setWaitingQr(false);
+            setWaMsg('WhatsApp conectado com sucesso!');
+            if (qrPollRef.current) {
+              clearInterval(qrPollRef.current);
+              qrPollRef.current = null;
+            }
+          }
+        } catch { /* ignore */ }
+      }, 3000);
+    }
+    if (!waitingQr && qrPollRef.current) {
+      clearInterval(qrPollRef.current);
+      qrPollRef.current = null;
+    }
+    return () => {
+      if (qrPollRef.current) {
+        clearInterval(qrPollRef.current);
+        qrPollRef.current = null;
+      }
+    };
+  }, [waitingQr]);
 
   const handleTick = async () => {
     setTicking(true);
@@ -99,9 +137,16 @@ export function LeadsAutomation() {
     setConnectingWa(true);
     setWaMsg('');
     try {
-      const result = await connectWhatsApp();
+      // Detectar se está rodando local ou remoto
+      const workerUrl = (import.meta.env.VITE_WORKER_URL ?? '').replace(/\/+$/, '') || 'http://localhost:4000';
+      const isLocal = workerUrl.includes('localhost') || workerUrl.includes('127.0.0.1');
+      // Modo headless se for remoto (Railway)
+      const result = await connectWhatsApp(!isLocal);
       setWaMsg(result.message);
-      // Recarrega status após conectar
+      if ((result as any).waitingQr) {
+        setWaitingQr(true);
+      }
+      // Recarrega status
       const wa = await getWhatsAppStatus();
       setWaStatus(wa);
     } catch (e) {
@@ -111,6 +156,7 @@ export function LeadsAutomation() {
   };
 
   const handleDisconnectWa = async () => {
+    setWaitingQr(false);
     await disconnectWhatsApp();
     setWaStatus({ connected: false });
     setWaMsg('WhatsApp desconectado');
@@ -200,39 +246,81 @@ export function LeadsAutomation() {
               {waStatus.phone}
             </span>
           )}
+          {waitingQr && (
+            <span className="leads-auto-time" style={{ fontSize: 12, color: '#f59e0b' }}>
+              Aguardando scan...
+            </span>
+          )}
         </div>
         <div className="leads-panel-body">
-          <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.6 }}>
-            {isWaConnected
-              ? 'WhatsApp conectado! A automação pode enviar mensagens diretamente pelo navegador.'
-              : 'Clique em "Conectar WhatsApp" para abrir o navegador e escanear o QR Code. Após conectar, a sessão fica salva para envios automáticos.'}
-          </p>
-          <div className="leads-proposal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
-            {isWaConnected ? (
-              <>
-                <button className="btn-secondary btn-sm" onClick={handleDisconnectWa}>
-                  <SmartphoneOff size={14} /> Desconectar
+          {waitingQr ? (
+            /* QR Code em modo headless */
+            <div style={{ textAlign: 'center', padding: '12px 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 16, lineHeight: 1.6 }}>
+                1. Abra o WhatsApp no seu celular<br />
+                2. Toque em <strong>Menu</strong> ou <strong>Configurações</strong> e selecione <strong>WhatsApp Web</strong><br />
+                3. Aponte para o QR Code abaixo
+              </p>
+              <img
+                src={getQrImageUrl()}
+                alt="QR Code do WhatsApp"
+                style={{
+                  width: 256, height: 256,
+                  border: '2px solid var(--border-color, #333)',
+                  borderRadius: 12,
+                  background: '#fff',
+                  padding: 8,
+                  imageRendering: 'pixelated',
+                }}
+                onError={(e) => {
+                  // Se a imagem falhar (QR ainda não gerado), mostra placeholder
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
+              <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>
+                O QR Code atualiza automaticamente. Escaneie com seu celular.
+              </p>
+              <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <button className="btn-ghost btn-sm" onClick={handleDisconnectWa}>
+                  <StopCircle size={14} /> Cancelar
                 </button>
-                <button
-                  className={`leads-detail-btn${config.autoSendWhatsApp ? ' whatsapp' : ''}`}
-                  onClick={() => saveConfig({ autoSendWhatsApp: !config.autoSendWhatsApp })}
-                >
-                  <Send size={12} />
-                  Envio Automático: {config.autoSendWhatsApp ? 'Ligado' : 'Desligado'}
-                </button>
-              </>
-            ) : (
-              <button className="btn-primary" onClick={handleConnectWa} disabled={connectingWa}>
-                {connectingWa ? <Loader2 size={14} className="spin" /> : <Globe size={14} />}
-                {connectingWa ? 'Abrindo navegador...' : 'Conectar WhatsApp'}
-              </button>
-            )}
-            {waMsg && (
-              <span style={{ fontSize: 12, color: waMsg.includes('sucesso') ? '#22c55e' : '#f59e0b', marginLeft: 8 }}>
-                {waMsg}
-              </span>
-            )}
-          </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, lineHeight: 1.6 }}>
+                {isWaConnected
+                  ? 'WhatsApp conectado! A automação pode enviar mensagens diretamente pelo navegador.'
+                  : 'Clique em "Conectar WhatsApp" para abrir o navegador e escanear o QR Code. Após conectar, a sessão fica salva para envios automáticos.'}
+              </p>
+              <div className="leads-proposal-actions" style={{ borderTop: 'none', paddingTop: 0 }}>
+                {isWaConnected ? (
+                  <>
+                    <button className="btn-secondary btn-sm" onClick={handleDisconnectWa}>
+                      <SmartphoneOff size={14} /> Desconectar
+                    </button>
+                    <button
+                      className={`leads-detail-btn${config.autoSendWhatsApp ? ' whatsapp' : ''}`}
+                      onClick={() => saveConfig({ autoSendWhatsApp: !config.autoSendWhatsApp })}
+                    >
+                      <Send size={12} />
+                      Envio Automático: {config.autoSendWhatsApp ? 'Ligado' : 'Desligado'}
+                    </button>
+                  </>
+                ) : (
+                  <button className="btn-primary" onClick={handleConnectWa} disabled={connectingWa}>
+                    {connectingWa ? <Loader2 size={14} className="spin" /> : <Globe size={14} />}
+                    {connectingWa ? 'Conectando...' : 'Conectar WhatsApp'}
+                  </button>
+                )}
+                {waMsg && !waitingQr && (
+                  <span style={{ fontSize: 12, color: waMsg.includes('sucesso') ? '#22c55e' : '#f59e0b', marginLeft: 8 }}>
+                    {waMsg}
+                  </span>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </div>
 

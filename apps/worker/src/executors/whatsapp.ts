@@ -2,11 +2,18 @@
  * Executor WhatsApp Web
  * ======================
  * Usa Playwright para controlar o WhatsApp Web:
- *   - Conectar via QR Code (navegador visível)
- *   - Enviar mensagens de texto (headless após conectar)
+ *   - Conectar via QR Code (headless com screenshot ou navegador visível)
+ *   - Enviar mensagens de texto (headless)
  *   - Enviar imagens com legenda
  *
  * A sessão fica salva em .beehive-whatsapp-session/ para reconexão automática.
+ *
+ * Conexão headless (Railway/headless servers):
+ *   1. whatsappConnect({ headless: true }) abre Chromium headless
+ *   2. Captura screenshot da área do QR Code → salva em .beehive-qr-cache.png
+ *   3. Endpoint /api/whatsapp/qr-image serve essa imagem para o usuário ver no navegador
+ *   4. Um polling interno detecta quando o QR foi escaneado
+ *   5. Sessão salva, browser fechado
  */
 import path from 'node:path';
 import fs from 'node:fs';
@@ -14,14 +21,24 @@ import { WORKSPACE_ROOT } from '../workspace.js';
 
 const SESSION_DIR = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-session');
 const STATUS_FILE = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-status.json');
+const QR_CACHE = path.join(WORKSPACE_ROOT, '.beehive-qr-cache.png');
 
 interface WhatsAppStatus {
   connected: boolean;
   connectedAt?: number;
-  phone?: string;           // número do dono da conta
+  phone?: string;
   lastCheckAt?: number;
   error?: string;
+  /** Quando está em modo headless aguardando scan do QR */
+  waitingQr?: boolean;
+  /** Timestamp do início da espera do QR */
+  qrWaitStartedAt?: number;
 }
+
+/** Referência global para o browser headless durante espera do QR */
+let _qrBrowser: any = null;
+let _qrPage: any = null;
+let _qrPollTimer: ReturnType<typeof setInterval> | null = null;
 
 function loadStatus(): WhatsAppStatus {
   try { return JSON.parse(fs.readFileSync(STATUS_FILE, 'utf8')); } catch { return { connected: false }; }
@@ -31,15 +48,102 @@ function saveStatus(s: WhatsAppStatus): void {
 }
 
 /**
- * Abre o WhatsApp Web em modo VISÍVEL para o usuário escanear o QR Code.
- * Retorna { ok, message }.
- * Se já estiver conectado, retorna imediatamente.
+ * Para a sessão headless de QR e limpa recursos.
  */
-export async function whatsappConnect(): Promise<{ ok: boolean; message: string }> {
+function stopQrPolling(): void {
+  if (_qrPollTimer) { clearInterval(_qrPollTimer); _qrPollTimer = null; }
+  _qrPage = null;
+  if (_qrBrowser) {
+    try { _qrBrowser.close().catch(() => {}); } catch { /* ignore */ }
+    _qrBrowser = null;
+  }
+  // Limpa status de waiting
+  const s = loadStatus();
+  if (s.waitingQr) {
+    s.waitingQr = false;
+    delete s.qrWaitStartedAt;
+    saveStatus(s);
+  }
+}
+
+/**
+ * Polling interno: a cada 3s verifica se o QR foi escaneado.
+ * Se sim, salva status de conectado e limpa recursos.
+ */
+function startQrPolling(page: any): void {
+  if (_qrPollTimer) clearInterval(_qrPollTimer);
+
+  _qrPollTimer = setInterval(async () => {
+    try {
+      if (!_qrPage) return;
+
+      // Verifica se apareceu a lista de chats (logado)
+      const chatCount = await _qrPage.locator('[data-testid="chat-list"], #side').count().catch(() => 0);
+      if (chatCount > 0) {
+        // Conectado! Tenta pegar número
+        let phone = '';
+        try {
+          await _qrPage.waitForTimeout(1000);
+          phone = await _qrPage.locator('header span[title]').first().textContent().catch(() => '') || '';
+        } catch { /* opcional */ }
+
+        saveStatus({
+          connected: true,
+          connectedAt: Date.now(),
+          phone,
+          waitingQr: false,
+        });
+        console.log('[whatsapp] QR escaneado! WhatsApp conectado.');
+        stopQrPolling();
+        return;
+      }
+
+      // Atualiza QR screenshot a cada poll (QR code muda constantemente)
+      await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
+      saveStatus({ ...loadStatus(), waitingQr: true, lastCheckAt: Date.now() });
+    } catch {
+      // Se página foi fechada, limpa
+      stopQrPolling();
+    }
+  }, 3000);
+}
+
+/**
+ * Conecta ao WhatsApp Web.
+ *
+ * @param options.headless - Se true (Railway), captura QR como screenshot.
+ *                           Se false (PC local), abre navegador visível.
+ *                           Default: false (compatibilidade).
+ * @param options.timeout  - Tempo máximo em ms para aguardar QR (default: 120s).
+ *
+ * Modo headless:
+ *   - Retorna { ok: true, waitingQr: true, qrPath: '...' } imediatamente
+ *   - O QR screenshot é atualizado a cada 3s em .beehive-qr-cache.png
+ *   - Use GET /api/whatsapp/qr-image (ou /files/.beehive-qr-cache.png) para ver
+ *   - Quando escaneado, status muda para connected
+ *
+ * Modo visível:
+ *   - Abre janela do Chromium, bloqueia até scan ou timeout
+ */
+export async function whatsappConnect(options?: { headless?: boolean; timeout?: number }): Promise<{
+  ok: boolean;
+  message: string;
+  waitingQr?: boolean;
+  qrPath?: string;
+}> {
   const status = loadStatus();
   if (status.connected) {
+    stopQrPolling();
     return { ok: true, message: 'Já conectado ao WhatsApp Web' };
   }
+
+  // Se já está aguardando QR em headless, não duplica
+  if (status.waitingQr && _qrBrowser) {
+    return { ok: true, message: 'Já aguardando scan do QR Code', waitingQr: true, qrPath: '.beehive-qr-cache.png' };
+  }
+
+  const isHeadless = options?.headless ?? false;
+  const timeout = options?.timeout ?? 120000;
 
   let chromium: any;
   try {
@@ -48,57 +152,102 @@ export async function whatsappConnect(): Promise<{ ok: boolean; message: string 
     return { ok: false, message: 'Playwright não instalado. Execute: npx playwright install --with-deps chromium' };
   }
 
+  // Garante diretório de sessão
+  fs.mkdirSync(SESSION_DIR, { recursive: true });
+
   let browser: any = null;
   try {
-    // Garante que o diretório de sessão existe
-    fs.mkdirSync(SESSION_DIR, { recursive: true });
-
-    // Abre navegador VISÍVEL para o QR scan
-    browser = await chromium.launchPersistentContext(SESSION_DIR, {
-      headless: false,
-      args: ['--disable-blink-features=AutomationControlled'],
+    const launchOpts: Record<string, unknown> = {
+      args: ['--disable-blink-features=AutomationControlled', '--no-sandbox'],
       viewport: { width: 1280, height: 800 },
-    });
+    };
 
-    const pages = browser.pages();
-    const page = pages.length > 0 ? pages[0] : await browser.newPage();
-    await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    if (isHeadless) {
+      // Modo headless: abre e captura QR como screenshot
+      launchOpts.headless = true;
+      browser = await chromium.launchPersistentContext(SESSION_DIR, launchOpts);
+      const pages = browser.pages();
+      const page = pages.length > 0 ? pages[0] : await browser.newPage();
+      await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
-    // Espera até logar (QR sumir e chat aparecer) — usa locators, não document
-    try {
-      await page.waitForSelector('[data-testid="chat-list"], #side', { timeout: 120000 });
-    } catch {
-      // Se não achou, pode estar na tela de QR ainda
-    }
+      // Espera um pouco pro QR carregar
+      await page.waitForTimeout(5000);
 
-    // Check se está realmente logado
-    const chatListCount = await page.locator('[data-testid="chat-list"], #side').count();
-    const loggedIn = chatListCount > 0;
+      // Tira screenshot inicial do QR
+      await page.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
 
-    if (loggedIn) {
-      // Tenta pegar o número do dono
-      let phone = '';
+      // Armazena referências globais
+      _qrBrowser = browser;
+      _qrPage = page;
+
+      // Inicia polling
+      saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
+      startQrPolling(page);
+
+      // Timeout: se não escaneou em X ms, limpa
+      setTimeout(() => {
+        const s = loadStatus();
+        if (s.waitingQr) {
+          console.log('[whatsapp] Timeout aguardando QR scan');
+          saveStatus({ connected: false, error: 'Tempo esgotado para scan do QR Code', waitingQr: false });
+          stopQrPolling();
+        }
+      }, timeout);
+
+      return {
+        ok: true,
+        message: 'QR Code gerado. Escaneie com o WhatsApp do celular.',
+        waitingQr: true,
+        qrPath: '.beehive-qr-cache.png',
+      };
+    } else {
+      // Modo VISÍVEL (PC local): abre janela para scan direto
+      launchOpts.headless = false;
+      browser = await chromium.launchPersistentContext(SESSION_DIR, launchOpts);
+      const pages = browser.pages();
+      const page = pages.length > 0 ? pages[0] : await browser.newPage();
+      await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
+
+      // Espera até logar
       try {
-        await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 30000 });
-        await page.waitForTimeout(3000);
-        phone = await page.locator('header span[title]').first().textContent().catch(() => '') || '';
-      } catch { /* opcional */ }
+        await page.waitForSelector('[data-testid="chat-list"], #side', { timeout });
+      } catch {
+        // Pode estar na tela de QR ainda
+      }
 
-      saveStatus({ connected: true, connectedAt: Date.now(), phone });
-      return { ok: true, message: 'WhatsApp conectado com sucesso!' };
+      const chatListCount = await page.locator('[data-testid="chat-list"], #side').count();
+      const loggedIn = chatListCount > 0;
+
+      if (loggedIn) {
+        let phone = '';
+        try {
+          await page.waitForTimeout(3000);
+          phone = await page.locator('header span[title]').first().textContent().catch(() => '') || '';
+        } catch { /* opcional */ }
+        saveStatus({ connected: true, connectedAt: Date.now(), phone });
+        await browser.close().catch(() => {});
+        return { ok: true, message: 'WhatsApp conectado com sucesso!' };
+      }
+
+      await browser.close().catch(() => {});
+      return { ok: false, message: 'Tempo esgotado. Escaneie o QR Code e tente novamente.' };
     }
-
-    return { ok: false, message: 'Tempo esgotado. Escaneie o QR Code e tente novamente.' };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Erro desconhecido';
     saveStatus({ connected: false, error: msg });
-    return { ok: false, message: `Erro ao conectar: ${msg}` };
-  } finally {
-    // Fecha o browser — a sessão (cookies/localStorage) já foi salva em SESSION_DIR
-    if (browser) {
+    stopQrPolling();
+    if (browser && browser !== _qrBrowser) {
       try { await browser.close(); } catch { /* ignore */ }
     }
+    return { ok: false, message: `Erro ao conectar: ${msg}` };
   }
+}
+
+/**
+ * Retorna o caminho do último screenshot do QR Code (para servir via API).
+ */
+export function whatsappGetQrImagePath(): string | null {
+  return fs.existsSync(QR_CACHE) ? QR_CACHE : null;
 }
 
 /**
@@ -335,6 +484,9 @@ export async function whatsappGetStatus(): Promise<WhatsAppStatus> {
  * Desconecta e limpa a sessão.
  */
 export async function whatsappDisconnect(): Promise<void> {
+  // Para polling e fecha browser headless
+  stopQrPolling();
+
   // Remove o diretório de sessão
   if (fs.existsSync(SESSION_DIR)) {
     try {
@@ -343,6 +495,9 @@ export async function whatsappDisconnect(): Promise<void> {
   }
   if (fs.existsSync(STATUS_FILE)) {
     try { fs.unlinkSync(STATUS_FILE); } catch { /* ignore */ }
+  }
+  if (fs.existsSync(QR_CACHE)) {
+    try { fs.unlinkSync(QR_CACHE); } catch { /* ignore */ }
   }
   saveStatus({ connected: false });
 }

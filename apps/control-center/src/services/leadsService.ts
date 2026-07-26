@@ -134,14 +134,26 @@ export interface WhatsAppStatus {
   phone?: string;
   lastCheckAt?: number;
   error?: string;
+  waitingQr?: boolean;
+  qrWaitStartedAt?: number;
 }
 
 export async function getWhatsAppStatus(): Promise<WhatsAppStatus> {
   return api<WhatsAppStatus>('/api/whatsapp/status');
 }
 
-export async function connectWhatsApp(): Promise<{ ok: boolean; message: string }> {
-  return api<{ ok: boolean; message: string }>('/api/whatsapp/connect', { method: 'POST' });
+export async function connectWhatsApp(headless: boolean = true): Promise<{
+  ok: boolean; message: string; waitingQr?: boolean; qrPath?: string;
+}> {
+  return api<{ ok: boolean; message: string; waitingQr?: boolean; qrPath?: string }>(
+    '/api/whatsapp/connect',
+    { method: 'POST', body: JSON.stringify({ headless }) },
+  );
+}
+
+/** URL completa para a imagem do QR Code (modo headless) */
+export function getQrImageUrl(): string {
+  return `${WORKER_URL}/api/whatsapp/qr-image`;
 }
 
 export async function disconnectWhatsApp(): Promise<{ ok: boolean; message: string }> {
