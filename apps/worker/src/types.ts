@@ -11,7 +11,8 @@ export type JobType =
   | 'publishYoutube'
   | 'publishInstagram'
   | 'publishFacebook'
-  | 'publishTiktok';
+  | 'publishTiktok'
+  | 'leadsScrape';
 
 export interface JobRequest {
   type: JobType;

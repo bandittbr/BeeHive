@@ -197,7 +197,53 @@ export interface SettingsState {
 
 // ===== Negócios: negócios digitais autônomos (redes sociais) =====
 
-export type BizType = 'cortes' | 'conteudo' | 'afiliados';
+export type BizType = 'cortes' | 'conteudo' | 'afiliados' | 'leads';
+
+// ===== Leads (prospecção automatizada) =====
+
+export type LeadStatus = 'new' | 'analyzing' | 'segment_identified' | 'sample_generated' | 'proposal_sent' | 'responded' | 'converted' | 'closed';
+
+export interface Lead {
+  id: string;
+  name: string;
+  address?: string;
+  website?: string;
+  phone?: string;
+  category?: string;
+  placeType?: string;
+  email?: string;
+  reviewsCount?: number;
+  reviewsAverage?: number;
+  status: LeadStatus;
+  notes?: string;
+  segment?: string;
+  sampleGenerated: boolean;
+  sampleUrl?: string;
+  proposalSent: boolean;
+  proposalSentAt?: number;
+  proposalMessage?: string;
+  responseReceived: boolean;
+  responseAt?: number;
+  responseType?: 'interested' | 'not_interested' | 'no_answer' | '';
+  whatsappSent: boolean;
+  whatsappSentAt?: number;
+  createdAt: number;
+  updatedAt: number;
+  scrapedAt?: number;
+  scrapeQuery?: string;
+  introduction?: string;
+  opensAt?: string;
+}
+
+export interface LeadsDashboard {
+  total: number;
+  byStatus: Record<string, number>;
+  byCategory: Record<string, number>;
+  newToday: number;
+  proposalSent: number;
+  responded: number;
+  converted: number;
+}
 
 export interface SocialAccount {
   id: string;

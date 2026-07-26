@@ -30,6 +30,20 @@ import {
   type ScheduledPost, type PlatformId,
 } from './store.js';
 import { autoclipTick, runPilotNow } from './autoclip.js';
+import { leadsAutomationTick } from './leads-automation.js';
+import {
+  runScraper, identifySegment, generateProposalMessage, generateSampleSite,
+} from './executors/leads.js';
+import {
+  whatsappConnect, whatsappSendMessage, whatsappSendImage,
+  whatsappGetStatus, whatsappDisconnect,
+} from './executors/whatsapp.js';
+import {
+  listLeads, getLead, addLead, addLeadsBatch, updateLead, deleteLead, getLeadsDashboard,
+  getLeadsAutomationConfig, updateLeadsAutomationConfig,
+  listLeadsAutomationLogs, addLeadsAutomationLog,
+  type LeadStatus, type Lead, type LeadsAutomationConfig, type LeadsAutomationLog,
+} from './store.js';
 import type { JobEvent, JobRecord, JobRequest } from './types.js';
 import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge.js';
 import { hashPassword, verifyPassword, signToken, verifyToken, isValidEmail } from './auth.js';
@@ -410,6 +424,276 @@ app.post('/api/autoclip/pilots/:id/run-now', async (req, res) => {
   runPilotNow((req.params as Record<string, string>).id).catch((e) => console.error('[autoclip] run-now falhou:', e));
 });
 
+// --- Leads (Google Maps Scraper + Prospecção) ---
+app.post('/api/leads/scrape', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const search = String(req.body?.search ?? '').trim();
+  const total = Math.max(1, Math.min(200, Number(req.body?.total) || 20));
+  const categories = req.body?.categories ? String(req.body.categories) : undefined;
+
+  if (!search) return res.status(400).json({ error: 'search é obrigatório' });
+
+  // Responde imediatamente e roda em segundo plano
+  res.json({ ok: true, message: 'Scraping iniciado em segundo plano' });
+
+  // Executa o scraper em background
+  (async () => {
+    try {
+      const rawLeads = await runScraper({ search, total, categories, headless: true });
+      const batch = rawLeads.map((r) => ({
+        name: r.name,
+        address: r.address,
+        website: r.website,
+        phone: r.phone_number,
+        category: r.place_type,
+        placeType: r.place_type,
+        reviewsCount: r.reviews_count,
+        reviewsAverage: r.reviews_average,
+        introduction: r.introduction,
+        opensAt: r.opens_at,
+        scrapeQuery: search,
+        scrapedAt: Date.now(),
+      }));
+      const count = await addLeadsBatch(batch);
+      console.log(`[leads] Scraping concluído: ${count} leads adicionados (query: "${search}")`);
+    } catch (e) {
+      console.error('[leads] Erro no scraping:', e);
+    }
+  })();
+});
+
+app.get('/api/leads', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const status = typeof req.query.status === 'string' ? req.query.status as LeadStatus : undefined;
+  const category = typeof req.query.category === 'string' ? req.query.category : undefined;
+  const search = typeof req.query.search === 'string' ? req.query.search : undefined;
+  const leads = await listLeads(status, category, search);
+  res.json({ leads });
+});
+
+app.get('/api/leads/dashboard', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const dashboard = await getLeadsDashboard();
+  res.json(dashboard);
+});
+
+app.get('/api/leads/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const lead = await getLead((req.params as Record<string, string>).id);
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+  res.json({ lead });
+});
+
+app.put('/api/leads/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const b = req.body ?? {};
+  const fields: Record<string, unknown> = {};
+  if (b.status !== undefined) fields.status = String(b.status);
+  if (b.notes !== undefined) fields.notes = String(b.notes);
+  if (b.segment !== undefined) fields.segment = String(b.segment);
+  if (b.email !== undefined) fields.email = String(b.email);
+  if (b.sampleGenerated !== undefined) fields.sampleGenerated = !!b.sampleGenerated;
+  if (b.sampleUrl !== undefined) fields.sampleUrl = String(b.sampleUrl);
+  if (b.proposalSent !== undefined) fields.proposalSent = !!b.proposalSent;
+  if (b.proposalMessage !== undefined) fields.proposalMessage = String(b.proposalMessage);
+  if (b.responseReceived !== undefined) fields.responseReceived = !!b.responseReceived;
+  if (b.responseType !== undefined) fields.responseType = String(b.responseType);
+  const lead = await updateLead(id, fields as any);
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+  res.json({ lead });
+});
+
+app.delete('/api/leads/:id', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  res.json({ ok: await deleteLead((req.params as Record<string, string>).id) });
+});
+
+// Identificar segmento do lead via IA
+app.post('/api/leads/:id/identify-segment', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const lead = await getLead(id);
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+
+  try {
+    const segment = await identifySegment(lead.name, lead.category || lead.placeType || '', lead.introduction || '');
+    await updateLead(id, { segment, status: 'segment_identified' });
+    res.json({ segment });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro ao identificar segmento' });
+  }
+});
+
+// Gerar preview em PNG do site de amostra para o lead
+app.post('/api/leads/:id/generate-sample', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const lead = await getLead(id);
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+  const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
+
+  try {
+    // Gera HTML + converte para PNG
+    const pngPath = await generateSampleSite(id, lead.name, segment);
+
+    const token = AUTH_TOKEN ? `?t=${encodeURIComponent(AUTH_TOKEN)}` : '';
+    const base = PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
+
+    // Se for PNG, retorna a URL do PNG; se falhou, retorna a URL do HTML como fallback
+    const isPng = pngPath.endsWith('.png');
+    const relPath = isPng
+      ? `sites/leads/${encodeURIComponent(id)}/preview.png`
+      : `sites/leads/${encodeURIComponent(id)}/index.html`;
+    const sampleUrl = `${base}/files/${relPath}${token}`;
+
+    await updateLead(id, { sampleGenerated: true, sampleUrl, status: 'sample_generated' });
+    res.json({ sampleUrl, format: isPng ? 'png' : 'html' });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro ao gerar amostra' });
+  }
+});
+
+// Enviar proposta para o lead (gera mensagem + registra envio)
+app.post('/api/leads/:id/send-proposal', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const lead = await getLead(id);
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+
+  const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
+
+  try {
+    const message = await generateProposalMessage(lead.name, segment);
+    await updateLead(id, {
+      proposalSent: true,
+      proposalSentAt: Date.now(),
+      proposalMessage: message,
+      status: 'proposal_sent',
+    });
+    res.json({ message });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro ao gerar proposta' });
+  }
+});
+
+// Registrar resposta do lead
+app.post('/api/leads/:id/respond', async (req, res) => {
+  if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
+  const id = (req.params as Record<string, string>).id;
+  const responseType = String(req.body?.responseType ?? '').trim();
+  if (!['interested', 'not_interested', 'no_answer'].includes(responseType)) {
+    return res.status(400).json({ error: 'responseType deve ser: interested, not_interested ou no_answer' });
+  }
+  const lead = await updateLead(id, {
+    responseReceived: true,
+    responseAt: Date.now(),
+    responseType: responseType as Lead['responseType'],
+    status: responseType === 'interested' ? 'converted' : 'closed',
+  });
+  if (!lead) return res.status(404).json({ error: 'lead não encontrado' });
+  res.json({ lead });
+});
+
+// --- Automação de Leads (config + logs) ---
+
+// GET /api/leads/automation/config
+app.get('/api/leads/automation/config', async (req, res): Promise<void> => {
+  try {
+    const cfg = await getLeadsAutomationConfig();
+    res.json(cfg);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// PUT /api/leads/automation/config
+app.put('/api/leads/automation/config', async (req, res): Promise<void> => {
+  if (!authOk(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+  try {
+    const cfg = await updateLeadsAutomationConfig(req.body || {});
+    res.json(cfg);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/leads/automation/tick — executa um tick manual
+app.post('/api/leads/automation/tick', async (req, res): Promise<void> => {
+  if (!authOk(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+  void leadsAutomationTick();
+  res.json({ ok: true, message: 'Tick iniciado em background' });
+});
+
+// GET /api/leads/automation/logs
+app.get('/api/leads/automation/logs', async (req, res): Promise<void> => {
+  try {
+    const limit = Math.min(Number(req.query?.limit) || 20, 100);
+    const logs = await listLeadsAutomationLogs(limit);
+    res.json(logs);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// --- WhatsApp (conexão via navegador + envio) ---
+
+// GET /api/whatsapp/status
+app.get('/api/whatsapp/status', async (req, res): Promise<void> => {
+  try {
+    const status = await whatsappGetStatus();
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/whatsapp/connect — abre navegador para scan do QR Code
+app.post('/api/whatsapp/connect', async (req, res): Promise<void> => {
+  try {
+    const result = await whatsappConnect();
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/whatsapp/disconnect — limpa a sessão
+app.post('/api/whatsapp/disconnect', async (req, res): Promise<void> => {
+  try {
+    await whatsappDisconnect();
+    res.json({ ok: true, message: 'WhatsApp desconectado' });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/whatsapp/send — envia mensagem de texto
+app.post('/api/whatsapp/send', async (req, res): Promise<void> => {
+  if (!authOk(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const { phone, message } = req.body || {};
+  if (!phone || !message) { res.status(400).json({ error: 'phone e message são obrigatórios' }); return; }
+  try {
+    const result = await whatsappSendMessage(String(phone), String(message));
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/whatsapp/send-image — envia imagem com legenda
+app.post('/api/whatsapp/send-image', async (req, res): Promise<void> => {
+  if (!authOk(req)) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const { phone, imagePath, caption } = req.body || {};
+  if (!phone || !imagePath) { res.status(400).json({ error: 'phone e imagePath são obrigatórios' }); return; }
+  try {
+    const result = await whatsappSendImage(String(phone), String(imagePath), caption ? String(caption) : undefined);
+    res.json(result);
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
 // --- jobs ---
 app.post('/jobs', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
@@ -458,6 +742,12 @@ async function execute(rec: JobRecord) {
       case 'publishInstagram': rec.result = (await runPublishInstagram(rec.request, onChunk)).result; break;
       case 'publishFacebook': rec.result = (await runPublishFacebook(rec.request, onChunk)).result; break;
       case 'publishTiktok': rec.result = (await runPublishTiktok(rec.request, onChunk)).result; break;
+      case 'leadsScrape': {
+        const req = rec.request.payload as { search: string; total?: number; categories?: string; headless?: boolean };
+        const rawLeads = await runScraper(req, onChunk);
+        rec.result = { leads: rawLeads };
+        break;
+      }
       default: throw new Error(`tipo de job desconhecido: ${(rec.request as JobRequest).type}`);
     }
     rec.status = 'done'; rec.finishedAt = Date.now();
@@ -570,6 +860,11 @@ setInterval(() => { schedulerTick().catch(() => {}); }, 30000);
 // --- Piloto automático de cortes: roda a cada 15min, gera no máximo o que
 // faltar pra bater posts/dia (checa isso no início do tick). ---
 setInterval(() => { autoclipTick().catch((e) => console.error('[autoclip] tick falhou:', e)); }, 15 * 60 * 1000);
+
+// --- Automação de Leads: processa leads automaticamente a cada 5min ---
+setInterval(() => { leadsAutomationTick().catch((e) => console.error('[leads-auto] tick falhou:', e)); }, 5 * 60 * 1000);
+// Tick inicial após 30s (dá tempo do servidor subir)
+setTimeout(() => { leadsAutomationTick().catch((e) => console.error('[leads-auto] tick inicial falhou:', e)); }, 30000);
 
 // --- Auth (login por email/senha) ---
 app.post('/api/auth/signup', async (req, res) => {

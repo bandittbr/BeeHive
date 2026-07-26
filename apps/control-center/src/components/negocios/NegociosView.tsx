@@ -1,7 +1,7 @@
-// Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados).
+// Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados / Leads).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState, useEffect } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
@@ -15,6 +15,7 @@ import {
   type ClipPilot, type ClipChannel, type ClipHistoryEntry,
 } from '../../services/autoclip';
 import { ScheduleView } from './ScheduleView';
+import { LeadsView } from './LeadsView';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -53,23 +54,49 @@ const SOCIAL_PLATFORMS: { id: SocialAccount['platform']; label: string }[] = [
   { id: 'twitter', label: 'X / Twitter' },
 ];
 
+type NegociosSubArea = 'conteudo' | 'leads';
+
 export function NegociosView() {
+  const [subArea, setSubArea] = useState<NegociosSubArea>('conteudo');
+
   return (
     <div className="negocios">
       <div className="page-header">
         <div>
           <h1>Negócios</h1>
-          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo e afiliados</p>
+          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo, afiliados e prospecção de leads</p>
         </div>
       </div>
 
-      <AutopilotPanel />
-
-      <ScheduleView />
-
-      <div className="biz-types">
-        {BIZ_TYPES.map((type) => <BizTypeSection key={type.id} type={type} />)}
+      {/* Sub-navegação */}
+      <div className="negocios-subnav">
+        <button
+          className={`negocios-subnav-btn${subArea === 'conteudo' ? ' active' : ''}`}
+          onClick={() => setSubArea('conteudo')}
+        >
+          <Clapperboard size={16} /> Conteúdo Digital
+        </button>
+        <button
+          className={`negocios-subnav-btn${subArea === 'leads' ? ' active' : ''}`}
+          onClick={() => setSubArea('leads')}
+        >
+          <Users size={16} /> Leads
+        </button>
       </div>
+
+      {subArea === 'conteudo' && (
+        <>
+          <AutopilotPanel />
+          <ScheduleView />
+          <div className="biz-types">
+            {BIZ_TYPES.map((type) => <BizTypeSection key={type.id} type={type} />)}
+          </div>
+        </>
+      )}
+
+      {subArea === 'leads' && (
+        <LeadsView />
+      )}
     </div>
   );
 }
