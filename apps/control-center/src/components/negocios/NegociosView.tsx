@@ -99,7 +99,7 @@ function AutopilotPanel() {
   };
   useEffect(() => { reload(); }, []);
 
-  const handleCreate = async (data: { name: string; niche?: string; description?: string; postsPerDay: number }) => {
+  const handleCreate = async (data: { name: string; niche?: string; description?: string; postsPerDay: number; discoveryMode?: boolean; minDurationMin?: number }) => {
     const res = await createPilot(data);
     if (res.ok) { setCreating(false); await reload(); }
     return res;
@@ -134,20 +134,22 @@ function AutopilotPanel() {
 }
 
 function NewPilotForm({ onCreate, onCancel }: {
-  onCreate: (data: { name: string; niche?: string; description?: string; postsPerDay: number }) => Promise<{ ok: boolean; error?: string }>;
+  onCreate: (data: { name: string; niche?: string; description?: string; postsPerDay: number; discoveryMode?: boolean; minDurationMin?: number }) => Promise<{ ok: boolean; error?: string }>;
   onCancel: () => void;
 }) {
   const [name, setName] = useState('');
   const [niche, setNiche] = useState('');
   const [description, setDescription] = useState('');
   const [postsPerDay, setPostsPerDay] = useState(1);
+  const [discoveryMode, setDiscoveryMode] = useState(false);
+  const [minDurationMin, setMinDurationMin] = useState(60);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
 
   const submit = async () => {
     if (!name.trim()) { setErr('Dê um nome pro piloto (ex: "Humor").'); return; }
     setBusy(true); setErr('');
-    const res = await onCreate({ name: name.trim(), niche: niche.trim() || undefined, description: description.trim() || undefined, postsPerDay });
+    const res = await onCreate({ name: name.trim(), niche: niche.trim() || undefined, description: description.trim() || undefined, postsPerDay, discoveryMode, minDurationMin });
     setBusy(false);
     if (!res.ok) setErr(res.error || 'Falha ao criar.');
   };
@@ -170,6 +172,21 @@ function NewPilotForm({ onCreate, onCancel }: {
         <label>Descrição padrão dos posts (opcional)</label>
         <textarea rows={2} placeholder="Texto/legenda que acompanha todo corte publicado por esse piloto" value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
+      <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={discoveryMode} onChange={(e) => setDiscoveryMode(e.target.checked)} />
+          Busca automática (sem escolher canal — o BeeHive procura vídeos do nicho sozinho)
+        </label>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+          Busca no YouTube por vídeos do nicho acima, recentes (até 30 dias) e com mais visualizações/curtidas.
+        </p>
+      </div>
+      {discoveryMode && (
+        <div className="form-group">
+          <label>Duração mínima do vídeo fonte (minutos)</label>
+          <input type="number" min={1} max={600} value={minDurationMin} onChange={(e) => setMinDurationMin(Math.max(1, Number(e.target.value) || 60))} />
+        </div>
+      )}
       {err && <p style={{ fontSize: 11.5, color: 'var(--danger)', gridColumn: '1 / -1' }}>{err}</p>}
       <div className="biz-new-form-actions">
         <button className="btn-primary" onClick={submit} disabled={busy}>{busy ? <Loader2 size={13} className="spin" /> : null} Criar piloto</button>
@@ -187,6 +204,8 @@ function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: 
   const [postsPerDay, setPostsPerDay] = useState(pilot.postsPerDay);
   const [times, setTimes] = useState(pilot.times || '');
   const [selectedAccounts, setSelectedAccounts] = useState<string[]>(pilot.accountIds);
+  const [discoveryMode, setDiscoveryMode] = useState(pilot.discoveryMode);
+  const [minDurationMin, setMinDurationMin] = useState(pilot.minDurationMin || 60);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const [newChannelUrl, setNewChannelUrl] = useState('');
@@ -209,7 +228,7 @@ function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: 
 
   const saveSettings = async () => {
     setSaving(true); setSavedMsg('');
-    const res = await updatePilot(pilot.id, { postsPerDay, times, accountIds: selectedAccounts });
+    const res = await updatePilot(pilot.id, { postsPerDay, times, accountIds: selectedAccounts, discoveryMode, minDurationMin });
     setSavedMsg(res.ok ? 'Salvo!' : (res.error || 'Falha ao salvar.'));
     setSaving(false);
     setTimeout(() => setSavedMsg(''), 2000);
@@ -278,6 +297,19 @@ function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: 
           </div>
 
           <div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12.5 }}>
+              <input type="checkbox" checked={discoveryMode} onChange={(e) => setDiscoveryMode(e.target.checked)} />
+              Busca automática (sem canal fixo — procura vídeos do nicho sozinho)
+            </label>
+            {discoveryMode && (
+              <div className="form-group" style={{ maxWidth: 220, marginTop: 8 }}>
+                <label>Duração mínima do vídeo fonte (minutos)</label>
+                <input type="number" min={1} max={600} value={minDurationMin} onChange={(e) => setMinDurationMin(Math.max(1, Number(e.target.value) || 60))} />
+              </div>
+            )}
+          </div>
+
+          <div>
             <span style={sectionLabelStyle}>Contas-alvo ({selectedAccounts.length} selecionada{selectedAccounts.length === 1 ? '' : 's'})</span>
             {accounts.length === 0 ? (
               <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>Nenhuma conta cadastrada ainda — vá em Settings → Conexões e cadastre pelo menos uma.</p>
@@ -309,6 +341,15 @@ function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: 
           </div>
           {runMsg && <p style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>{runMsg}</p>}
 
+          {discoveryMode ? (
+            <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
+              <span style={sectionLabelStyle}>Canais fonte</span>
+              <p style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 6 }}>
+                Busca automática ativada — não precisa cadastrar canal. O BeeHive procura vídeos de "{pilot.niche || pilot.name}"
+                {' '}com mais de {minDurationMin} min, recentes e com mais visualizações/curtidas.
+              </p>
+            </div>
+          ) : (
           <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>
             <span style={sectionLabelStyle}>Canais fonte ({channels.length})</span>
             <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
@@ -338,6 +379,7 @@ function PilotCard({ pilot, accounts, onChange }: { pilot: ClipPilot; accounts: 
               </div>
             )}
           </div>
+          )}
 
           {history.length > 0 && (
             <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 10 }}>

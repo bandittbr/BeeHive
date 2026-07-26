@@ -687,6 +687,8 @@ export interface ClipPilot {
   postsPerDay: number;
   times?: string; // "12:00,18:00,21:00" — se vazio, espalha automático
   accountIds: string[]; // ids de beehive_accounts (qualquer rede, misturado)
+  discoveryMode: boolean; // true = busca automática por nicho, sem canal fixo
+  minDurationMin: number; // duração mínima do vídeo fonte (minutos), usado na busca automática
   createdAt: number;
   updatedAt: number;
 }
@@ -718,6 +720,7 @@ function rowToPilot(r: any): ClipPilot {
     id: String(r.id), name: r.name, niche: r.niche ?? undefined, description: r.description ?? undefined,
     active: !!r.active, postsPerDay: Number(r.posts_per_day) || 1, times: r.times ?? undefined,
     accountIds: Array.isArray(r.account_ids) ? r.account_ids : [],
+    discoveryMode: !!r.discovery_mode, minDurationMin: Number(r.min_duration_min) || 60,
     createdAt: Number(r.created_at), updatedAt: Number(r.updated_at),
   };
 }
@@ -763,22 +766,24 @@ export async function getPilot(id: string): Promise<ClipPilot | null> {
   return autoclipFileLoad().pilots.find((p) => p.id === id) ?? null;
 }
 
-export async function createPilot(input: { name: string; niche?: string; description?: string; postsPerDay?: number; times?: string; accountIds?: string[] }): Promise<ClipPilot> {
+export async function createPilot(input: { name: string; niche?: string; description?: string; postsPerDay?: number; times?: string; accountIds?: string[]; discoveryMode?: boolean; minDurationMin?: number }): Promise<ClipPilot> {
   const now = Date.now();
   const row: ClipPilot = {
     id: `${now}_${Math.random().toString(36).slice(2, 8)}`, name: input.name, niche: input.niche, description: input.description,
     active: false, postsPerDay: Math.max(1, input.postsPerDay || 1), times: input.times, accountIds: input.accountIds ?? [],
+    discoveryMode: !!input.discoveryMode, minDurationMin: Math.max(1, input.minDurationMin || 60),
     createdAt: now, updatedAt: now,
   };
   if (useSupabase) {
-    await fetch(CLIP_PILOTS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
-      body: JSON.stringify({ id: row.id, name: row.name, niche: row.niche ?? null, description: row.description ?? null, active: row.active, posts_per_day: row.postsPerDay, times: row.times ?? null, account_ids: row.accountIds, created_at: row.createdAt, updated_at: row.updatedAt }) });
+    const res = await fetch(CLIP_PILOTS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
+      body: JSON.stringify({ id: row.id, name: row.name, niche: row.niche ?? null, description: row.description ?? null, active: row.active, posts_per_day: row.postsPerDay, times: row.times ?? null, account_ids: row.accountIds, discovery_mode: row.discoveryMode, min_duration_min: row.minDurationMin, created_at: row.createdAt, updated_at: row.updatedAt }) });
+    if (!res.ok) throw new Error(`falha ao salvar piloto no banco (HTTP ${res.status}): ${await res.text().catch(() => '')}`);
     return row;
   }
   const d = autoclipFileLoad(); d.pilots.push(row); autoclipFileSave(d); return row;
 }
 
-export async function updatePilot(id: string, fields: Partial<Pick<ClipPilot, 'name' | 'niche' | 'description' | 'active' | 'postsPerDay' | 'times' | 'accountIds'>>): Promise<ClipPilot | null> {
+export async function updatePilot(id: string, fields: Partial<Pick<ClipPilot, 'name' | 'niche' | 'description' | 'active' | 'postsPerDay' | 'times' | 'accountIds' | 'discoveryMode' | 'minDurationMin'>>): Promise<ClipPilot | null> {
   const now = Date.now();
   if (useSupabase) {
     const body: Record<string, unknown> = { updated_at: now };
@@ -789,6 +794,8 @@ export async function updatePilot(id: string, fields: Partial<Pick<ClipPilot, 'n
     if (fields.postsPerDay !== undefined) body.posts_per_day = fields.postsPerDay;
     if (fields.times !== undefined) body.times = fields.times;
     if (fields.accountIds !== undefined) body.account_ids = fields.accountIds;
+    if (fields.discoveryMode !== undefined) body.discovery_mode = fields.discoveryMode;
+    if (fields.minDurationMin !== undefined) body.min_duration_min = fields.minDurationMin;
     const res = await fetch(`${CLIP_PILOTS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=representation' }), body: JSON.stringify(body) });
     if (!res.ok) return null;
     const rows = (await res.json().catch(() => [])) as any[];

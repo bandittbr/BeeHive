@@ -15,6 +15,8 @@ export interface ClipPilot {
   postsPerDay: number;
   times?: string;
   accountIds: string[];
+  discoveryMode: boolean;
+  minDurationMin: number;
   createdAt: number;
   updatedAt: number;
 }
@@ -55,7 +57,7 @@ export async function listPilots(): Promise<ClipPilot[]> {
   } catch { return []; }
 }
 
-export async function createPilot(input: { name: string; niche?: string; description?: string; postsPerDay?: number; times?: string; accountIds?: string[] }): Promise<{ ok: boolean; pilot?: ClipPilot; error?: string }> {
+export async function createPilot(input: { name: string; niche?: string; description?: string; postsPerDay?: number; times?: string; accountIds?: string[]; discoveryMode?: boolean; minDurationMin?: number }): Promise<{ ok: boolean; pilot?: ClipPilot; error?: string }> {
   if (!isWorkerConfigured()) return { ok: false, error: 'Configure o Cowork Nuvem (worker) em Settings.' };
   const { url } = getWorkerConfig();
   try {

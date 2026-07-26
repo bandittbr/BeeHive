@@ -46,6 +46,59 @@ async function discoverChannelVideos(channelUrl: string, limit = 15): Promise<Di
   return videos;
 }
 
+interface SearchVideo { id: string; title: string; url: string; duration: number; views: number; likes: number; uploadDate: string }
+
+// Busca no YouTube por palavra-chave (sem canal fixo), extraindo metadados
+// completos (duração, views, likes, data) via yt-dlp --dump-json. Mais lento
+// que --flat-playlist (extrai cada vídeo), por isso limite baixo + timeout alto.
+async function searchYoutubeVideos(query: string, limit = 25): Promise<SearchVideo[]> {
+  const out = await runCapture('yt-dlp', [
+    `ytsearch${limit}:${query}`,
+    '--dump-json', '--skip-download', '--no-warnings',
+  ], 180000);
+  const videos: SearchVideo[] = [];
+  for (const line of out.split('\n')) {
+    const t = line.trim();
+    if (!t) continue;
+    try {
+      const j = JSON.parse(t);
+      if (!j?.id) continue;
+      videos.push({
+        id: String(j.id), title: String(j.title ?? ''),
+        url: String(j.webpage_url || `https://www.youtube.com/watch?v=${j.id}`),
+        duration: Number(j.duration) || 0, views: Number(j.view_count) || 0,
+        likes: Number(j.like_count) || 0, uploadDate: String(j.upload_date ?? ''),
+      });
+    } catch { /* linha não é JSON (log do yt-dlp) — ignora */ }
+  }
+  return videos;
+}
+
+function daysSinceUpload(uploadDate: string): number {
+  if (!/^\d{8}$/.test(uploadDate)) return 9999;
+  const y = Number(uploadDate.slice(0, 4)), m = Number(uploadDate.slice(4, 6)) - 1, d = Number(uploadDate.slice(6, 8));
+  return Math.max(0, Math.round((Date.now() - new Date(y, m, d).getTime()) / 86400000));
+}
+
+// Descoberta automática (sem canal fixo): busca por nicho, filtra por duração
+// mínima + postados recentemente, ranqueia pelos mais "quentes" (views+likes)
+// e devolve o melhor candidato ainda não processado.
+const MAX_UPLOAD_AGE_DAYS = 30;
+async function discoverBySearch(pilot: ClipPilot): Promise<DiscoveredVideo | null> {
+  const topic = (pilot.niche || pilot.name || 'humor').split(/[,;]+/)[0].trim();
+  const minDurationSec = Math.max(1, pilot.minDurationMin || 60) * 60;
+
+  const results = await searchYoutubeVideos(`${topic} completo`, 25);
+  const candidates = results
+    .filter((v) => v.duration >= minDurationSec && daysSinceUpload(v.uploadDate) <= MAX_UPLOAD_AGE_DAYS)
+    .sort((a, b) => (b.views + b.likes * 20) - (a.views + a.likes * 20));
+
+  for (const v of candidates) {
+    if (!(await isVideoProcessed(v.id))) return { id: v.id, title: v.title, url: v.url };
+  }
+  return null;
+}
+
 function extractJson(text: string): any | null {
   const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fence ? fence[1] : text;
@@ -138,19 +191,25 @@ async function runPilot(pilot: ClipPilot): Promise<void> {
   const remaining = pilot.postsPerDay - alreadyToday;
   if (remaining <= 0) return;
 
-  const channels = (await listClipChannels(pilot.id)).filter((c) => c.active);
-  if (channels.length === 0) return;
-
-  const rotate = rotateByPilot.get(pilot.id) ?? 0;
   let found: { video: DiscoveredVideo; channelUrl: string } | null = null;
-  for (let i = 0; i < channels.length && !found; i++) {
-    const ch = channels[(rotate + i) % channels.length];
-    const videos = await discoverChannelVideos(ch.channelUrl, 15);
-    for (const v of videos) {
-      if (!(await isVideoProcessed(v.id))) { found = { video: v, channelUrl: ch.channelUrl }; break; }
+
+  if (pilot.discoveryMode) {
+    // Modo busca automática: sem canal fixo, procura no YouTube por nicho.
+    const video = await discoverBySearch(pilot);
+    if (video) found = { video, channelUrl: 'busca automática' };
+  } else {
+    const channels = (await listClipChannels(pilot.id)).filter((c) => c.active);
+    if (channels.length === 0) return;
+    const rotate = rotateByPilot.get(pilot.id) ?? 0;
+    for (let i = 0; i < channels.length && !found; i++) {
+      const ch = channels[(rotate + i) % channels.length];
+      const videos = await discoverChannelVideos(ch.channelUrl, 15);
+      for (const v of videos) {
+        if (!(await isVideoProcessed(v.id))) { found = { video: v, channelUrl: ch.channelUrl }; break; }
+      }
     }
+    rotateByPilot.set(pilot.id, rotate + 1);
   }
-  rotateByPilot.set(pilot.id, rotate + 1);
   if (!found) return;
 
   const { video, channelUrl } = found;

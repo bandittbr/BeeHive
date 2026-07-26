@@ -344,15 +344,21 @@ app.post('/api/autoclip/pilots', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
   const name = String(req.body?.name ?? '').trim();
   if (!name) return res.status(400).json({ error: 'name é obrigatório' });
-  const pilot = await createPilot({
-    name,
-    niche: req.body?.niche ? String(req.body.niche) : undefined,
-    description: req.body?.description ? String(req.body.description) : undefined,
-    postsPerDay: Math.max(1, Math.min(20, Number(req.body?.postsPerDay) || 1)),
-    times: req.body?.times ? String(req.body.times) : undefined,
-    accountIds: Array.isArray(req.body?.accountIds) ? req.body.accountIds.map(String) : [],
-  });
-  res.json({ pilot });
+  try {
+    const pilot = await createPilot({
+      name,
+      niche: req.body?.niche ? String(req.body.niche) : undefined,
+      description: req.body?.description ? String(req.body.description) : undefined,
+      postsPerDay: Math.max(1, Math.min(20, Number(req.body?.postsPerDay) || 1)),
+      times: req.body?.times ? String(req.body.times) : undefined,
+      accountIds: Array.isArray(req.body?.accountIds) ? req.body.accountIds.map(String) : [],
+      discoveryMode: !!req.body?.discoveryMode,
+      minDurationMin: req.body?.minDurationMin !== undefined ? Math.max(1, Number(req.body.minDurationMin) || 60) : undefined,
+    });
+    res.json({ pilot });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 app.put('/api/autoclip/pilots/:id', async (req, res) => {
   if (!authOk(req)) return res.status(401).json({ error: 'unauthorized' });
@@ -366,6 +372,8 @@ app.put('/api/autoclip/pilots/:id', async (req, res) => {
   if (b.postsPerDay !== undefined) fields.postsPerDay = Math.max(1, Math.min(20, Number(b.postsPerDay) || 1));
   if (b.times !== undefined) fields.times = String(b.times);
   if (b.accountIds !== undefined) fields.accountIds = Array.isArray(b.accountIds) ? b.accountIds.map(String) : [];
+  if (b.discoveryMode !== undefined) fields.discoveryMode = !!b.discoveryMode;
+  if (b.minDurationMin !== undefined) fields.minDurationMin = Math.max(1, Number(b.minDurationMin) || 60);
   const pilot = await updatePilot(id, fields);
   if (!pilot) return res.status(404).json({ error: 'piloto não encontrado' });
   res.json({ pilot });
