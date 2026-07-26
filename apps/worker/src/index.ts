@@ -693,7 +693,20 @@ app.get('/api/whatsapp/qr-image', (req, res): void => {
     return;
   }
   res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
-  res.sendFile(qrPath);
+  try {
+    if (!fs.existsSync(qrPath)) {
+      res.status(404).json({ error: 'QR image file not found on disk', path: qrPath });
+      return;
+    }
+    const stat = fs.statSync(qrPath);
+    res.set('Content-Type', 'image/png');
+    res.set('Content-Length', String(stat.size));
+    const stream = fs.createReadStream(qrPath);
+    stream.pipe(res);
+    stream.on('error', () => { res.status(500).end(); });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : String(e) });
+  }
 });
 
 // POST /api/whatsapp/connect — modo headless (Railway) ou visível (PC local)
