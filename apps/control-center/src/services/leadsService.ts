@@ -151,9 +151,9 @@ export async function connectWhatsApp(headless: boolean = true): Promise<{
   );
 }
 
-/** URL completa para a imagem do QR Code (modo headless) */
+/** URL completa para a imagem do QR Code (modo headless, com cache-busting) */
 export function getQrImageUrl(): string {
-  return `${WORKER_URL}/api/whatsapp/qr-image`;
+  return `${WORKER_URL}/api/whatsapp/qr-image?t=${Date.now()}`;
 }
 
 export async function disconnectWhatsApp(): Promise<{ ok: boolean; message: string }> {

@@ -655,6 +655,7 @@ app.get('/api/whatsapp/qr-image', (req, res): void => {
     res.status(404).json({ error: 'QR Code não disponível. Conecte primeiro.' });
     return;
   }
+  res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
   res.sendFile(qrPath);
 });
 

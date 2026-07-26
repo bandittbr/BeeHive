@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Play, Square, Clock, RefreshCw, CheckCircle2, XCircle,
   Loader2, AlertTriangle, Send, ChevronDown, ChevronUp,
-  Smartphone, SmartphoneOff, Globe, ExternalLink, StopCircle,
+  Smartphone, Globe, ExternalLink, StopCircle,
 } from 'lucide-react';
 import {
   getLeadsAutomationConfig,
@@ -227,7 +227,7 @@ export function LeadsAutomation() {
             background: isWaConnected ? '#25D3661f' : '#6b72801f',
             color: isWaConnected ? '#25D366' : '#6b7280',
           }}>
-            {isWaConnected ? <Smartphone size={20} /> : <SmartphoneOff size={20} />}
+            {isWaConnected ? <Smartphone size={20} /> : <XCircle size={20} />}
           </div>
           <div className="leads-stat-info">
             <span className="leads-stat-value">{isWaConnected ? 'Conectado' : 'Desconectado'}</span>
@@ -262,6 +262,7 @@ export function LeadsAutomation() {
                 3. Aponte para o QR Code abaixo
               </p>
               <img
+                key={Date.now()}
                 src={getQrImageUrl()}
                 alt="QR Code do WhatsApp"
                 style={{
@@ -273,8 +274,20 @@ export function LeadsAutomation() {
                   imageRendering: 'pixelated',
                 }}
                 onError={(e) => {
-                  // Se a imagem falhar (QR ainda não gerado), mostra placeholder
-                  (e.target as HTMLImageElement).style.display = 'none';
+                  // Se a imagem falhar, mostra placeholder com texto
+                  const el = e.target as HTMLImageElement;
+                  el.style.display = 'none';
+                  const parent = el.parentElement;
+                  if (parent) {
+                    const placeholder = document.createElement('div');
+                    placeholder.style.cssText = 'width:256px;height:256px;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:auto;font-size:12px;color:#888;';
+                    placeholder.textContent = 'QR Code não disponível. Reconecte.';
+                    // Só adiciona se não existir
+                    if (!parent.querySelector('[data-qr-placeholder]')) {
+                      placeholder.setAttribute('data-qr-placeholder', '1');
+                      parent.appendChild(placeholder);
+                    }
+                  }
                 }}
               />
               <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>
@@ -297,7 +310,7 @@ export function LeadsAutomation() {
                 {isWaConnected ? (
                   <>
                     <button className="btn-secondary btn-sm" onClick={handleDisconnectWa}>
-                      <SmartphoneOff size={14} /> Desconectar
+                      <XCircle size={14} /> Desconectar
                     </button>
                     <button
                       className={`leads-detail-btn${config.autoSendWhatsApp ? ' whatsapp' : ''}`}

@@ -67,6 +67,27 @@ function stopQrPolling(): void {
 }
 
 /**
+ * Extrai o QR Code do canvas do WhatsApp Web e salva como PNG.
+ * É mais confiável que screenshot porque obtém a imagem nativa do canvas.
+ */
+async function captureQrFromCanvas(page: any): Promise<boolean> {
+  try {
+    const dataUrl = await page.evaluate(() => {
+      const canvas = document.querySelector('canvas');
+      if (!canvas) return null;
+      return canvas.toDataURL('image/png');
+    }).catch(() => null);
+
+    if (dataUrl && typeof dataUrl === 'string' && dataUrl.startsWith('data:image/png;base64,')) {
+      const base64 = dataUrl.replace(/^data:image\/png;base64,/, '');
+      fs.writeFileSync(QR_CACHE, Buffer.from(base64, 'base64'));
+      return true;
+    }
+    return false;
+  } catch { return false; }
+}
+
+/**
  * Polling interno: a cada 3s verifica se o QR foi escaneado.
  * Se sim, salva status de conectado e limpa recursos.
  */
@@ -98,8 +119,14 @@ function startQrPolling(page: any): void {
         return;
       }
 
-      // Atualiza QR screenshot a cada poll (QR code muda constantemente)
-      await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
+      // Extrai QR do canvas (mais confiável que screenshot)
+      const captured = await captureQrFromCanvas(_qrPage);
+      if (!captured) {
+        // Fallback: tenta screenshot tradicional
+        await _qrPage.screenshot({ path: QR_CACHE, fullPage: false }).catch((err: unknown) => {
+          console.error('[whatsapp] QR fallback screenshot falhou:', err instanceof Error ? err.message : err);
+        });
+      }
       saveStatus({ ...loadStatus(), waitingQr: true, lastCheckAt: Date.now() });
     } catch {
       // Se página foi fechada, limpa
@@ -171,10 +198,18 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       await page.goto('https://web.whatsapp.com', { waitUntil: 'domcontentloaded', timeout: 60000 });
 
       // Espera um pouco pro QR carregar
-      await page.waitForTimeout(5000);
+      await page.waitForTimeout(6000);
 
-      // Tira screenshot inicial do QR
-      await page.screenshot({ path: QR_CACHE, fullPage: false }).catch(() => {});
+      // Tenta extrair QR do canvas (mais confiável) ou fallback pra screenshot
+      const qrOk = await captureQrFromCanvas(page);
+      if (!qrOk) {
+        console.log('[whatsapp] Canvas QR não encontrado, tentando screenshot...');
+        await page.screenshot({ path: QR_CACHE, fullPage: false }).catch((err: unknown) => {
+          console.error('[whatsapp] Screenshot fallback falhou:', err instanceof Error ? err.message : err);
+        });
+      } else {
+        console.log('[whatsapp] QR Code extraído do canvas com sucesso');
+      }
 
       // Armazena referências globais
       _qrBrowser = browser;
