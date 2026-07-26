@@ -10,11 +10,15 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@beehive/sdk": "workspace:*",
+    "@beehive/shared": "workspace:*",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "nanoid": "^5.0.9",
-    "@beehive/shared": "workspace:*",
-    "@beehive/sdk": "workspace:*"
+    "playwright-extra": "^4.3.6",
+    "puppeteer": "^25.3.0",
+    "puppeteer-extra": "^3.3.6",
+    "puppeteer-extra-plugin-stealth": "^2.11.2"
   },
   "optionalDependencies": {
     "playwright": "^1.49.1"

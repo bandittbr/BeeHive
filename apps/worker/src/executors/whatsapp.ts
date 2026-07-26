@@ -196,7 +196,11 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
 
   let chromium: any;
   try {
-    ({ chromium } = await import('playwright'));
+    // playwright-extra com StealthPlugin → bypassa detecção de automação do WhatsApp Web
+    chromium = (await import('playwright-extra')).chromium;
+    const StealthPlugin = (await import('puppeteer-extra-plugin-stealth')).default;
+    chromium.use(StealthPlugin());
+    dbg('[whatsapp] playwright-extra + StealthPlugin ativado');
   } catch {
     return { ok: false, message: 'Playwright não instalado. Execute: npx playwright install --with-deps chromium' };
   }
