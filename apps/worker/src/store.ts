@@ -958,16 +958,8 @@ function leadsFileSave(d: LeadsFileData): void {
 }
 
 export async function listLeads(status?: LeadStatus, category?: string, search?: string): Promise<Lead[]> {
-  if (useSupabase) {
-    let q = '?select=*&order=created_at.desc';
-    if (status) q += `&status=eq.${encodeURIComponent(status)}`;
-    if (category) q += `&category=eq.${encodeURIComponent(category)}`;
-    if (search) q += `&name=like.*${encodeURIComponent(search)}*`;
-    const res = await fetch(`${LEADS}${q}`, { headers: sbHeaders() });
-    if (!res.ok) return [];
-    const rows = (await res.json().catch(() => [])) as any[];
-    return rows.map(rowToLead);
-  }
+  // NOTA: leads usam SEMPRE armazenamento em arquivo local, nunca Supabase.
+  // Isso porque a tabela beehive_leads pode não existir no Supabase configurado.
   let leads = leadsFileLoad().leads;
   if (status) leads = leads.filter((l) => l.status === status);
   if (category) leads = leads.filter((l) => l.category === category);
@@ -976,12 +968,6 @@ export async function listLeads(status?: LeadStatus, category?: string, search?:
 }
 
 export async function getLead(id: string): Promise<Lead | null> {
-  if (useSupabase) {
-    const res = await fetch(`${LEADS}?id=eq.${encodeURIComponent(id)}&select=*`, { headers: sbHeaders() });
-    if (!res.ok) return null;
-    const rows = (await res.json().catch(() => [])) as any[];
-    return rows[0] ? rowToLead(rows[0]) : null;
-  }
   return leadsFileLoad().leads.find((l) => l.id === id) ?? null;
 }
 
@@ -1013,18 +999,6 @@ export async function addLead(input: Omit<Lead, 'id' | 'createdAt' | 'updatedAt'
     opensAt: input.opensAt,
   };
 
-  if (useSupabase) {
-    await fetch(LEADS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
-      body: JSON.stringify({
-        id: lead.id, name: lead.name, address: lead.address ?? null, website: lead.website ?? null,
-        phone: lead.phone ?? null, category: lead.category ?? null, place_type: lead.placeType ?? null,
-        email: lead.email ?? null, reviews_count: lead.reviewsCount ?? null, reviews_average: lead.reviewsAverage ?? null,
-        status: lead.status, notes: lead.notes ?? null, sample_generated: false, proposal_sent: false, response_received: false, whatsapp_sent: false,
-        created_at: lead.createdAt, updated_at: lead.updatedAt, scraped_at: lead.scrapedAt ?? null,
-        scrape_query: lead.scrapeQuery ?? null, introduction: lead.introduction ?? null, opens_at: lead.opensAt ?? null,
-      }) });
-    return lead;
-  }
   const d = leadsFileLoad(); d.leads.push(lead); leadsFileSave(d); return lead;
 }
 
@@ -1041,47 +1015,12 @@ export async function addLeadsBatch(leads: Array<Omit<Lead, 'id' | 'createdAt' |
     introduction: l.introduction, opensAt: l.opensAt,
   }));
 
-  if (useSupabase) {
-    for (const lead of newLeads) {
-      await fetch(LEADS, { method: 'POST', headers: sbHeaders({ prefer: 'return=minimal' }),
-        body: JSON.stringify({
-          id: lead.id, name: lead.name, address: lead.address ?? null, website: lead.website ?? null,
-          phone: lead.phone ?? null, category: lead.category ?? null, place_type: lead.placeType ?? null,
-          email: lead.email ?? null, reviews_count: lead.reviewsCount ?? null, reviews_average: lead.reviewsAverage ?? null,
-          status: lead.status, created_at: lead.createdAt, updated_at: lead.updatedAt,
-          scraped_at: lead.scrapedAt ?? null, scrape_query: lead.scrapeQuery ?? null,
-          introduction: lead.introduction ?? null, opens_at: lead.opensAt ?? null,
-        }) });
-    }
-    return newLeads.length;
-  }
   const d = leadsFileLoad(); d.leads.push(...newLeads); leadsFileSave(d);
   return newLeads.length;
 }
 
 export async function updateLead(id: string, fields: Partial<Pick<Lead, 'status' | 'notes' | 'segment' | 'sampleGenerated' | 'sampleUrl' | 'proposalSent' | 'proposalSentAt' | 'proposalMessage' | 'responseReceived' | 'responseAt' | 'responseType' | 'email' | 'whatsappSent' | 'whatsappSentAt'>>): Promise<Lead | null> {
   const now = Date.now();
-  if (useSupabase) {
-    const body: Record<string, unknown> = { updated_at: now };
-    if (fields.status !== undefined) body.status = fields.status;
-    if (fields.notes !== undefined) body.notes = fields.notes;
-    if (fields.segment !== undefined) body.segment = fields.segment;
-    if (fields.sampleGenerated !== undefined) body.sample_generated = fields.sampleGenerated;
-    if (fields.sampleUrl !== undefined) body.sample_url = fields.sampleUrl;
-    if (fields.proposalSent !== undefined) body.proposal_sent = fields.proposalSent;
-    if (fields.proposalSentAt !== undefined) body.proposal_sent_at = fields.proposalSentAt;
-    if (fields.proposalMessage !== undefined) body.proposal_message = fields.proposalMessage;
-    if (fields.responseReceived !== undefined) body.response_received = fields.responseReceived;
-    if (fields.responseAt !== undefined) body.response_at = fields.responseAt;
-    if (fields.responseType !== undefined) body.response_type = fields.responseType;
-    if (fields.email !== undefined) body.email = fields.email;
-    if (fields.whatsappSent !== undefined) body.whatsapp_sent = fields.whatsappSent;
-    if (fields.whatsappSentAt !== undefined) body.whatsapp_sent_at = fields.whatsappSentAt;
-    const res = await fetch(`${LEADS}?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: sbHeaders({ prefer: 'return=representation' }), body: JSON.stringify(body) });
-    if (!res.ok) return null;
-    const rows = (await res.json().catch(() => [])) as any[];
-    return rows[0] ? rowToLead(rows[0]) : null;
-  }
   const d = leadsFileLoad();
   const l = d.leads.find((x) => x.id === id);
   if (!l) return null;
@@ -1091,10 +1030,6 @@ export async function updateLead(id: string, fields: Partial<Pick<Lead, 'status'
 }
 
 export async function deleteLead(id: string): Promise<boolean> {
-  if (useSupabase) {
-    const res = await fetch(`${LEADS}?id=eq.${encodeURIComponent(id)}`, { method: 'DELETE', headers: sbHeaders({ prefer: 'return=minimal' }) });
-    return res.ok;
-  }
   const d = leadsFileLoad();
   const before = d.leads.length;
   d.leads = d.leads.filter((l) => l.id !== id);
@@ -1102,15 +1037,7 @@ export async function deleteLead(id: string): Promise<boolean> {
   return d.leads.length < before;
 }
 
-export async function getLeadsDashboard(): Promise<{
-  total: number;
-  byStatus: Record<string, number>;
-  byCategory: Record<string, number>;
-  newToday: number;
-  proposalSent: number;
-  responded: number;
-  converted: number;
-}> {
+export async function getLeadsDashboard(): Promise<Record<string, unknown>> {
   const leads = await listLeads();
   const byStatus: Record<string, number> = {};
   const byCategory: Record<string, number> = {};
