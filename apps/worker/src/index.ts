@@ -692,6 +692,43 @@ app.get('/api/debug/qr-check', (_req, res): void => {
   });
 });
 
+// GET /api/debug/leads-store — inspeciona o armazenamento de leads no servidor
+app.get('/api/debug/leads-store', (_req, res): void => {
+  import('./store.js').then(async (store) => {
+    const info: Record<string, unknown> = {
+      cwd: process.cwd(),
+      WORKSPACE_ROOT: process.env.WORKSPACE_DIR || process.cwd(),
+    };
+    // Try to read the leads file directly
+    try {
+      const fs = await import('node:fs');
+      const path = await import('node:path');
+      const leadsFilePath = path.join(
+        process.env.WORKSPACE_DIR ? path.resolve(process.env.WORKSPACE_DIR) : path.resolve(process.cwd(), 'workspace'),
+        '.beehive-leads.json'
+      );
+      info.leadsFilePath = leadsFilePath;
+      info.leadsFileExists = fs.existsSync(leadsFilePath);
+      if (info.leadsFileExists) {
+        const content = fs.readFileSync(leadsFilePath, 'utf8');
+        info.leadsFileSize = content.length;
+        info.leadsFileContent = content.slice(0, 2000);
+      } else {
+        // Also check cwd
+        const altPath = path.join(process.cwd(), '.beehive-leads.json');
+        info.altPath = altPath;
+        info.altExists = fs.existsSync(altPath);
+        if (fs.existsSync(altPath)) {
+          info.altContent = fs.readFileSync(altPath, 'utf8').slice(0, 2000);
+        }
+      }
+    } catch (e) {
+      info.error = e instanceof Error ? e.message : String(e);
+    }
+    res.json(info);
+  }).catch(e => res.status(500).json({ error: String(e) }));
+});
+
 // GET /api/whatsapp/qr-image — serve o screenshot do QR Code (modo headless)
 app.get('/api/whatsapp/qr-image', (req, res): void => {
   const qrPath = whatsappGetQrImagePath();
