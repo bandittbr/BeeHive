@@ -119,8 +119,11 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     const chromiumPath = await getChromiumPath();
 
     // ── Import whatsapp-web.js ──
-    const wweb = await import('whatsapp-web.js');
-    const { Client, LocalAuth } = wweb;
+    // Dynamic import de CJS → ESM: pode vir como default ou direto
+    const wweb: any = await import('whatsapp-web.js');
+    const mod = wweb.default || wweb;
+    const Client: any = mod.Client;
+    const LocalAuth: any = mod.LocalAuth;
 
     // ── Build puppeteer options ──
     const puppeteerOpts: Record<string, unknown> = {
@@ -317,7 +320,8 @@ export async function whatsappSendImage(
     return { ok: false, message: 'WhatsApp não conectado' };
   }
   try {
-    const { MessageMedia } = await import('whatsapp-web.js');
+    const wweb2: any = await import('whatsapp-web.js');
+    const MessageMedia = (wweb2.default || wweb2).MessageMedia;
     const resolvedPath = path.isAbsolute(imagePath)
       ? imagePath
       : path.join(WORKSPACE_ROOT, imagePath);
