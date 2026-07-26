@@ -15,18 +15,12 @@ import path from 'node:path';
 import fs from 'node:fs';
 import QRCode from 'qrcode';
 import { WORKSPACE_ROOT } from '../workspace.js';
+import { debugLog, getDebugLogs } from '../debug-log.js';
 
-// ── Debug log ring buffer ───────────────────────────────────────
-const __debugLogs: string[] = [];
-const MAX_DEBUG_LOGS = 200;
-function dbg(msg: string): void {
-  const ts = new Date().toISOString().slice(11, 23);
-  const line = `[${ts}] ${msg}`;
-  console.log(line);
-  __debugLogs.push(line);
-  if (__debugLogs.length > MAX_DEBUG_LOGS) __debugLogs.splice(0, __debugLogs.length - MAX_DEBUG_LOGS);
-}
-export function getDebugLogs(): string[] { return [...__debugLogs]; }
+export { getDebugLogs };
+
+/** @deprecated Use debugLog() from debug-log.ts instead */
+function dbg(msg: string): void { debugLog(msg); }
 
 // ── Paths ───────────────────────────────────────────────────────
 const SESSION_DIR = path.join(WORKSPACE_ROOT, '.beehive-whatsapp-session');

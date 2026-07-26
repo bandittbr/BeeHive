@@ -37,8 +37,8 @@ import {
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
   whatsappGetStatus, whatsappDisconnect, whatsappGetQrImagePath,
-  getDebugLogs,
 } from './executors/whatsapp.js';
+import { debugLog, getDebugLogs } from './debug-log.js';
 import {
   listLeads, getLead, addLead, addLeadsBatch, updateLead, deleteLead, getLeadsDashboard,
   getLeadsAutomationConfig, updateLeadsAutomationConfig,
@@ -441,6 +441,7 @@ app.post('/api/leads/scrape', async (req, res) => {
   // Executa o scraper em background
   (async () => {
     try {
+      debugLog(`[leads] Iniciando scraping: "${search}" (total=${total})`);
       const rawLeads = await runScraper({ search, total, categories, headless: true });
       const batch = rawLeads.map((r) => ({
         name: r.name,
@@ -457,9 +458,15 @@ app.post('/api/leads/scrape', async (req, res) => {
         scrapedAt: Date.now(),
       }));
       const count = await addLeadsBatch(batch);
+      debugLog(`[leads] Scraping concluído: ${count} leads adicionados (query: "${search}")`);
       console.log(`[leads] Scraping concluído: ${count} leads adicionados (query: "${search}")`);
     } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      const stack = e instanceof Error ? e.stack : '';
+      debugLog(`[leads] ERRO no scraping: ${msg}`);
       console.error('[leads] Erro no scraping:', e);
+      // Also log the full error details
+      if (stack) debugLog(`[leads] Stack: ${stack.split('\n').slice(0, 4).join(' | ')}`);
     }
   })();
 });
