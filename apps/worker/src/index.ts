@@ -697,16 +697,20 @@ app.get('/api/debug/leads-store', (_req, res): void => {
   import('./store.js').then(async (store) => {
     const info: Record<string, unknown> = {
       cwd: process.cwd(),
-      WORKSPACE_ROOT: process.env.WORKSPACE_DIR || process.cwd(),
+      SUPABASE_URL: process.env.SUPABASE_URL ? '**set**' : '(not set)',
+      SUPABASE_SERVICE_KEY: process.env.SUPABASE_SERVICE_KEY ? '**set**' : '(not set)',
+      SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY ? '**set**' : '(not set)',
+      WORKSPACE_DIR: process.env.WORKSPACE_DIR || '(not set)',
     };
     // Try to read the leads file directly
     try {
       const fs = await import('node:fs');
       const path = await import('node:path');
-      const leadsFilePath = path.join(
-        process.env.WORKSPACE_DIR ? path.resolve(process.env.WORKSPACE_DIR) : path.resolve(process.cwd(), 'workspace'),
-        '.beehive-leads.json'
-      );
+      const workspaceRoot = process.env.WORKSPACE_DIR
+        ? path.resolve(process.env.WORKSPACE_DIR)
+        : path.resolve(process.cwd(), 'workspace');
+      info.workspaceRoot = workspaceRoot;
+      const leadsFilePath = path.join(workspaceRoot, '.beehive-leads.json');
       info.leadsFilePath = leadsFilePath;
       info.leadsFileExists = fs.existsSync(leadsFilePath);
       if (info.leadsFileExists) {
@@ -722,6 +726,10 @@ app.get('/api/debug/leads-store', (_req, res): void => {
           info.altContent = fs.readFileSync(altPath, 'utf8').slice(0, 2000);
         }
       }
+      // List all .beehive files in workspace
+      try {
+        info.workspaceFiles = fs.readdirSync(workspaceRoot).filter((f: string) => f.startsWith('.beehive'));
+      } catch {}
     } catch (e) {
       info.error = e instanceof Error ? e.message : String(e);
     }
