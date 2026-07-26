@@ -98,16 +98,25 @@ async function getChromiumPath(): Promise<string | null> {
 
 // ── Connect ─────────────────────────────────────────────────────
 export async function whatsappConnect(options?: { headless?: boolean; timeout?: number }): Promise<ConnectResult> {
-  const status = loadStatus();
-  if (status.connected && _clientReady) {
+  // Se já conectado, retorna imediatamente
+  if (_clientReady && _whatsAppClient) {
     return { ok: true, message: 'Já conectado ao WhatsApp Web' };
   }
 
-  if (_connecting) {
-    return { ok: true, message: 'Já aguardando scan do QR Code', waitingQr: true, qrPath: '.beehive-qr-cache.png' };
+  // Se há sessão salva mas client não foi inicializado ainda, inicializa
+  const hasSession = fs.existsSync(AUTH_DIR) && fs.readdirSync(AUTH_DIR).length > 0;
+  if (hasSession && !_whatsAppClient && !_connecting) {
+    dbg('[whatsapp] Sessão salva encontrada, tentando reconectar...');
   }
 
-  const timeout = options?.timeout ?? 120000;
+  if (_connecting) {
+    // Já tem QR disponível? Retorna imediatamente
+    if (_qrBuffer) {
+      return { ok: true, message: 'Aguardando scan do QR Code', waitingQr: true, qrPath: '.beehive-qr-cache.png' };
+    }
+    return { ok: true, message: 'Conectando...', waitingQr: true, qrPath: '.beehive-qr-cache.png' };
+  }
+
   const isHeadless = options?.headless !== false;
 
   _connecting = true;
@@ -127,13 +136,16 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
 
     // ── Build puppeteer options ──
     const puppeteerOpts: Record<string, unknown> = {
-      headless: isHeadless ? 'shell' : false,
+      headless: true,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
         '--disable-software-rasterizer',
+        '--no-first-run',
+        '--no-zygote',
+        '--single-process',
       ],
     };
     if (chromiumPath) {
@@ -144,7 +156,7 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
       puppeteer: puppeteerOpts,
-      qrMaxRetries: 3,
+      qrMaxRetries: 5,
       takeoverOnConflict: true,
       takeoverTimeoutMs: 0,
       bypassCSP: true,
@@ -154,13 +166,10 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
 
     // ── Event handlers ──
     client.on('qr', async (qrRaw: string) => {
-      dbg('[whatsapp] QR Code recebido do evento (raw len=' + qrRaw.length + ')');
+      dbg('[whatsapp] QR Code recebido (len=' + qrRaw.length + ')');
       try {
-        // qrRaw é a string crua do QR (ex: "1@abc123,...") — geramos o PNG
         const pngBuf: Buffer = await QRCode.toBuffer(qrRaw, {
-          type: 'png',
-          width: 400,
-          margin: 2,
+          type: 'png', width: 400, margin: 2,
           color: { dark: '#000000', light: '#ffffff' },
         });
         _qrBuffer = pngBuf;
@@ -187,25 +196,21 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       let phone = '';
       try {
         const info = (client as any).info;
-        if (info && info.wid && info.wid.user) {
-          phone = info.wid.user;
-        }
+        if (info?.wid?.user) phone = info.wid.user;
       } catch { /* opcional */ }
-      dbg('[whatsapp] Cliente pronto! Telefone: ' + (phone || 'desconhecido'));
+      dbg('[whatsapp] Pronto! Telefone: ' + (phone || 'desconhecido'));
       saveStatus({ connected: true, connectedAt: Date.now(), phone, waitingQr: false, error: undefined });
     });
 
     client.on('disconnected', (reason: string) => {
       dbg('[whatsapp] Desconectado: ' + reason);
       _clientReady = false;
-      if (_whatsAppClient === client) {
-        _whatsAppClient = null;
-      }
+      if (_whatsAppClient === client) _whatsAppClient = null;
       saveStatus({ connected: false, error: 'Desconectado: ' + reason, waitingQr: false });
     });
 
     // ── Initialize client ──
-    dbg('[whatsapp] Inicializando client whatsapp-web.js (headless=' + isHeadless + ')');
+    dbg('[whatsapp] Inicializando client (headless=' + isHeadless + ')');
     client.initialize().catch((err: unknown) => {
       const msg = err instanceof Error ? err.message : String(err);
       dbg('[whatsapp] ERROR initialize: ' + msg);
@@ -213,16 +218,37 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       _connecting = false;
     });
 
-    // ── Wait for QR or ready ──
-    // We wait up to 10 seconds for the QR event, then return
-    const qrPromise = new Promise<void>((resolve) => {
-      const onQr = () => { client.removeListener('qr', onQr); resolve(); };
+    // ── Wait for the first QR ──
+    // Aguarda até que o QR apareça (até 60s pra dar tempo do Chromium carregar)
+    const qrPromise = new Promise<void>((resolve, reject) => {
+      const cleanup: (() => void)[] = [];
+      const onQr = () => { cleanup.forEach(fn => fn()); resolve(); };
+      const onError = (msg: string) => { cleanup.forEach(fn => fn()); reject(new Error(msg)); };
+      const onReady = () => { cleanup.forEach(fn => fn()); resolve(); };
+
       client.on('qr', onQr);
-      // Also resolve on error/ready/authenticated
-      client.on('authenticated', () => resolve());
-      client.on('ready', () => resolve());
-      client.on('auth_failure', () => resolve());
-      setTimeout(resolve, 10000); // timeout 10s
+      cleanup.push(() => client.removeListener('qr', onQr));
+
+      client.on('authenticated', onReady);
+      cleanup.push(() => client.removeListener('authenticated', onReady));
+
+      client.on('ready', onReady);
+      cleanup.push(() => client.removeListener('ready', onReady));
+
+      client.on('auth_failure', (m: string) => onError(m));
+      cleanup.push(() => client.removeListener('auth_failure', onError));
+
+      // Timeout de 60s
+      const timer = setTimeout(() => {
+        cleanup.forEach(fn => fn());
+        // Se o QR já foi recebido alguma vez, não rejeita — deixa continuar
+        if (!_qrBuffer) {
+          reject(new Error('Timeout aguardando QR Code (60s)'));
+        } else {
+          resolve(); // QR já apareceu, pode prosseguir
+        }
+      }, 60000);
+      cleanup.push(() => clearTimeout(timer));
     });
     await qrPromise;
 
