@@ -309,12 +309,13 @@ export async function scrapeGoogleMaps(
         debugLog(`[maps-scraper] Item #${i}: "${cardName}"`);
 
         // 2. Click to open detail panel
+        // Use noWaitAfter to avoid hanging on SPA navigation
         try {
-          await link.click();
-          await sleep(2500);
+          await link.click({ timeout: 5000, noWaitAfter: true });
+          await sleep(3000);
         } catch (clickErr) {
           debugLog(`[maps-scraper] Erro ao clicar no item #${i}: ${clickErr}`);
-          // Still add with card-level data
+          // Extract card-level data as fallback
           places.push({
             name: cardName,
             address: cardAddress,
