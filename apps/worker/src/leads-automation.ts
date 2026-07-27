@@ -13,7 +13,9 @@
  */
 
 import path from 'node:path';
+import fs from 'node:fs';
 import {
+
   listLeads, updateLead, getLeadsAutomationConfig,
   addLeadsAutomationLog, updateLeadsAutomationLog,
   type Lead, type LeadStatus,
@@ -82,8 +84,16 @@ export async function leadsAutomationTick(): Promise<void> {
         const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
         console.log(`[leads-auto] Gerando preview PNG: ${lead.name}`);
         const pngPath = await generateSampleSite(lead.id, lead.name, segment);
+        // Construct accessible URL for the generated preview
+        const isPng = pngPath.endsWith('.png');
+        const publicUrl = (process.env.WORKER_PUBLIC_URL ?? 'https://beehive-production-d895.up.railway.app').replace(/\/+$/, '');
+        const relPath = isPng
+          ? `sites/leads/${encodeURIComponent(lead.id)}/preview.png`
+          : `sites/leads/${encodeURIComponent(lead.id)}/index.html`;
+        const sampleUrl = `${publicUrl}/files/${relPath}`;
         await updateLead(lead.id, {
           sampleGenerated: true,
+          sampleUrl,
           status: 'sample_generated',
         });
         totalAdvanced++;
@@ -140,15 +150,14 @@ export async function leadsAutomationTick(): Promise<void> {
               console.log(`[leads-auto] WhatsApp enviado para ${lead.name}`);
 
               // Se tiver preview PNG, envia também
-              if (lead.sampleUrl) {
-                const pngPath = path.join(WORKSPACE_ROOT, lead.sampleUrl.replace('/files/', ''));
-                if (pngPath.endsWith('.png')) {
-                  try {
-                    await whatsappSendImage(lead.phone, pngPath, `Preview do site para ${lead.name}`);
-                  } catch (imgErr) {
-                    console.error(`[leads-auto] Erro ao enviar imagem para ${lead.name}:`, imgErr);
-                  }
+              const previewPngPath = path.join(WORKSPACE_ROOT, 'sites', 'leads', lead.id, 'preview.png');
+              try {
+                if (fs.existsSync(previewPngPath)) {
+                  await whatsappSendImage(lead.phone, previewPngPath, `Preview do site para ${lead.name}`);
+                  console.log(`[leads-auto] Imagem enviada para ${lead.name}`);
                 }
+              } catch (imgErr) {
+                console.error(`[leads-auto] Erro ao enviar imagem para ${lead.name}:`, imgErr);
               }
             } else {
               errors.push(`[whatsapp] ${lead.name}: ${result.message}`);

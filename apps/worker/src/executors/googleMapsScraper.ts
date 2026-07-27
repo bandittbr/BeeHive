@@ -1,8 +1,9 @@
 /**
  * Google Maps Scraper (Node.js + Playwright)
  * ===========================================
- * Searches Google Maps and extracts place data.
- * Uses multiple fallback selectors to handle Google's frequent UI changes.
+ * Two-pass scraper:
+ * 1. Extract card data (name, address, rating) — fast, no navigation
+ * 2. Navigate to each place detail page to extract phone, website, full address
  */
 
 import { chromium, Browser } from 'playwright';
@@ -35,39 +36,6 @@ interface ScrapeStats {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
-}
-
-const CARD_SELECTORS = {
-  name: [
-    '.fontHeadlineSmall',
-    '[class*="headline"]',
-    '.qBF1Pd',
-    'div[role="heading"]',
-  ],
-  address: [
-    '.fontBodyMedium > span',
-    '[class*="body-medium"]',
-    '.hfpxzc + div span',
-    '[class*="address"]',
-  ],
-  rating: [
-    '.fontBodyMedium > span[role="img"]',
-    '[role="img"][aria-label*="estrela"]',
-    '[role="img"][aria-label*="star"]',
-    'span:has([aria-label*="estrela"])',
-    'span:has([aria-label*="star"])',
-  ],
-};
-
-async function unusedExtractTextFromEl(el: any, selectors: string[], timeoutMs = 2000): Promise<string> {
-  for (const sel of selectors) {
-    try {
-      const sub = el.locator(sel).first();
-      const text = (await sub.textContent({ timeout: timeoutMs }))?.trim() ?? '';
-      if (text) return text;
-    } catch { /* try next */ }
-  }
-  return '';
 }
 
 async function parseRating(text: string): Promise<{ rating: number | null; count: number | null }> {
@@ -120,18 +88,18 @@ export async function scrapeGoogleMaps(
 
     const page = await context.newPage();
 
-    // Navigate directly to search URL (avoids the search box issue)
+    // ── Pass 1: Navigate to search results and extract card data ───────────
     const searchUrl = `https://www.google.com/maps/search/${encodeURIComponent(search)}/`;
-    debugLog(`[maps-scraper] Navigando para: ${searchUrl}`);
+    debugLog(`[maps-scraper] Passo 1: ${searchUrl}`);
     await page.goto(searchUrl, {
       timeout: 60_000,
       waitUntil: 'domcontentloaded',
     });
-    await sleep(6000); // Let Maps JS settle
+    await sleep(6000);
 
     if (Date.now() > deadline) throw new Error('Timeout: page load');
 
-    // Accept cookies if present
+    // Accept cookies
     try {
       const cookieBtn = page.locator(
         'button:has-text("Aceitar"), button:has-text("Accept all"), button:has-text("Rejeitar"), [jsname="b3VHJd"]'
@@ -139,152 +107,78 @@ export async function scrapeGoogleMaps(
       if (await cookieBtn.isVisible({ timeout: 4000 })) {
         await cookieBtn.click();
         await sleep(1500);
-        debugLog('[maps-scraper] Cookie popup aceito');
+        debugLog('[maps-scraper] Cookie aceito');
       }
-    } catch {
-      debugLog('[maps-scraper] Sem popup de cookies');
-    }
+    } catch { /* no cookie popup */ }
 
-    if (Date.now() > deadline) throw new Error('Timeout: cookies');
-
-    // Wait for results panel to appear
+    // Wait for results panel
     debugLog('[maps-scraper] Aguardando resultados...');
-    const resultPanelSelectors = [
-      'div[role="feed"]',
-      'div[aria-label*="Resultados"]',
-      'div[aria-label*="Results"]',
-      '.m6QErb',
-      'div.section-listbox',
-      '[class*="results"]',
+    const panelSelectors = [
+      'div[role="feed"]', 'div[aria-label*="Resultados"]',
+      'div[aria-label*="Results"]', '.m6QErb',
     ];
-
     let panelFound = false;
-    for (const sel of resultPanelSelectors) {
+    for (const sel of panelSelectors) {
       try {
         await page.locator(sel).first().waitFor({ state: 'visible', timeout: 8000 });
-        debugLog(`[maps-scraper] Painel de resultados encontrado: ${sel}`);
+        debugLog(`[maps-scraper] Painel: ${sel}`);
         panelFound = true;
         break;
-      } catch {
-        continue;
-      }
+      } catch { /* next */ }
     }
-
-    if (!panelFound) {
-      debugLog('[maps-scraper] Aviso: Nenhum seletor de painel encontrado. Tentando prosseguir...');
-      // Take a screenshot for debugging
-      try {
-        await page.screenshot({ path: '/tmp/maps-debug.png', type: 'png' }).catch(() => {});
-      } catch {}
-    }
-
+    if (!panelFound) debugLog('[maps-scraper] Painel não encontrado');
     await sleep(2000);
-
     if (Date.now() > deadline) throw new Error('Timeout: results');
 
-    // ── Extract result items ──────────────────────────────────────────────
-    // Try multiple selectors for result items
-    const itemSelectors = [
-      'a[href*="maps/place"]',
-      'div.Nv2PK',
-      'div[jsaction*="mouseover"] > a',
-      '[role="feed"] > div > a',
-      'div.section-result',
-      'a[href*="/maps/place"]',
-    ];
+    // Find result links
+    const allLinks = page.locator('a[href*="maps/place"]');
+    const totalLinks = await allLinks.count();
+    debugLog(`[maps-scraper] ${totalLinks} resultados encontrados`);
+    stats.found = totalLinks;
 
-    let resultLinks: any = null;
-    let linkCount = 0;
-
-    for (const sel of itemSelectors) {
-      const items = page.locator(sel);
-      const count = await items.count();
-      debugLog(`[maps-scraper] Seletor "${sel}": ${count} itens`);
-      if (count > 0) {
-        resultLinks = items;
-        linkCount = count;
-        break;
-      }
-    }
-
-    if (!resultLinks || linkCount === 0) {
-      debugLog('[maps-scraper] Nenhum resultado encontrado com seletores conhecidos');
-      // Last resort: try to find any clickable elements in the sidebar
-      const allLinks = page.locator('a');
-      const allCount = await allLinks.count();
-      debugLog(`[maps-scraper] Total de links na página: ${allCount}`);
-      // Try the first few
-      for (let i = 0; i < Math.min(allCount, 20); i++) {
-        const href = await allLinks.nth(i).getAttribute('href').catch(() => '');
-        if (href && href.includes('/maps/place')) {
-          debugLog(`[maps-scraper] Link Google Maps encontrado: ${href?.slice(0, 80)}`);
-        }
-      }
+    if (totalLinks === 0) {
+      debugLog('[maps-scraper] Nenhum resultado');
       return { places, stats };
     }
 
-    stats.found = linkCount;
+    // Store hrefs for pass 2
+    const hrefs: string[] = [];
 
-    // ── Extract data from result cards (no navigation — faster & more reliable) ──
-    // Google Maps changes CSS classes frequently; use innerText + line parsing
-    const links = page.locator('a[href*="maps/place"]');
-    const totalLinks = await links.count();
-    debugLog(`[maps-scraper] Extraindo dados de ${totalLinks} cards...`);
-
+    // Extract card data and collect hrefs
     for (let i = 0; i < Math.min(totalLinks, total); i++) {
-      if (Date.now() > deadline) {
-        debugLog('[maps-scraper] Timeout atingido, parando extração');
-        break;
-      }
+      if (Date.now() > deadline) break;
 
       try {
-        const link = links.nth(i);
-
-        // Get ALL visible text from the card as lines
+        const link = allLinks.nth(i);
         const allText = await link.innerText({ timeout: 3000 });
         const lines = allText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+        if (lines.length === 0) continue;
 
-        if (lines.length === 0) {
-          debugLog(`[maps-scraper] Card #${i}: vazio, pulando`);
-          continue;
-        }
-
-        // First non-empty line is usually the name
         const cardName = lines[0];
+        if (places.some((p) => p.name === cardName)) continue;
 
-        // Dedup
-        if (places.some((p) => p.name === cardName)) {
-          debugLog(`[maps-scraper] Card #${i}: duplicado "${cardName}", pulando`);
-          continue;
-        }
+        // Collect href for detail navigation
+        const href = await link.getAttribute('href').catch(() => '');
+        if (href) hrefs.push(href);
 
-        // Parse rating and reviews from any line
+        // Parse card data
         let rating: number | null = null;
         let reviewsCount: number | null = null;
         let cardAddress = '';
         let cardType = '';
 
-        for (const line of lines) {
-          // Check for rating pattern like "4,5 ★" or "4.5 (200)" or "4,5 estrelas"
+        for (const line of lines.slice(1)) {
           if (line.match(/[\d,.]+\s*[★☆★]/) || line.match(/^\d[.,]\d/) || line.includes('estrela')) {
             const { rating: r, count: c } = await parseRating(line);
             if (r !== null) rating = r;
             if (c !== null) reviewsCount = c;
-          }
-          // Check for address patterns (usually longer text with numbers)
-          else if (line.match(/^\d/) || line.match(/[A-Za-z]+\s+\d+/)) {
+          } else if (line.match(/^\d/) || line.match(/[A-Za-z]+\s+\d+/)) {
             if (!cardAddress || line.length > cardAddress.length) cardAddress = line;
-          }
-          // Check for place type
-          else if (line.includes('•')) {
+          } else if (line.includes('•')) {
             cardType = line;
           }
         }
-
-        // If no address found by pattern, use the last line (often address)
-        if (!cardAddress && lines.length > 2) {
-          cardAddress = lines[lines.length - 1];
-        }
+        if (!cardAddress && lines.length > 2) cardAddress = lines[lines.length - 1];
 
         places.push({
           name: cardName,
@@ -299,14 +193,128 @@ export async function scrapeGoogleMaps(
           category: cardType || '',
         });
         stats.extracted++;
-        debugLog(`[maps-scraper] Extraído #${i}: "${cardName}"${cardAddress ? ` - ${cardAddress}` : ''}`);
+        debugLog(`[maps-scraper] Card #${i}: "${cardName}"`);
       } catch (err) {
         stats.errors++;
-        debugLog(`[maps-scraper] Erro extraindo card #${i}: ${err instanceof Error ? err.message : String(err)}`);
+        debugLog(`[maps-scraper] Erro card #${i}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
-    debugLog(`[maps-scraper] Finalizado: ${stats.extracted} extraídos de ${stats.found} encontrados, ${stats.errors} erros`);
+    // ── Pass 2: Navigate to each place detail page for phone/website ─────
+    if (hrefs.length > 0) {
+      debugLog(`[maps-scraper] Passo 2: extraindo telefone/site de ${Math.min(hrefs.length, places.length)} lugares...`);
+
+      for (let i = 0; i < Math.min(hrefs.length, places.length); i++) {
+        if (Date.now() > deadline) {
+          debugLog('[maps-scraper] Timeout no passo 2');
+          break;
+        }
+
+        try {
+          const href = hrefs[i];
+          if (!href) continue;
+
+          // Navigate to place detail page
+          const placeUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+          await Promise.race([
+            page.goto(placeUrl, { timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => {}),
+            sleep(15000),
+          ]);
+          await sleep(2000);
+
+          // Skip if it's a collection page or redirected
+          if (page.url().includes('/maps/search/') || !page.url().includes('/maps/place/')) {
+            debugLog(`[maps-scraper] Lugar #${i}: redirecionado, pulando detalhes`);
+            continue;
+          }
+
+          // Extract phone
+          let phone = '';
+          const phoneSelectors = [
+            'button[data-item-id*="phone:tel:"]',
+            '[data-item-id*="phone"]',
+            'a[data-item-id*="phone"]',
+            'button:has([data-item-id*="phone"])',
+          ];
+          for (const sel of phoneSelectors) {
+            try {
+              const el = page.locator(sel).first();
+              const text = await el.textContent({ timeout: 2000 });
+              if (text?.trim()) { phone = text.trim(); break; }
+            } catch { /* next */ }
+          }
+          // Try alternate: look for clickable phone
+          if (!phone) {
+            try {
+              phone = await page.locator('[class*="phone"]').first().textContent({ timeout: 1000 }).catch(() => '') || '';
+            } catch { }
+          }
+
+          // Extract website
+          let website = '';
+          const websiteSelectors = [
+            'a[data-item-id="authority"]',
+            '[data-item-id="authority"] a',
+            'a:has([data-item-id="authority"])',
+            'a[class*="website"]',
+          ];
+          for (const sel of websiteSelectors) {
+            try {
+              const el = page.locator(sel).first();
+              const href = await el.getAttribute('href', { timeout: 2000 }).catch(() => '');
+              if (href) { website = href; break; }
+            } catch { /* next */ }
+          }
+
+          // Extract full address from detail panel
+          let detailAddress = '';
+          const addrSelectors = [
+            'button[data-item-id="address"]',
+            '[data-item-id="address"]',
+            'button:has([data-item-id="address"])',
+          ];
+          for (const sel of addrSelectors) {
+            try {
+              const el = page.locator(sel).first();
+              const text = await el.textContent({ timeout: 2000 });
+              if (text?.trim()) { detailAddress = text.trim(); break; }
+            } catch { /* next */ }
+          }
+
+          // Update place with extracted details
+          if (phone || website || detailAddress) {
+            if (places[i]) {
+              places[i].phone_number = phone || places[i].phone_number;
+              places[i].website = website || places[i].website;
+              places[i].address = detailAddress || places[i].address;
+            }
+            debugLog(`[maps-scraper] Detalhe #${i}: tel=${phone || 'n/a'} site=${website ? website.slice(0, 40) : 'n/a'}`);
+          } else {
+            debugLog(`[maps-scraper] Detalhe #${i}: sem dados extra`);
+          }
+
+          // Navigate back to search results
+          await Promise.race([
+            page.goto(searchUrl, { timeout: 15000, waitUntil: 'domcontentloaded' }).catch(() => {}),
+            sleep(15000),
+          ]);
+          await sleep(2000);
+
+        } catch (err) {
+          stats.errors++;
+          debugLog(`[maps-scraper] Erro detalhe #${i}: ${err instanceof Error ? err.message : String(err)}`);
+          // Try to get back to search results
+          try {
+            await Promise.race([
+              page.goto(searchUrl, { timeout: 10000 }).catch(() => {}),
+              sleep(10000),
+            ]);
+          } catch {}
+        }
+      }
+    }
+
+    debugLog(`[maps-scraper] Finalizado: ${stats.extracted} extraídos, ${stats.errors} erros`);
     return { places, stats };
   } finally {
     if (browser) {
