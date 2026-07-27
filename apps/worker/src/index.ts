@@ -39,7 +39,8 @@ import {
   type VirtualModel,
 } from './store.js';
 import {
-  runScraper, identifySegment, generateProposalMessage, generateSampleSite,
+  runScraper, identifySegment, identifyServices, validateLead,
+  generateProposalMessage, generateSampleSite,
 } from './executors/leads.js';
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
@@ -124,11 +125,16 @@ app.get('/health', (_req, res) => {
 });
 
 app.get('/files/:name(*)', (req, res) => {
-  const q = typeof req.query.t === 'string' ? req.query.t : '';
-  const ok = !AUTH_TOKEN || req.header('authorization') === `Bearer ${AUTH_TOKEN}` || q === AUTH_TOKEN;
-  if (!ok) return res.status(401).json({ error: 'unauthorized' });
+  const pathName = (req.params as Record<string, string>).name;
+  // Permite previews de leads sem auth (sao imagens publicas geradas)
+  const isLeadPreview = pathName.startsWith('sites/leads/');
+  if (!isLeadPreview) {
+    const q = typeof req.query.t === 'string' ? req.query.t : '';
+    const ok = !AUTH_TOKEN || req.header('authorization') === `Bearer ${AUTH_TOKEN}` || q === AUTH_TOKEN;
+    if (!ok) return res.status(401).json({ error: 'unauthorized' });
+  }
   try {
-    const abs = resolveInWorkspace((req.params as Record<string, string>).name);
+    const abs = resolveInWorkspace(pathName);
     if (!fs.existsSync(abs)) return res.status(404).json({ error: 'not found' });
     res.sendFile(abs);
   } catch { res.status(400).json({ error: 'bad path' }); }
@@ -654,6 +660,106 @@ app.post('/api/leads/automation/tick', async (req, res): Promise<void> => {
   // auth bypassed for leads routes
   void leadsAutomationTick();
   res.json({ ok: true, message: 'Tick iniciado em background' });
+});
+
+// POST /api/leads/test-automation — teste completo: 1 scrap + 1 lead processado + WhatsApp
+app.post('/api/leads/test-automation', async (req, res): Promise<void> => {
+  // auth bypassed for leads routes
+  try {
+    const searchTerm = String(req.body?.search ?? '').trim() || 'pizzaria em Sao Paulo SP';
+    const total = Math.max(1, Math.min(50, Number(req.body?.total) || 5));
+
+    // 1. Scrape 1-5 leads
+    const rawLeads = await runScraper({ search: searchTerm, total, headless: true });
+    if (rawLeads.length === 0) {
+      res.json({ ok: false, message: 'Nenhum lead encontrado no scrape' });
+      return;
+    }
+
+    const results: Record<string, unknown>[] = [];
+
+    // 2. Processa APENAS o primeiro lead completamente
+    const raw = rawLeads[0];
+    const lead = await addLead({
+      name: raw.name, address: raw.address, phone: raw.phone_number,
+      website: raw.website, category: raw.category || raw.place_type,
+      placeType: raw.place_type, introduction: raw.introduction,
+      source: 'test_automation', status: 'new',
+    });
+
+    // Segmento
+    const segment = await identifySegment(lead.name, lead.category || '', lead.introduction || '');
+    await updateLead(lead.id, { segment, status: 'segment_identified' });
+
+    // Servicos
+    const services = await identifyServices(lead.name, segment);
+    await updateLead(lead.id, { notes: services });
+
+    // Validacao
+    const validation = await validateLead(lead);
+    if (!validation.valid) {
+      await updateLead(lead.id, { status: 'closed', notes: `Invalido: ${validation.reason}` });
+      results.push({ lead: { id: lead.id, name: lead.name, phone: lead.phone }, validation, reason: validation.reason });
+      res.json({ ok: true, message: `Lead invalido: ${validation.reason}`, results });
+      return;
+    }
+
+    // Previews (site + redes sociais)
+    const result = await generateSampleSite(lead.id, lead.name, segment);
+    const publicUrl = (process.env.WORKER_PUBLIC_URL ?? 'https://beehive-production-d895.up.railway.app').replace(/\/+$/, '');
+    const mainRelPath = result.mainPng.endsWith('.png')
+      ? `sites/leads/${encodeURIComponent(lead.id)}/preview.png`
+      : `sites/leads/${encodeURIComponent(lead.id)}/index.html`;
+    const sampleUrl = `${publicUrl}/files/${mainRelPath}`;
+    const socialUrls: string[] = result.socialPngs.map((_, i) =>
+      `${publicUrl}/files/sites/leads/${encodeURIComponent(lead.id)}/social/post-${i + 1}.png`,
+    );
+    await updateLead(lead.id, {
+      sampleGenerated: true, sampleUrl, projectType: result.projectType,
+      socialMediaUrls: socialUrls, status: 'sample_generated',
+    });
+
+    // Proposta
+    const message = await generateProposalMessage(lead.name, segment, result.projectType);
+    await updateLead(lead.id, {
+      proposalSent: true, proposalSentAt: Date.now(), proposalMessage: message,
+      status: 'proposal_sent',
+    });
+
+    // WhatsApp
+    let whatsappResult: Record<string, unknown> = { sent: false, reason: 'WhatsApp desconectado ou sem config' };
+    const waStatus = await whatsappGetStatus();
+    if (waStatus.connected && lead.phone) {
+      const waMsg = await whatsappSendMessage(lead.phone, message);
+      if (waMsg.ok) {
+        await updateLead(lead.id, { whatsappSent: true, whatsappSentAt: Date.now() });
+        whatsappResult = { sent: true, messageId: waMsg.messageId };
+
+        // Tenta enviar imagens (nao critico se falhar)
+        if (result.mainPng) {
+          try { await whatsappSendImage(lead.phone, result.mainPng, `Projeto Digital para ${lead.name}`); } catch {}
+        }
+        for (const sp of result.socialPngs) {
+          try { await whatsappSendImage(lead.phone, sp, `Post — ${lead.name}`); } catch {}
+        }
+      } else {
+        whatsappResult = { sent: false, reason: waMsg.message };
+      }
+    }
+
+    results.push({
+      lead: { id: lead.id, name: lead.name, phone: lead.phone, segment },
+      validation,
+      sampleUrl,
+      socialUrls,
+      proposalMessage: message,
+      whatsapp: whatsappResult,
+    });
+
+    res.json({ ok: true, message: `Teste concluido: 1 lead processado`, results });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro interno' });
+  }
 });
 
 // GET /api/leads/automation/logs

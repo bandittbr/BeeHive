@@ -91,6 +91,16 @@ export interface LeadsAutomationConfig {
   autoProcess: boolean;
   autoCloseDays: number;
   autoSendWhatsApp: boolean;
+  autoScrape: boolean;
+  autoScrapeIndex: number;
+  autoScrapeLastTerm?: string;
+  dailyMode: boolean;
+  dailyStartHour: number;
+  dailyEndHour: number;
+  dailyTarget: number;
+  dailyDate?: string;
+  dailyProcessed: number;
+  dailyThemeIndex: number;
   updatedAt: number;
 }
 
@@ -120,6 +130,15 @@ export async function triggerLeadsAutomationTick(): Promise<{ ok: boolean; messa
   return api<{ ok: boolean; message: string }>('/api/leads/automation/tick', {
     method: 'POST',
   });
+}
+
+export async function testAutomation(search?: string, total?: number): Promise<{
+  ok: boolean; message: string; results?: Record<string, unknown>[];
+}> {
+  return api<{ ok: boolean; message: string; results?: Record<string, unknown>[] }>(
+    '/api/leads/test-automation',
+    { method: 'POST', body: JSON.stringify({ search, total }) },
+  );
 }
 
 export async function listLeadsAutomationLogs(limit = 20): Promise<LeadsAutomationLog[]> {

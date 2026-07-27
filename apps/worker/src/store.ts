@@ -1083,6 +1083,23 @@ export interface LeadsAutomationConfig {
   autoScrapeIndex: number;
   /** Último termo de busca usado */
   autoScrapeLastTerm?: string;
+
+  // ── Modo Diário (08:00-20:00, 1 lead completo por vez) ──
+  /** Ativar modo diário? Se true, substitui o modo contínuo */
+  dailyMode: boolean;
+  /** Hora de início (0-23). Default: 8 */
+  dailyStartHour: number;
+  /** Hora de fim (0-23). Default: 20 */
+  dailyEndHour: number;
+  /** Leads por dia. Default: 50 */
+  dailyTarget: number;
+  /** Data da última execução diária (YYYY-MM-DD) */
+  dailyDate?: string;
+  /** Quantos leads processados hoje */
+  dailyProcessed: number;
+  /** Índice do tema escolhido para hoje */
+  dailyThemeIndex: number;
+
   updatedAt: number;
 }
 
@@ -1108,7 +1125,7 @@ function autoConfigLoad(): LeadsAutomationConfig {
   try {
     return JSON.parse(fs.readFileSync(AUTO_CONFIG_FILE, 'utf8'));
   } catch {
-    return { enabled: true, intervalMs: 5 * 60 * 1000, autoProcess: true, autoCloseDays: 7, autoSendWhatsApp: true, autoScrape: true, autoScrapeIndex: 0, updatedAt: Date.now() };
+    return { enabled: true, intervalMs: 5 * 60 * 1000, autoProcess: true, autoCloseDays: 7, autoSendWhatsApp: true, autoScrape: true, autoScrapeIndex: 0, dailyMode: false, dailyStartHour: 8, dailyEndHour: 20, dailyTarget: 50, dailyProcessed: 0, dailyThemeIndex: 0, updatedAt: Date.now() };
   }
 }
 function autoConfigSave(c: LeadsAutomationConfig): void {

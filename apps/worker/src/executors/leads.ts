@@ -196,6 +196,50 @@ Responda APENAS com a mensagem, sem aspas, sem markdown.`;
 }
 
 /**
+ * Identifica os serviços/produtos que o lead oferece com base no nome e segmento.
+ */
+export async function identifyServices(
+  leadName: string,
+  segment: string,
+): Promise<string> {
+  const prompt = `Com base no nome "${leadName}" (segmento: ${segment}),
+liste de 3 a 5 servicos ou produtos que esta empresa brasileira provavelmente oferece.
+
+Responda APENAS com uma lista curta, separada por virgulas. Exemplo:
+"Corte de cabelo, Barba, Hidratacao, Sobrancelha, Tratamentos capilares"
+
+Sem emojis, sem aspas, sem markdown.`;
+
+  try {
+    const result = await executeCapability('ai.complete', {
+      messages: [{ role: 'user', content: prompt }],
+      model: process.env.AI_MODEL ?? 'big-pickle',
+    }) as { outputs?: { content?: string } };
+    const content = result?.outputs?.content ?? '';
+    return content.replace(/[""]/g, '').trim() || `${segment} — servicos personalizados`;
+  } catch {
+    return `${segment} — servicos personalizados`;
+  }
+}
+
+/**
+ * Valida um lead: verifica se tem telefone brasileiro valido (+55 com 10-13 digitos).
+ */
+export async function validateLead(lead: { name: string; phone?: string | null }): Promise<{ valid: boolean; reason?: string }> {
+  if (!lead.phone) {
+    return { valid: false, reason: 'Sem telefone cadastrado' };
+  }
+  const cleaned = lead.phone.replace(/\D/g, '');
+  if (!cleaned.startsWith('55')) {
+    return { valid: false, reason: `Telefone nao e brasileiro: ${lead.phone}` };
+  }
+  if (cleaned.length < 12 || cleaned.length > 13) {
+    return { valid: false, reason: `Telefone com formato invalido: ${lead.phone}` };
+  }
+  return { valid: true };
+}
+
+/**
  * Converte um arquivo HTML em uma imagem PNG usando Playwright.
  */
 async function htmlToPng(

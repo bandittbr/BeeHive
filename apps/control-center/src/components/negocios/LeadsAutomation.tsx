@@ -12,6 +12,7 @@ import {
   getLeadsAutomationConfig,
   updateLeadsAutomationConfig,
   triggerLeadsAutomationTick,
+  testAutomation,
   listLeadsAutomationLogs,
   getWhatsAppStatus,
   connectWhatsApp,
@@ -51,6 +52,8 @@ export function LeadsAutomation() {
   const [waMsg, setWaMsg] = useState('');
   const [waitingQr, setWaitingQr] = useState(false);
   const [qrRefreshKey, setQrRefreshKey] = useState(0);
+  const [testingAuto, setTestingAuto] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
   const qrPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const qrImgRefreshRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -175,6 +178,29 @@ export function LeadsAutomation() {
     await disconnectWhatsApp();
     setWaStatus({ connected: false });
     setWaMsg('WhatsApp desconectado');
+  };
+
+  const handleTestAutomation = async () => {
+    setTestingAuto(true);
+    setTestResult(null);
+    try {
+      const result = await testAutomation();
+      if (result.ok && result.results && result.results.length > 0) {
+        const r = result.results[0];
+        const leadInfo = r.lead as Record<string, unknown> || {};
+        setTestResult(
+          `Lead: ${leadInfo.name || 'N/A'} | Segmento: ${leadInfo.segment || 'N/A'} | ` +
+          `WhatsApp: ${r.whatsapp && (r.whatsapp as Record<string, unknown>).sent ? 'Enviado' : (r.whatsapp as Record<string, unknown>)?.reason || 'Falha'}`
+        );
+      } else {
+        setTestResult(result.message || 'Nenhum resultado');
+      }
+    } catch (e) {
+      setTestResult(`Erro: ${e instanceof Error ? e.message : 'Erro desconhecido'}`);
+    }
+    setTestingAuto(false);
+    // Recarrega dados apos teste
+    setTimeout(() => load(), 2000);
   };
 
   if (loading) {
@@ -374,6 +400,75 @@ export function LeadsAutomation() {
         </div>
       </div>
 
+      {/* Modo Diário */}
+      <div className="leads-panel" style={{ marginBottom: '16px' }}>
+        <div className="leads-panel-header">
+          <Clock size={16} />
+          <h3>Modo Diário (08:00–20:00)</h3>
+          <label className="leads-toggle-label" style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>{config.dailyMode ? 'Ativo' : 'Inativo'}</span>
+            <input
+              type="checkbox"
+              checked={config.dailyMode}
+              onChange={(e) => saveConfig({ dailyMode: e.target.checked })}
+              style={{ width: 18, height: 18, cursor: 'pointer' }}
+            />
+          </label>
+        </div>
+        <div className="leads-panel-body">
+          {config.dailyMode ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                    Início
+                  </label>
+                  <input
+                    type="number" min={0} max={23}
+                    value={config.dailyStartHour}
+                    onChange={(e) => saveConfig({ dailyStartHour: Math.max(0, Math.min(23, Number(e.target.value))) })}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color, #333)', background: 'var(--bg-secondary, #1a1a2e)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                    Fim
+                  </label>
+                  <input
+                    type="number" min={0} max={23}
+                    value={config.dailyEndHour}
+                    onChange={(e) => saveConfig({ dailyEndHour: Math.max(0, Math.min(23, Number(e.target.value))) })}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color, #333)', background: 'var(--bg-secondary, #1a1a2e)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+                <div style={{ flex: 1, minWidth: 140 }}>
+                  <label style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+                    Meta diária
+                  </label>
+                  <input
+                    type="number" min={1} max={200}
+                    value={config.dailyTarget}
+                    onChange={(e) => saveConfig({ dailyTarget: Math.max(1, Math.min(200, Number(e.target.value))) })}
+                    style={{ width: '100%', padding: '6px 10px', borderRadius: 6, border: '1px solid var(--border-color, #333)', background: 'var(--bg-secondary, #1a1a2e)', color: '#fff', fontSize: 13 }}
+                  />
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 24, fontSize: 13, color: 'var(--text-secondary)' }}>
+                <span>Progresso: <strong style={{ color: '#22c55e' }}>{config.dailyProcessed || 0}/{config.dailyTarget}</strong></span>
+                {config.dailyDate && (
+                  <span>Data: <strong>{config.dailyDate}</strong></span>
+                )}
+                <span>Tema: <strong style={{ color: '#f59e0b' }}>#{config.dailyThemeIndex}</strong></span>
+              </div>
+            </div>
+          ) : (
+            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.6 }}>
+              Modo contínuo (legado). Ative o modo diário para processamento automático das 08:00 às 20:00 com 1 lead completo por vez.
+            </p>
+          )}
+        </div>
+      </div>
+
       {/* Última execução */}
       {lastLog && (
         <div className="leads-panel" style={{ marginBottom: '16px' }}>
@@ -402,6 +497,20 @@ export function LeadsAutomation() {
         <button className="btn-primary" onClick={handleTick} disabled={ticking}>
           <Play size={14} /> {ticking ? 'Executando...' : 'Executar Tick Manual'}
         </button>
+        <button
+          className="btn-primary"
+          onClick={handleTestAutomation}
+          disabled={testingAuto}
+          style={{ background: '#8b5cf6', borderColor: '#8b5cf6' }}
+        >
+          {testingAuto ? <Loader2 size={14} className="spin" /> : <Play size={14} />}
+          {testingAuto ? 'Testando...' : 'Testar Automação'}
+        </button>
+        {testResult && (
+          <span style={{ fontSize: 12, color: testResult.includes('Erro') ? '#ef4444' : '#22c55e', maxWidth: 300, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {testResult}
+          </span>
+        )}
         {saved && <span className="leads-auto-saved">✓ Salvo</span>}
         <button className="btn-ghost" onClick={load}>
           <RefreshCw size={14} /> Atualizar
