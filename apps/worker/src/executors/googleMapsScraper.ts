@@ -59,7 +59,7 @@ const CARD_SELECTORS = {
   ],
 };
 
-async function extractTextFromEl(el: any, selectors: string[], timeoutMs = 2000): Promise<string> {
+async function unusedExtractTextFromEl(el: any, selectors: string[], timeoutMs = 2000): Promise<string> {
   for (const sel of selectors) {
     try {
       const sub = el.locator(sel).first();
@@ -226,7 +226,7 @@ export async function scrapeGoogleMaps(
     stats.found = linkCount;
 
     // ── Extract data from result cards (no navigation — faster & more reliable) ──
-    // Use the already-proven link selector
+    // Google Maps changes CSS classes frequently; use innerText + line parsing
     const links = page.locator('a[href*="maps/place"]');
     const totalLinks = await links.count();
     debugLog(`[maps-scraper] Extraindo dados de ${totalLinks} cards...`);
@@ -240,12 +240,17 @@ export async function scrapeGoogleMaps(
       try {
         const link = links.nth(i);
 
-        // Extract text from the card
-        const cardName = await extractTextFromEl(link, CARD_SELECTORS.name);
-        if (!cardName) {
-          debugLog(`[maps-scraper] Card #${i}: sem nome, pulando`);
+        // Get ALL visible text from the card as lines
+        const allText = await link.innerText({ timeout: 3000 });
+        const lines = allText.split('\n').map((l: string) => l.trim()).filter(Boolean);
+
+        if (lines.length === 0) {
+          debugLog(`[maps-scraper] Card #${i}: vazio, pulando`);
           continue;
         }
+
+        // First non-empty line is usually the name
+        const cardName = lines[0];
 
         // Dedup
         if (places.some((p) => p.name === cardName)) {
@@ -253,16 +258,33 @@ export async function scrapeGoogleMaps(
           continue;
         }
 
-        const cardAddress = await extractTextFromEl(link, CARD_SELECTORS.address);
-        const ratingText = await extractTextFromEl(link, CARD_SELECTORS.rating);
-        const { rating, count: reviewsCount } = await parseRating(ratingText);
+        // Parse rating and reviews from any line
+        let rating: number | null = null;
+        let reviewsCount: number | null = null;
+        let cardAddress = '';
+        let cardType = '';
 
-        // Extract optional category/type from card
-        const cardType = await extractTextFromEl(link, [
-          '.fontBodyMedium',
-          '[class*="body"] span',
-          '[class*="category"]',
-        ]);
+        for (const line of lines) {
+          // Check for rating pattern like "4,5 ★" or "4.5 (200)" or "4,5 estrelas"
+          if (line.match(/[\d,.]+\s*[★☆★]/) || line.match(/^\d[.,]\d/) || line.includes('estrela')) {
+            const { rating: r, count: c } = await parseRating(line);
+            if (r !== null) rating = r;
+            if (c !== null) reviewsCount = c;
+          }
+          // Check for address patterns (usually longer text with numbers)
+          else if (line.match(/^\d/) || line.match(/[A-Za-z]+\s+\d+/)) {
+            if (!cardAddress || line.length > cardAddress.length) cardAddress = line;
+          }
+          // Check for place type
+          else if (line.includes('•')) {
+            cardType = line;
+          }
+        }
+
+        // If no address found by pattern, use the last line (often address)
+        if (!cardAddress && lines.length > 2) {
+          cardAddress = lines[lines.length - 1];
+        }
 
         places.push({
           name: cardName,
