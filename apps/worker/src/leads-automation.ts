@@ -228,6 +228,23 @@ export async function leadsAutomationTick(): Promise<void> {
       return;
     }
 
+    // ── Auto-reconnect WhatsApp se houver sessão salva ──
+    if (config.autoSendWhatsApp) {
+      const waStatus = await whatsappGetStatus();
+      const authDir = path.join(WORKSPACE_ROOT, '.wwebjs_auth');
+      const hasSession = fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0;
+      if (!waStatus.connected && hasSession) {
+        console.log('[leads-auto] Sessão WhatsApp encontrada, reconectando automaticamente...');
+        try {
+          const { whatsappConnect } = await import('./executors/whatsapp.js');
+          await whatsappConnect({ headless: true, timeout: 90000 });
+          console.log('[leads-auto] Reconexão WhatsApp iniciada');
+        } catch (e) {
+          console.error('[leads-auto] Falha ao reconectar WhatsApp:', e);
+        }
+      }
+    }
+
     // ── MODO DIÁRIO ──────────────────────────────────────────────
     if (config.dailyMode) {
       const now = new Date();
@@ -386,6 +403,7 @@ export async function leadsAutomationTick(): Promise<void> {
                 }
               }
             } else {
+              totalErrors++;
               errors.push(`[whatsapp] ${lead.name}: ${waResult.message}`);
             }
           } catch (e) {

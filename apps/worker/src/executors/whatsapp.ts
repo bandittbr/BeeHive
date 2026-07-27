@@ -281,7 +281,22 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
 
 // ── Get status ──────────────────────────────────────────────────
 export function whatsappGetStatus(): WhatsAppStatus {
-  return loadStatus();
+  const fileStatus = loadStatus();
+  // O estado em memória é a fonte da verdade
+  if (_clientReady && _whatsAppClient) {
+    return { ...fileStatus, connected: true };
+  }
+  // Se o arquivo diz connected mas a memória não confirma, corrige
+  if (fileStatus.connected && (!_whatsAppClient || !_clientReady)) {
+    const corrected: WhatsAppStatus = {
+      connected: false,
+      error: 'Conexão perdida após reinício do servidor. Reconecte o WhatsApp.',
+      lastCheckAt: Date.now(),
+    };
+    saveStatus(corrected);
+    return corrected;
+  }
+  return fileStatus;
 }
 
 // ── Get QR image path ──────────────────────────────────────────
