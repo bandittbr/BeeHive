@@ -283,6 +283,8 @@ export async function scrapeGoogleMaps(
 
           // Clean phone number (remove icon chars, keep only digits/spaces/+-)
           phone = phone.replace(/[^\d\s\+\-\(\)]/g, '').trim();
+          // Clean address icon chars
+          if (detailAddress) detailAddress = detailAddress.replace(/[^\w\s,.\-À-ÿ0-9\/]/g, '').trim();
           // Clean website URL
           if (website) {
             website = website.replace(/^\/\//, 'https://'); // Fix protocol-relative URLs
