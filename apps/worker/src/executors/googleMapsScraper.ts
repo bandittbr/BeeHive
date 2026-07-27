@@ -37,47 +37,6 @@ function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-const DETAIL_SELECTORS = {
-  name: [
-    'h1.DUwDvf',
-    'h1.fontHeadlineLarge',
-    'h1[class*="headline"]',
-    'h1',
-    '[class*="header-title"] h1',
-  ],
-  address: [
-    'button[data-item-id="address"]',
-    'button[data-item-id*="address"]',
-    '[data-item-id="address"]',
-    'button:has([data-item-id="address"])',
-  ],
-  website: [
-    'a[data-item-id="authority"]',
-    '[data-item-id="authority"] a',
-    'a:has([data-item-id="authority"])',
-  ],
-  phone: [
-    'button[data-item-id*="phone:tel:"]',
-    '[data-item-id*="phone"]',
-    'button:has([data-item-id*="phone"])',
-  ],
-  type: [
-    '.LBgpqf button.DkEaL',
-    'button[jsaction*="category"]',
-    '[class*="category"] button',
-  ],
-  hours: [
-    'button[data-item-id*="oh"]',
-    '[data-item-id*="oh"]',
-    'button:has([data-item-id*="oh"])',
-  ],
-  intro: [
-    '.WeS02d.fontBodyMedium .PYvSYb',
-    '[class*="introduction"]',
-    '[class*="description"] p',
-  ],
-};
-
 const CARD_SELECTORS = {
   name: [
     '.fontHeadlineSmall',
@@ -99,18 +58,6 @@ const CARD_SELECTORS = {
     'span:has([aria-label*="star"])',
   ],
 };
-
-async function extractText(page: Page, selectors: string[], within?: string): Promise<string> {
-  for (const sel of selectors) {
-    try {
-      const fullSel = within ? `${within} ${sel}` : sel;
-      const el = page.locator(fullSel).first();
-      const text = (await el.textContent())?.trim() ?? '';
-      if (text) return text;
-    } catch { /* try next */ }
-  }
-  return '';
-}
 
 async function extractTextFromEl(el: any, selectors: string[]): Promise<string> {
   for (const sel of selectors) {
@@ -278,97 +225,82 @@ export async function scrapeGoogleMaps(
 
     stats.found = linkCount;
 
-    // ── Iterate through results ────────────────────────────────────────────
-    for (let i = 0; i < Math.min(linkCount, total); i++) {
+    // ── Extract data from result cards (no navigation — faster & more reliable) ──
+    const feedPanel = page.locator('div[role="feed"]');
+    for (let i = 0; i < total; i++) {
       if (Date.now() > deadline) {
         debugLog('[maps-scraper] Timeout atingido, parando extração');
         break;
       }
 
       try {
-        const link = resultLinks.nth(i);
+        // Get the i-th result card using various possible selectors
+        const cardSelectors = [
+          feedPanel.locator(`> div > a`).nth(i),
+          feedPanel.locator(`> div`).nth(i),
+          page.locator(`a[href*="maps/place"]`).nth(i),
+        ];
 
-        // 1. Extract card-level info first (as fallback)
-        const cardName = await extractTextFromEl(link, CARD_SELECTORS.name);
-        const cardAddress = await extractTextFromEl(link, CARD_SELECTORS.address);
-        const ratingText = await extractTextFromEl(link, CARD_SELECTORS.rating);
-        const { rating, count: reviewsCount } = await parseRating(ratingText);
-
-        // Skip if no name
-        if (!cardName) {
-          debugLog(`[maps-scraper] Item #${i}: sem nome, pulando`);
-          continue;
-        }
-
-        // Dedup by name
-        if (places.some((p) => p.name === cardName)) {
-          debugLog(`[maps-scraper] Item #${i}: duplicado "${cardName}", pulando`);
-          continue;
-        }
-
-        debugLog(`[maps-scraper] Item #${i}: "${cardName}"`);
-
-        // 2. Click to open detail panel
-        // Use noWaitAfter to avoid hanging on SPA navigation
-        try {
-          await link.click({ timeout: 5000, noWaitAfter: true });
-          await sleep(3000);
-        } catch (clickErr) {
-          debugLog(`[maps-scraper] Erro ao clicar no item #${i}: ${clickErr}`);
-          // Extract card-level data as fallback
-          places.push({
-            name: cardName,
-            address: cardAddress,
-            website: '',
-            phone_number: '',
-            reviews_count: reviewsCount,
-            reviews_average: rating,
-            place_type: '',
-            opens_at: '',
-            introduction: '',
-            category: '',
-          });
-          stats.extracted++;
-          continue;
-        }
-
-        // 3. Extract detail panel info
-        const detailName = await extractText(page, DETAIL_SELECTORS.name);
-        let fullAddress = '';
-        const addrEl = await extractText(page, DETAIL_SELECTORS.address);
-        if (addrEl) {
-          // Address may be inside nested spans
-          try {
-            const addrBtn = page.locator(DETAIL_SELECTORS.address[0]).first();
-            fullAddress = (await addrBtn.locator('.fontBodyMedium').textContent())?.trim() ?? addrEl;
-          } catch {
-            fullAddress = addrEl;
+        let card: any = null;
+        for (const cs of cardSelectors) {
+          if ((await cs.count()) > 0) {
+            card = cs;
+            break;
           }
         }
-        const website = await extractText(page, DETAIL_SELECTORS.website);
-        const phone = await extractText(page, DETAIL_SELECTORS.phone);
-        const placeType = await extractText(page, DETAIL_SELECTORS.type);
-        const hours = await extractText(page, DETAIL_SELECTORS.hours);
-        const intro = await extractText(page, DETAIL_SELECTORS.intro);
+        if (!card) {
+          debugLog(`[maps-scraper] Card #${i}: não encontrado`);
+          break;
+        }
+
+        // Extract text from the card
+        const cardName = await extractTextFromEl(card, CARD_SELECTORS.name);
+        if (!cardName) {
+          // No more results
+          if (i === 0) debugLog('[maps-scraper] Nenhum card com nome encontrado');
+          break;
+        }
+
+        // Dedup
+        if (places.some((p) => p.name === cardName)) continue;
+
+        const cardAddress = await extractTextFromEl(card, CARD_SELECTORS.address);
+        const ratingText = await extractTextFromEl(card, CARD_SELECTORS.rating);
+        const { rating, count: reviewsCount } = await parseRating(ratingText);
+
+        // Extract optional category/type from card
+        const cardType = await extractTextFromEl(card, [
+          '.fontBodyMedium',
+          '[class*="body"] span',
+          'span:not([class])',
+        ]);
 
         places.push({
-          name: detailName || cardName,
-          address: fullAddress || cardAddress,
-          website: website || '',
-          phone_number: phone || '',
+          name: cardName,
+          address: cardAddress || '',
+          website: '',
+          phone_number: '',
           reviews_count: reviewsCount,
           reviews_average: rating,
-          place_type: placeType || '',
-          opens_at: hours || '',
-          introduction: intro || '',
-          category: placeType || '',
+          place_type: cardType || '',
+          opens_at: '',
+          introduction: '',
+          category: cardType || '',
         });
         stats.extracted++;
+        debugLog(`[maps-scraper] Extraído #${i}: "${cardName}"`);
 
-        debugLog(`[maps-scraper] Extraído #${i}: "${detailName || cardName}"`);
+        // Scroll the feed panel to trigger lazy load
+        try {
+          await feedPanel.evaluate((el) => { el.scrollTop = el.scrollHeight; });
+          await sleep(800);
+        } catch {
+          await page.evaluate(() => window.scrollBy(0, 400));
+          await sleep(800);
+        }
       } catch (err) {
         stats.errors++;
-        debugLog(`[maps-scraper] Erro extraindo item #${i}: ${err instanceof Error ? err.message : String(err)}`);
+        debugLog(`[maps-scraper] Erro extraindo card #${i}: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
 
