@@ -116,6 +116,8 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
   _connecting = true;
   _qrBuffer = null;
   _clientReady = false;
+  // Limpa qualquer erro pendente do status
+  saveStatus({ connected: false, error: undefined, waitingQr: false });
 
   try {
     // ── Get Chromium executable ──
@@ -304,6 +306,10 @@ export async function whatsappDisconnect(): Promise<{ ok: boolean; message: stri
   try { if (fs.existsSync(SESSION_DIR)) fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch { /* ok */ }
   try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch { /* ok */ }
 
+  // Limpa o status COMPLETAMENTE (incluindo erros de sessões anteriores)
+  // O evento 'disconnected' do client antigo pode tentar salvar depois,
+  // mas limpamos o arquivo explicitamente
+  try { if (fs.existsSync(STATUS_FILE)) fs.unlinkSync(STATUS_FILE); } catch { /* ok */ }
   saveStatus({ connected: false });
   return { ok: true, message: 'WhatsApp desconectado' };
 }

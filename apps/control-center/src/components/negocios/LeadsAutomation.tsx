@@ -97,11 +97,11 @@ export function LeadsAutomation() {
           } catch { /* ignore */ }
         }, 3000);
       }
-      // Refresh QR image every 15s (QR codes expire ~60s)
+      // Refresh QR image every 8s (QR codes expiram rápido)
       if (!qrImgRefreshRef.current) {
         qrImgRefreshRef.current = setInterval(() => {
           setQrRefreshKey((k) => k + 1);
-        }, 15000);
+        }, 8000);
       }
     } else {
       if (qrPollRef.current) { clearInterval(qrPollRef.current); qrPollRef.current = null; }
@@ -151,10 +151,18 @@ export function LeadsAutomation() {
       setWaMsg(result.message);
       if ((result as any).waitingQr) {
         setWaitingQr(true);
+        // Força refresh do QR IMEDIATAMENTE (zera o cache)
+        setQrRefreshKey((k) => k + Date.now());
       }
-      // Recarrega status
-      const wa = await getWhatsAppStatus();
-      setWaStatus(wa);
+      // Aguarda 2s e recarrega status (tempo do servidor gerar QR)
+      setTimeout(async () => {
+        const wa = await getWhatsAppStatus();
+        setWaStatus(wa);
+        // Se ainda waitingQr, força mais um refresh do QR
+        if (wa && (wa as any).waitingQr) {
+          setQrRefreshKey((k) => k + 1);
+        }
+      }, 2000);
     } catch (e) {
       setWaMsg(e instanceof Error ? e.message : 'Erro ao conectar');
     }
@@ -163,6 +171,7 @@ export function LeadsAutomation() {
 
   const handleDisconnectWa = async () => {
     setWaitingQr(false);
+    setQrRefreshKey(0);
     await disconnectWhatsApp();
     setWaStatus({ connected: false });
     setWaMsg('WhatsApp desconectado');
@@ -282,17 +291,26 @@ export function LeadsAutomation() {
                   }}
                   onError={(e) => {
                     const el = e.target as HTMLImageElement;
-                    el.style.display = 'none';
                     const parent = el.parentElement;
-                    if (parent) {
-                      const placeholder = document.createElement('div');
-                      placeholder.style.cssText = 'width:256px;height:256px;border:2px dashed #444;border-radius:12px;display:flex;align-items:center;justify-content:center;margin:0 auto;font-size:12px;color:#888;';
-                      placeholder.textContent = 'QR Code não disponível. Reconecte.';
-                      if (!parent.querySelector('[data-qr-placeholder]')) {
-                        placeholder.setAttribute('data-qr-placeholder', '1');
-                        parent.appendChild(placeholder);
-                      }
-                    }
+                    if (!parent || parent.querySelector('[data-qr-placeholder]')) return;
+                    el.style.display = 'none';
+                    const container = document.createElement('div');
+                    container.setAttribute('data-qr-placeholder', '1');
+                    container.style.cssText = 'width:256px;height:256px;border:2px dashed #444;border-radius:12px;display:flex;flex-direction:column;align-items:center;justify-content:center;margin:0 auto;gap:8px;';
+                    const msg = document.createElement('span');
+                    msg.style.cssText = 'font-size:12px;color:#888;';
+                    msg.textContent = 'QR Code expirou';
+                    const btn = document.createElement('button');
+                    btn.textContent = '🔄 Gerar Novo QR';
+                    btn.style.cssText = 'background:#ef4444;color:#fff;border:none;border-radius:6px;padding:6px 14px;font-size:12px;cursor:pointer;';
+                    btn.onclick = () => {
+                      container.remove();
+                      el.style.display = '';
+                      setQrRefreshKey((k) => k + Date.now());
+                    };
+                    container.appendChild(msg);
+                    container.appendChild(btn);
+                    parent.appendChild(container);
                   }}
                 />
               </div>
