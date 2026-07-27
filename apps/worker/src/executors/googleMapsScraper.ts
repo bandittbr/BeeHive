@@ -59,11 +59,11 @@ const CARD_SELECTORS = {
   ],
 };
 
-async function extractTextFromEl(el: any, selectors: string[]): Promise<string> {
+async function extractTextFromEl(el: any, selectors: string[], timeoutMs = 2000): Promise<string> {
   for (const sel of selectors) {
     try {
       const sub = el.locator(sel).first();
-      const text = (await sub.textContent())?.trim() ?? '';
+      const text = (await sub.textContent({ timeout: timeoutMs }))?.trim() ?? '';
       if (text) return text;
     } catch { /* try next */ }
   }
