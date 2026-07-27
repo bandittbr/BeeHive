@@ -549,21 +549,37 @@ app.post('/api/leads/:id/generate-sample', async (req, res) => {
   const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
 
   try {
-    // Gera HTML + converte para PNG
-    const pngPath = await generateSampleSite(id, lead.name, segment);
+    // Gera HTML + converte para PNG + posts redes sociais
+    const result = await generateSampleSite(id, lead.name, segment);
 
     const token = AUTH_TOKEN ? `?t=${encodeURIComponent(AUTH_TOKEN)}` : '';
     const base = PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
 
-    // Se for PNG, retorna a URL do PNG; se falhou, retorna a URL do HTML como fallback
-    const isPng = pngPath.endsWith('.png');
-    const relPath = isPng
+    const mainRelPath = result.mainPng.endsWith('.png')
       ? `sites/leads/${encodeURIComponent(id)}/preview.png`
       : `sites/leads/${encodeURIComponent(id)}/index.html`;
-    const sampleUrl = `${base}/files/${relPath}${token}`;
+    const sampleUrl = `${base}/files/${mainRelPath}${token}`;
 
-    await updateLead(id, { sampleGenerated: true, sampleUrl, status: 'sample_generated' });
-    res.json({ sampleUrl, format: isPng ? 'png' : 'html' });
+    // URLs dos posts de redes sociais
+    const socialUrls: string[] = [];
+    for (let i = 0; i < result.socialPngs.length; i++) {
+      const rel = `sites/leads/${encodeURIComponent(id)}/social/post-${i + 1}.png`;
+      socialUrls.push(`${base}/files/${rel}${token}`);
+    }
+
+    await updateLead(id, {
+      sampleGenerated: true,
+      sampleUrl,
+      projectType: result.projectType,
+      socialMediaUrls: socialUrls,
+      status: 'sample_generated',
+    });
+    res.json({
+      sampleUrl,
+      socialUrls,
+      projectType: result.projectType,
+      format: result.mainPng.endsWith('.png') ? 'png' : 'html',
+    });
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'erro ao gerar amostra' });
   }
@@ -579,7 +595,7 @@ app.post('/api/leads/:id/send-proposal', async (req, res) => {
   const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
 
   try {
-    const message = await generateProposalMessage(lead.name, segment);
+    const message = await generateProposalMessage(lead.name, segment, lead.projectType);
     await updateLead(id, {
       proposalSent: true,
       proposalSentAt: Date.now(),

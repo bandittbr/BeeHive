@@ -108,7 +108,7 @@ export async function leadsAutomationTick(): Promise<void> {
         console.log(`[leads-auto] Fila vazia. Scrapeando tema #${themeIndex}: "${searchTerm}"`);
         try {
           totalProcessed++;
-          const rawLeads = await runScraper({ search: searchTerm, total: 20, headless: true });
+          const rawLeads = await runScraper({ search: searchTerm, total: 25, headless: true });
           for (const raw of rawLeads) {
             try {
               await addLead({
@@ -166,24 +166,36 @@ export async function leadsAutomationTick(): Promise<void> {
       }
     }
 
-    // Etapa 2: leads 'segment_identified' → gerar preview PNG
+    // Etapa 2: leads 'segment_identified' → gerar previews FODAS (site + redes sociais)
     const identifiedLeads = await listLeads('segment_identified');
     for (const lead of identifiedLeads) {
       try {
         totalProcessed++;
         const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
-        console.log(`[leads-auto] Gerando preview PNG: ${lead.name}`);
-        const pngPath = await generateSampleSite(lead.id, lead.name, segment);
-        // Construct accessible URL for the generated preview
-        const isPng = pngPath.endsWith('.png');
+        console.log(`[leads-auto] Gerando previews FODAS: ${lead.name}`);
+        const result = await generateSampleSite(lead.id, lead.name, segment);
+
+        // Armazena o tipo de projeto no lead
         const publicUrl = (process.env.WORKER_PUBLIC_URL ?? 'https://beehive-production-d895.up.railway.app').replace(/\/+$/, '');
-        const relPath = isPng
+
+        // URL do preview principal
+        const mainRelPath = result.mainPng.endsWith('.png')
           ? `sites/leads/${encodeURIComponent(lead.id)}/preview.png`
           : `sites/leads/${encodeURIComponent(lead.id)}/index.html`;
-        const sampleUrl = `${publicUrl}/files/${relPath}`;
+        const sampleUrl = `${publicUrl}/files/${mainRelPath}`;
+
+        // URLs dos posts de redes sociais
+        const socialUrls: string[] = [];
+        for (let i = 0; i < result.socialPngs.length; i++) {
+          const rel = `sites/leads/${encodeURIComponent(lead.id)}/social/post-${i + 1}.png`;
+          socialUrls.push(`${publicUrl}/files/${rel}`);
+        }
+
         await updateLead(lead.id, {
           sampleGenerated: true,
           sampleUrl,
+          projectType: result.projectType,
+          socialMediaUrls: socialUrls,
           status: 'sample_generated',
         });
         totalAdvanced++;
@@ -202,7 +214,7 @@ export async function leadsAutomationTick(): Promise<void> {
         totalProcessed++;
         const segment = lead.segment || lead.category || lead.placeType || 'Negócio';
         console.log(`[leads-auto] Gerando proposta: ${lead.name}`);
-        const message = await generateProposalMessage(lead.name, segment);
+        const message = await generateProposalMessage(lead.name, segment, lead.projectType);
         await updateLead(lead.id, {
           proposalSent: true,
           proposalSentAt: Date.now(),
@@ -239,15 +251,29 @@ export async function leadsAutomationTick(): Promise<void> {
               totalAdvanced++;
               console.log(`[leads-auto] WhatsApp enviado para ${lead.name}`);
 
-              // Se tiver preview PNG, envia também
+              // Envia preview PRINCIPAL do projeto
               const previewPngPath = path.join(WORKSPACE_ROOT, 'sites', 'leads', lead.id, 'preview.png');
               try {
                 if (fs.existsSync(previewPngPath)) {
-                  await whatsappSendImage(lead.phone, previewPngPath, `Preview do site para ${lead.name}`);
-                  console.log(`[leads-auto] Imagem enviada para ${lead.name}`);
+                  await whatsappSendImage(lead.phone, previewPngPath, `✦ Projeto Digital para ${lead.name}`);
+                  console.log(`[leads-auto] Preview do projeto enviado para ${lead.name}`);
                 }
               } catch (imgErr) {
-                console.error(`[leads-auto] Erro ao enviar imagem para ${lead.name}:`, imgErr);
+                console.error(`[leads-auto] Erro ao enviar preview para ${lead.name}:`, imgErr);
+              }
+
+              // Envia posts de REDES SOCIAIS (até 3)
+              for (let i = 0; i < 3; i++) {
+                const socialPngPath = path.join(WORKSPACE_ROOT, 'sites', 'leads', lead.id, 'social', `post-${i + 1}.png`);
+                try {
+                  if (fs.existsSync(socialPngPath)) {
+                    const label = ['📱 Post para Instagram', '🎯 Post para Facebook', '💡 Post de Engajamento'][i] || `Post #${i + 1}`;
+                    await whatsappSendImage(lead.phone, socialPngPath, `${label} — ${lead.name}`);
+                    console.log(`[leads-auto] Post #${i + 1} enviado para ${lead.name}`);
+                  }
+                } catch (imgErr) {
+                  console.error(`[leads-auto] Erro ao enviar post #${i + 1} para ${lead.name}:`, imgErr);
+                }
               }
             } else {
               errors.push(`[whatsapp] ${lead.name}: ${result.message}`);

@@ -906,6 +906,10 @@ export interface Lead {
   scrapeQuery?: string;
   introduction?: string;
   opensAt?: string;
+  /** Tipo de projeto/solução sugerido para o lead (ex: "site-cardapio") */
+  projectType?: string;
+  /** URLs dos previews de redes sociais gerados */
+  socialMediaUrls?: string[];
 }
 
 const LEADS = `${SUPABASE_URL}/rest/v1/beehive_leads`;
@@ -1019,7 +1023,7 @@ export async function addLeadsBatch(leads: Array<Omit<Lead, 'id' | 'createdAt' |
   return newLeads.length;
 }
 
-export async function updateLead(id: string, fields: Partial<Pick<Lead, 'status' | 'notes' | 'segment' | 'sampleGenerated' | 'sampleUrl' | 'proposalSent' | 'proposalSentAt' | 'proposalMessage' | 'responseReceived' | 'responseAt' | 'responseType' | 'email' | 'whatsappSent' | 'whatsappSentAt'>>): Promise<Lead | null> {
+export async function updateLead(id: string, fields: Partial<Pick<Lead, 'status' | 'notes' | 'segment' | 'sampleGenerated' | 'sampleUrl' | 'proposalSent' | 'proposalSentAt' | 'proposalMessage' | 'responseReceived' | 'responseAt' | 'responseType' | 'email' | 'whatsappSent' | 'whatsappSentAt' | 'projectType' | 'socialMediaUrls'>>): Promise<Lead | null> {
   const now = Date.now();
   const d = leadsFileLoad();
   const l = d.leads.find((x) => x.id === id);
