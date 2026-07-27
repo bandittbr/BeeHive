@@ -16,8 +16,8 @@ import path from 'node:path';
 import fs from 'node:fs';
 import {
 
-  listLeads, updateLead, getLeadsAutomationConfig,
-  addLeadsAutomationLog, updateLeadsAutomationLog,
+  listLeads, updateLead, addLead, getLeadsAutomationConfig,
+  updateLeadsAutomationConfig, addLeadsAutomationLog, updateLeadsAutomationLog,
   type Lead, type LeadStatus,
 } from './store.js';
 import {
@@ -27,6 +27,53 @@ import { whatsappSendMessage, whatsappSendImage, whatsappGetStatus } from './exe
 import { WORKSPACE_ROOT } from './workspace.js';
 
 let ticking = false;
+
+/**
+ * Temas de busca rotativos para o scrape automático.
+ * A cada ciclo, a automação escolhe o próximo da lista.
+ */
+const SEARCH_THEMES = [
+  'restaurante em São Paulo SP',
+  'salão de beleza em São Paulo SP',
+  'oficina mecânica em São Paulo SP',
+  'clínica odontológica em São Paulo SP',
+  'mercado em São Paulo SP',
+  'academia em São Paulo SP',
+  'pet shop em São Paulo SP',
+  'advocacia em São Paulo SP',
+  'padaria em São Paulo SP',
+  'consultório médico em São Paulo SP',
+  'barbearia em São Paulo SP',
+  'pizzaria em São Paulo SP',
+  'hotel em São Paulo SP',
+  'imobiliária em São Paulo SP',
+  'auto elétrica em São Paulo SP',
+  'clínica de estética em São Paulo SP',
+  'lanchonete em São Paulo SP',
+  'farmácia em São Paulo SP',
+  'escola em São Paulo SP',
+  'construtora em São Paulo SP',
+  'restaurante no Rio de Janeiro RJ',
+  'salão de beleza no Rio de Janeiro RJ',
+  'oficina mecânica no Rio de Janeiro RJ',
+  'clínica odontológica no Rio de Janeiro RJ',
+  'mercado no Rio de Janeiro RJ',
+  'academia no Rio de Janeiro RJ',
+  'pet shop no Rio de Janeiro RJ',
+  'advocacia no Rio de Janeiro RJ',
+  'padaria no Rio de Janeiro RJ',
+  'consultório médico no Rio de Janeiro RJ',
+  'barbearia no Rio de Janeiro RJ',
+  'pizzaria no Rio de Janeiro RJ',
+  'hotel no Rio de Janeiro RJ',
+  'imobiliária no Rio de Janeiro RJ',
+  'auto elétrica no Rio de Janeiro RJ',
+  'clínica de estética no Rio de Janeiro RJ',
+  'lanchonete no Rio de Janeiro RJ',
+  'farmácia no Rio de Janeiro RJ',
+  'escola no Rio de Janeiro RJ',
+  'construtora no Rio de Janeiro RJ',
+];
 
 /**
  * Tick principal da automação. Chamado pelo scheduler no index.ts.
@@ -48,6 +95,49 @@ export async function leadsAutomationTick(): Promise<void> {
     if (!config.enabled || !config.autoProcess) {
       await updateLeadsAutomationLog(logEntry.id, { status: 'done', finishedAt: Date.now(), details: 'Automação desabilitada' });
       return;
+    }
+
+    // Etapa 0: Scrape automático se a fila estiver vazia
+    if (config.autoScrape) {
+      const allLeads = await listLeads();
+      const pipelineStatuses: LeadStatus[] = ['new', 'segment_identified', 'sample_generated', 'proposal_sent'];
+      const inPipeline = allLeads.filter((l) => pipelineStatuses.includes(l.status));
+      if (inPipeline.length === 0) {
+        const themeIndex = config.autoScrapeIndex % SEARCH_THEMES.length;
+        const searchTerm = SEARCH_THEMES[themeIndex];
+        console.log(`[leads-auto] Fila vazia. Scrapeando tema #${themeIndex}: "${searchTerm}"`);
+        try {
+          totalProcessed++;
+          const rawLeads = await runScraper({ search: searchTerm, total: 20, headless: true });
+          for (const raw of rawLeads) {
+            try {
+              await addLead({
+                name: raw.name,
+                address: raw.address,
+                phone: raw.phone_number,
+                website: raw.website,
+                category: raw.category || raw.place_type,
+                placeType: raw.place_type,
+                introduction: raw.introduction,
+                source: 'auto_scrape',
+                status: 'new',
+              });
+              totalAdvanced++;
+            } catch (leadErr) {
+              totalErrors++;
+              console.error(`[leads-auto] Erro ao salvar lead "${raw.name}":`, leadErr);
+            }
+          }
+          // Avança o índice para o próximo tema
+          await updateLeadsAutomationConfig({ autoScrapeIndex: themeIndex + 1, autoScrapeLastTerm: searchTerm });
+          console.log(`[leads-auto] Scrape concluído: ${rawLeads.length} leads encontrados. Próximo tema: #${themeIndex + 1}`);
+        } catch (e) {
+          totalErrors++;
+          const msg = e instanceof Error ? e.message : String(e);
+          errors.push(`[scrape] ${msg}`);
+          console.error(`[leads-auto] Erro no scrape automático:`, msg);
+        }
+      }
     }
 
     let totalProcessed = 0;

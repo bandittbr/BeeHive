@@ -1073,6 +1073,12 @@ export interface LeadsAutomationConfig {
   autoCloseDays: number;
   /** Enviar WhatsApp automaticamente? (requer integração WABA) */
   autoSendWhatsApp: boolean;
+  /** Fazer scrape automático quando a fila estiver vazia? */
+  autoScrape: boolean;
+  /** Índice do próximo tema de busca a usar no rodízio */
+  autoScrapeIndex: number;
+  /** Último termo de busca usado */
+  autoScrapeLastTerm?: string;
   updatedAt: number;
 }
 
@@ -1098,7 +1104,7 @@ function autoConfigLoad(): LeadsAutomationConfig {
   try {
     return JSON.parse(fs.readFileSync(AUTO_CONFIG_FILE, 'utf8'));
   } catch {
-    return { enabled: true, intervalMs: 5 * 60 * 1000, autoProcess: true, autoCloseDays: 7, autoSendWhatsApp: false, updatedAt: Date.now() };
+    return { enabled: true, intervalMs: 5 * 60 * 1000, autoProcess: true, autoCloseDays: 7, autoSendWhatsApp: true, autoScrape: true, autoScrapeIndex: 0, updatedAt: Date.now() };
   }
 }
 function autoConfigSave(c: LeadsAutomationConfig): void {

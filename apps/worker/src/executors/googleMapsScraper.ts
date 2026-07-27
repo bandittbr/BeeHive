@@ -95,7 +95,7 @@ export async function scrapeGoogleMaps(
       timeout: 60_000,
       waitUntil: 'domcontentloaded',
     });
-    await sleep(6000);
+    await sleep(8000);
 
     if (Date.now() > deadline) throw new Error('Timeout: page load');
 
@@ -110,6 +110,15 @@ export async function scrapeGoogleMaps(
         debugLog('[maps-scraper] Cookie aceito');
       }
     } catch { /* no cookie popup */ }
+
+    // Scroll down para carregar mais resultados (Google Maps lazy loads)
+    try {
+      const feed = page.locator('div[role="feed"], .m6QErb').first();
+      if (await feed.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await feed.evaluate((el) => el.scrollTop = el.scrollHeight).catch(() => {});
+        await sleep(2000);
+      }
+    } catch { /* ignore */ }
 
     // Wait for results panel
     debugLog('[maps-scraper] Aguardando resultados...');
@@ -150,7 +159,8 @@ export async function scrapeGoogleMaps(
 
       try {
         const link = allLinks.nth(i);
-        const allText = await link.innerText({ timeout: 3000 });
+        // Aguarda até 15s para o card renderizar (Google Maps é lento)
+        const allText = await link.innerText({ timeout: 15000 });
         const lines = allText.split('\n').map((l: string) => l.trim()).filter(Boolean);
         if (lines.length === 0) continue;
 
