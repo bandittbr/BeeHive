@@ -1163,3 +1163,146 @@ export async function listClipHistory(pilotId?: string, limit = 30): Promise<Cli
   }
   return autoclipFileLoad().history.filter((h) => !pilotId || h.pilotId === pilotId).slice().sort((a, b) => b.processedAt - a.processedAt).slice(0, limit);
 }
+
+// ========== Modelos Virtuais ==========
+
+export interface VirtualModel {
+  id: string;
+  name: string;
+  /** Subpasta onde as fotos ficam: workspace/modelos/<id>/photos/ */
+  photoDir: string;
+  /** Contas conectadas para postagem */
+  accounts: { platform: string; accountId: string }[];
+  /** Posts por dia */
+  postsPerDay: number;
+  /** Horários opcionais (ex: "12:00, 18:00") */
+  times?: string;
+  /** Ativo? */
+  active: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface VirtualModelLog {
+  id: string;
+  modelId: string;
+  runAt: number;
+  finishedAt?: number;
+  photoFile?: string;
+  caption?: string;
+  status: 'pending' | 'done' | 'error';
+  error?: string;
+  /** Quais plataformas foram publicadas */
+  publishedTo?: string[];
+}
+
+interface ModelsFileData {
+  models: VirtualModel[];
+}
+
+interface ModelLogsFileData {
+  logs: VirtualModelLog[];
+}
+
+const MODELS_FILE = path.join(WORKSPACE_ROOT, '.beehive-modelos.json');
+const MODEL_LOGS_FILE = path.join(WORKSPACE_ROOT, '.beehive-modelos-logs.json');
+
+function modelsFileLoad(): ModelsFileData {
+  try {
+    const d = JSON.parse(fs.readFileSync(MODELS_FILE, 'utf8')) as ModelsFileData;
+    if (!Array.isArray(d.models)) d.models = [];
+    return d;
+  } catch { return { models: [] }; }
+}
+function modelsFileSave(d: ModelsFileData): void {
+  try { fs.mkdirSync(WORKSPACE_ROOT, { recursive: true }); fs.writeFileSync(MODELS_FILE, JSON.stringify(d, null, 2), 'utf8'); } catch { /* ignore */ }
+}
+
+function modelLogsLoad(): VirtualModelLog[] {
+  try {
+    const d = JSON.parse(fs.readFileSync(MODEL_LOGS_FILE, 'utf8'));
+    return Array.isArray(d) ? d : [];
+  } catch { return []; }
+}
+function modelLogsSave(logs: VirtualModelLog[]): void {
+  try { fs.writeFileSync(MODEL_LOGS_FILE, JSON.stringify(logs, null, 2), 'utf8'); } catch { /* ignore */ }
+}
+
+export async function listModels(): Promise<VirtualModel[]> {
+  return modelsFileLoad().models;
+}
+
+export async function getModel(id: string): Promise<VirtualModel | null> {
+  return modelsFileLoad().models.find((m) => m.id === id) ?? null;
+}
+
+export async function addModel(model: Omit<VirtualModel, 'id' | 'createdAt' | 'updatedAt'>): Promise<VirtualModel> {
+  const d = modelsFileLoad();
+  const m: VirtualModel = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, ...model, createdAt: Date.now(), updatedAt: Date.now() };
+  d.models.push(m);
+  // Create photo directory
+  const photoDir = path.join(WORKSPACE_ROOT, 'modelos', m.id, 'photos');
+  try { fs.mkdirSync(photoDir, { recursive: true }); } catch { /* ignore */ }
+  m.photoDir = photoDir;
+  modelsFileSave(d);
+  return m;
+}
+
+export async function updateModel(id: string, fields: Partial<Pick<VirtualModel, 'name' | 'postsPerDay' | 'times' | 'active' | 'accounts'>>): Promise<VirtualModel | null> {
+  const d = modelsFileLoad();
+  const m = d.models.find((x) => x.id === id);
+  if (!m) return null;
+  Object.assign(m, fields, { updatedAt: Date.now() });
+  modelsFileSave(d);
+  return m;
+}
+
+export async function deleteModel(id: string): Promise<boolean> {
+  const d = modelsFileLoad();
+  const before = d.models.length;
+  d.models = d.models.filter((m) => m.id !== id);
+  if (d.models.length < before) { modelsFileSave(d); return true; }
+  return false;
+}
+
+/** Lista arquivos de foto na pasta do modelo (não marca como usado — apenas scan) */
+export async function listModelPhotos(modelId: string): Promise<string[]> {
+  const m = await getModel(modelId);
+  if (!m) return [];
+  try {
+    const files = fs.readdirSync(m.photoDir).filter((f: string) =>
+      /\.(jpg|jpeg|png|webp|gif)$/i.test(f)
+    );
+    return files.sort();
+  } catch { return []; }
+}
+
+/** Retorna fotos que ainda não foram postadas */
+export async function listUnusedPhotos(modelId: string): Promise<string[]> {
+  const all = await listModelPhotos(modelId);
+  const logs = modelLogsLoad().filter((l) => l.modelId === modelId && l.status === 'done');
+  const usedFiles = new Set(logs.map((l) => l.photoFile).filter(Boolean));
+  return all.filter((f) => !usedFiles.has(f));
+}
+
+export async function addModelLog(entry: Omit<VirtualModelLog, 'id'>): Promise<VirtualModelLog> {
+  const log: VirtualModelLog = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, ...entry };
+  const logs = modelLogsLoad();
+  logs.unshift(log);
+  if (logs.length > 500) logs.length = 500;
+  modelLogsSave(logs);
+  return log;
+}
+
+export async function updateModelLog(id: string, fields: Partial<Pick<VirtualModelLog, 'status' | 'finishedAt' | 'error' | 'caption' | 'publishedTo'>>): Promise<void> {
+  const logs = modelLogsLoad();
+  const entry = logs.find((l) => l.id === id);
+  if (entry) { Object.assign(entry, fields); modelLogsSave(logs); }
+}
+
+export async function listModelLogs(modelId?: string, limit = 30): Promise<VirtualModelLog[]> {
+  let logs = modelLogsLoad();
+  if (modelId) logs = logs.filter((l) => l.modelId === modelId);
+  return logs.slice(0, limit);
+}
+

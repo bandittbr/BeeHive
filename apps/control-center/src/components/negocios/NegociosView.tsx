@@ -1,7 +1,7 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados / Leads).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState, useEffect } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users, ImageIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
@@ -16,6 +16,7 @@ import {
 } from '../../services/autoclip';
 import { ScheduleView } from './ScheduleView';
 import { LeadsView } from './LeadsView';
+import { ModelosVirtuais } from './ModelosVirtuais';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -54,7 +55,7 @@ const SOCIAL_PLATFORMS: { id: SocialAccount['platform']; label: string }[] = [
   { id: 'twitter', label: 'X / Twitter' },
 ];
 
-type NegociosSubArea = 'conteudo' | 'leads';
+type NegociosSubArea = 'conteudo' | 'leads' | 'modelos';
 
 export function NegociosView() {
   const [subArea, setSubArea] = useState<NegociosSubArea>('conteudo');
@@ -64,7 +65,7 @@ export function NegociosView() {
       <div className="page-header">
         <div>
           <h1>Negócios</h1>
-          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo, afiliados e prospecção de leads</p>
+          <p>Seus negócios digitais autônomos — cortes, criação de conteúdo, afiliados, prospecção de leads e modelos virtuais</p>
         </div>
       </div>
 
@@ -82,6 +83,12 @@ export function NegociosView() {
         >
           <Users size={16} /> Leads
         </button>
+        <button
+          className={`negocios-subnav-btn${subArea === 'modelos' ? ' active' : ''}`}
+          onClick={() => setSubArea('modelos')}
+        >
+          <ImageIcon size={16} /> Modelos Virtuais
+        </button>
       </div>
 
       {subArea === 'conteudo' && (
@@ -96,6 +103,10 @@ export function NegociosView() {
 
       {subArea === 'leads' && (
         <LeadsView />
+      )}
+
+      {subArea === 'modelos' && (
+        <ModelosVirtuais />
       )}
     </div>
   );

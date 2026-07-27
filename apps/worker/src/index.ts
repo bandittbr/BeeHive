@@ -31,6 +31,13 @@ import {
 } from './store.js';
 import { autoclipTick, runPilotNow } from './autoclip.js';
 import { leadsAutomationTick } from './leads-automation.js';
+import { modelosAutomationTick } from './modelos-automation.js';
+import {
+  listModels, getModel, addModel, updateModel, deleteModel,
+  listModelPhotos, listUnusedPhotos,
+  listModelLogs,
+  type VirtualModel,
+} from './store.js';
 import {
   runScraper, identifySegment, generateProposalMessage, generateSampleSite,
 } from './executors/leads.js';
@@ -981,6 +988,11 @@ setInterval(() => { leadsAutomationTick().catch((e) => console.error('[leads-aut
 // Tick inicial após 30s (dá tempo do servidor subir)
 setTimeout(() => { leadsAutomationTick().catch((e) => console.error('[leads-auto] tick inicial falhou:', e)); }, 30000);
 
+// --- Modelos Virtuais: postagem automática a cada 30min ---
+setInterval(() => { modelosAutomationTick().catch((e) => console.error('[modelos] tick falhou:', e)); }, 30 * 60 * 1000);
+// Tick inicial após 60s
+setTimeout(() => { modelosAutomationTick().catch((e) => console.error('[modelos] tick inicial falhou:', e)); }, 60000);
+
 // --- Auth (login por email/senha) ---
 app.post('/api/auth/signup', async (req, res) => {
   const email = String(req.body?.email ?? '').trim();
@@ -1217,6 +1229,111 @@ app.post('/api/plugins/:capability', async (req, res) => {
     res.json({ ok: true, capability: capId, result });
   } catch (e) {
     res.status(400).json({ error: String(e instanceof Error ? e.message : e) });
+  }
+});
+
+// ========== Modelos Virtuais ==========
+
+// GET /api/modelos — lista modelos
+app.get('/api/modelos', async (_req, res): Promise<void> => {
+  try {
+    const models = await listModels();
+    res.json({ models });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// GET /api/modelos/:id — detalhe do modelo
+app.get('/api/modelos/:id', async (req, res): Promise<void> => {
+  try {
+    const id = (req.params as Record<string, string>).id;
+    const model = await getModel(id);
+    if (!model) { res.status(404).json({ error: 'modelo não encontrado' }); return; }
+    res.json({ model });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/modelos — criar modelo
+app.post('/api/modelos', async (req, res): Promise<void> => {
+  try {
+    const { name, postsPerDay, times } = req.body || {};
+    if (!name) { res.status(400).json({ error: 'name é obrigatório' }); return; }
+    const model = await addModel({
+      name: String(name),
+      accounts: Array.isArray(req.body?.accounts) ? req.body.accounts.map((a: any) => ({ platform: String(a.platform), accountId: String(a.accountId) })) : [],
+      postsPerDay: Number(postsPerDay) || 1,
+      times: times ? String(times) : undefined,
+      active: req.body?.active !== false,
+      photoDir: '', // will be set by addModel
+    });
+    res.json({ model });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// PUT /api/modelos/:id — atualizar modelo
+app.put('/api/modelos/:id', async (req, res): Promise<void> => {
+  try {
+    const id = (req.params as Record<string, string>).id;
+    const fields: Partial<Pick<VirtualModel, 'name' | 'postsPerDay' | 'times' | 'active' | 'accounts'>> = {};
+    if (req.body?.name !== undefined) fields.name = String(req.body.name);
+    if (req.body?.postsPerDay !== undefined) fields.postsPerDay = Number(req.body.postsPerDay);
+    if (req.body?.times !== undefined) fields.times = String(req.body.times);
+    if (req.body?.active !== undefined) fields.active = req.body.active === true;
+    if (req.body?.accounts !== undefined) fields.accounts = req.body.accounts.map((a: any) => ({ platform: String(a.platform), accountId: String(a.accountId) }));
+    const model = await updateModel(id, fields);
+    if (!model) { res.status(404).json({ error: 'modelo não encontrado' }); return; }
+    res.json({ model });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// DELETE /api/modelos/:id — deletar modelo
+app.delete('/api/modelos/:id', async (req, res): Promise<void> => {
+  try {
+    const id = (req.params as Record<string, string>).id;
+    const ok = await deleteModel(id);
+    res.json({ ok });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// GET /api/modelos/:id/fotos — lista fotos do modelo
+app.get('/api/modelos/:id/fotos', async (req, res): Promise<void> => {
+  try {
+    const id = (req.params as Record<string, string>).id;
+    const all = await listModelPhotos(id);
+    const unused = await listUnusedPhotos(id);
+    res.json({ all, unused });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// GET /api/modelos/:id/logs — logs de postagens
+app.get('/api/modelos/:id/logs', async (req, res): Promise<void> => {
+  try {
+    const id = (req.params as Record<string, string>).id;
+    const logs = await listModelLogs(id, 30);
+    res.json({ logs });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
+  }
+});
+
+// POST /api/modelos/tick — executa tick manual
+app.post('/api/modelos/tick', async (_req, res): Promise<void> => {
+  try {
+    await modelosAutomationTick();
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
   }
 });
 
