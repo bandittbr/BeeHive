@@ -97,6 +97,11 @@ export async function leadsAutomationTick(): Promise<void> {
       return;
     }
 
+    let totalProcessed = 0;
+    let totalAdvanced = 0;
+    let totalErrors = 0;
+    const errors: string[] = [];
+
     // Etapa 0: Scrape automático se a fila estiver vazia
     if (config.autoScrape) {
       const allLeads = await listLeads();
@@ -139,11 +144,6 @@ export async function leadsAutomationTick(): Promise<void> {
         }
       }
     }
-
-    let totalProcessed = 0;
-    let totalAdvanced = 0;
-    let totalErrors = 0;
-    const errors: string[] = [];
 
     // Etapa 1: leads 'new' → identificar segmento
     const newLeads = await listLeads('new');
