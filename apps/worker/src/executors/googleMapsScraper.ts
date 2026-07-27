@@ -226,53 +226,42 @@ export async function scrapeGoogleMaps(
     stats.found = linkCount;
 
     // ── Extract data from result cards (no navigation — faster & more reliable) ──
-    const feedPanel = page.locator('div[role="feed"]');
-    for (let i = 0; i < total; i++) {
+    // Use the already-proven link selector
+    const links = page.locator('a[href*="maps/place"]');
+    const totalLinks = await links.count();
+    debugLog(`[maps-scraper] Extraindo dados de ${totalLinks} cards...`);
+
+    for (let i = 0; i < Math.min(totalLinks, total); i++) {
       if (Date.now() > deadline) {
         debugLog('[maps-scraper] Timeout atingido, parando extração');
         break;
       }
 
       try {
-        // Get the i-th result card using various possible selectors
-        const cardSelectors = [
-          feedPanel.locator(`> div > a`).nth(i),
-          feedPanel.locator(`> div`).nth(i),
-          page.locator(`a[href*="maps/place"]`).nth(i),
-        ];
-
-        let card: any = null;
-        for (const cs of cardSelectors) {
-          if ((await cs.count()) > 0) {
-            card = cs;
-            break;
-          }
-        }
-        if (!card) {
-          debugLog(`[maps-scraper] Card #${i}: não encontrado`);
-          break;
-        }
+        const link = links.nth(i);
 
         // Extract text from the card
-        const cardName = await extractTextFromEl(card, CARD_SELECTORS.name);
+        const cardName = await extractTextFromEl(link, CARD_SELECTORS.name);
         if (!cardName) {
-          // No more results
-          if (i === 0) debugLog('[maps-scraper] Nenhum card com nome encontrado');
-          break;
+          debugLog(`[maps-scraper] Card #${i}: sem nome, pulando`);
+          continue;
         }
 
         // Dedup
-        if (places.some((p) => p.name === cardName)) continue;
+        if (places.some((p) => p.name === cardName)) {
+          debugLog(`[maps-scraper] Card #${i}: duplicado "${cardName}", pulando`);
+          continue;
+        }
 
-        const cardAddress = await extractTextFromEl(card, CARD_SELECTORS.address);
-        const ratingText = await extractTextFromEl(card, CARD_SELECTORS.rating);
+        const cardAddress = await extractTextFromEl(link, CARD_SELECTORS.address);
+        const ratingText = await extractTextFromEl(link, CARD_SELECTORS.rating);
         const { rating, count: reviewsCount } = await parseRating(ratingText);
 
         // Extract optional category/type from card
-        const cardType = await extractTextFromEl(card, [
+        const cardType = await extractTextFromEl(link, [
           '.fontBodyMedium',
           '[class*="body"] span',
-          'span:not([class])',
+          '[class*="category"]',
         ]);
 
         places.push({
@@ -288,16 +277,7 @@ export async function scrapeGoogleMaps(
           category: cardType || '',
         });
         stats.extracted++;
-        debugLog(`[maps-scraper] Extraído #${i}: "${cardName}"`);
-
-        // Scroll the feed panel to trigger lazy load
-        try {
-          await feedPanel.evaluate((el) => { el.scrollTop = el.scrollHeight; });
-          await sleep(800);
-        } catch {
-          await page.evaluate(() => window.scrollBy(0, 400));
-          await sleep(800);
-        }
+        debugLog(`[maps-scraper] Extraído #${i}: "${cardName}"${cardAddress ? ` - ${cardAddress}` : ''}`);
       } catch (err) {
         stats.errors++;
         debugLog(`[maps-scraper] Erro extraindo card #${i}: ${err instanceof Error ? err.message : String(err)}`);
