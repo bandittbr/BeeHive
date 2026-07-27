@@ -299,9 +299,22 @@ export function LeadsAutomation() {
               <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12, textAlign: 'center' }}>
                 O QR Code atualiza automaticamente. Escaneie com seu celular.
               </p>
-              <div style={{ marginTop: 12, display: 'flex', gap: 8, justifyContent: 'center' }}>
-                <button className="btn-ghost btn-sm" onClick={handleDisconnectWa}>
-                  <StopCircle size={14} /> Cancelar
+              <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'center' }}>
+                <button
+                  onClick={handleDisconnectWa}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    background: 'rgba(239, 68, 68, 0.12)', color: '#ef4444',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    borderRadius: 8, padding: '8px 18px',
+                    fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.2)'; e.currentTarget.style.borderColor = '#ef4444'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239, 68, 68, 0.12)'; e.currentTarget.style.borderColor = 'rgba(239, 68, 68, 0.25)'; }}
+                >
+                  <StopCircle size={18} style={{ filter: 'drop-shadow(0 0 4px rgba(239,68,68,0.5))' }} />
+                  Cancelar
                 </button>
               </div>
             </div>

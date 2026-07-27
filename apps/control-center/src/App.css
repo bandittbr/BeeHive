@@ -1075,7 +1075,7 @@ html.light .logo-img-light { display: block; }
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
 .leads-stat-info { flex: 1; }
-.leads-stat-value { display: block; font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.leads-stat-value { display: block; font-size: 22px; font-weight: 700; color: var(--text); line-height: 1.1; overflow-wrap: break-word; word-break: break-word; max-width: 100%; }
 .leads-stat-label { display: block; font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
 .leads-dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
