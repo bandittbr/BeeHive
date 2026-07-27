@@ -306,11 +306,9 @@ export async function whatsappDisconnect(): Promise<{ ok: boolean; message: stri
   try { if (fs.existsSync(SESSION_DIR)) fs.rmSync(SESSION_DIR, { recursive: true, force: true }); } catch { /* ok */ }
   try { if (fs.existsSync(AUTH_DIR)) fs.rmSync(AUTH_DIR, { recursive: true, force: true }); } catch { /* ok */ }
 
-  // Limpa o status COMPLETAMENTE (incluindo erros de sessões anteriores)
-  // O evento 'disconnected' do client antigo pode tentar salvar depois,
-  // mas limpamos o arquivo explicitamente
-  try { if (fs.existsSync(STATUS_FILE)) fs.unlinkSync(STATUS_FILE); } catch { /* ok */ }
-  saveStatus({ connected: false });
+  // Limpa o status COMPLETAMENTE (incluindo qualquer erro de sessões anteriores)
+  // O saveStatus faz merge, então precisamos explicitamente zerar error/waitingQr
+  saveStatus({ connected: false, error: undefined, waitingQr: false });
   return { ok: true, message: 'WhatsApp desconectado' };
 }
 
