@@ -281,6 +281,14 @@ export async function scrapeGoogleMaps(
             } catch { /* next */ }
           }
 
+          // Clean phone number (remove icon chars, keep only digits/spaces/+-)
+          phone = phone.replace(/[^\d\s\+\-\(\)]/g, '').trim();
+          // Clean website URL
+          if (website) {
+            website = website.replace(/^\/\//, 'https://'); // Fix protocol-relative URLs
+            if (!website.startsWith('http')) website = '';
+          }
+
           // Update place with extracted details
           if (phone || website || detailAddress) {
             if (places[i]) {
