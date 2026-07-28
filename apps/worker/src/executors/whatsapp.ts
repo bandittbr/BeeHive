@@ -77,6 +77,42 @@ function saveQrBufferToFile(buffer: Buffer): void {
   }
 }
 
+// ── Clear Chromium profile locks ─────────────────────────────────
+/**
+ * Remove arquivos de lock do Chromium (SingletonLock, SingletonSocket, etc.)
+ * que podem travar o profile quando um novo container inicia enquanto
+ * o Chromium do container anterior ainda não liberou o profile.
+ * Isso é comum em deploys no Railway/Render.
+ */
+function clearChromiumLocks(): void {
+  const dirsToCheck = [AUTH_DIR];
+  // whatsapp-web.js LocalAuth armazena o profile em subdiretórios
+  // Varrer recursivamente o AUTH_DIR procurando arquivos de lock
+  const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
+  let cleared = 0;
+  while (dirsToCheck.length > 0) {
+    const dir = dirsToCheck.pop()!;
+    try {
+      if (!fs.existsSync(dir)) continue;
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const fullPath = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          dirsToCheck.push(fullPath);
+        } else if (entry.isFile() && lockFiles.includes(entry.name)) {
+          try {
+            fs.unlinkSync(fullPath);
+            debugLog(`[whatsapp] Lock removido: ${fullPath}`);
+            cleared++;
+          } catch { /* ok — se falhar, o Chromium que lute */ }
+        }
+      }
+    } catch { /* ignore unreadable dirs */ }
+  }
+  if (cleared > 0) {
+    debugLog(`[whatsapp] ${cleared} arquivo(s) de lock do Chromium removido(s)`);
+  }
+}
+
 // ── Get Chromium path from Playwright ───────────────────────────
 async function getChromiumPath(): Promise<string | null> {
   try {
@@ -118,6 +154,8 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
   _clientReady = false;
   // Limpa qualquer erro pendente do status
   saveStatus({ connected: false, error: undefined, waitingQr: false });
+  // Remove arquivos de lock do Chromium (profile travado por container anterior)
+  clearChromiumLocks();
 
   try {
     // ── Get Chromium executable ──

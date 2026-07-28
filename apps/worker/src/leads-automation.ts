@@ -86,7 +86,7 @@ async function startDailyBatch(config: LeadsAutomationConfig, today: string): Pr
           name: raw.name, address: raw.address, phone: raw.phone_number,
           website: raw.website, category: raw.category || raw.place_type,
           placeType: raw.place_type, introduction: raw.introduction,
-          source: 'daily_batch', status: 'new',
+          status: 'new',
         });
         saved++;
       } catch { /* ignore duplicados */ }
@@ -318,7 +318,7 @@ export async function leadsAutomationTick(): Promise<void> {
                 name: raw.name, address: raw.address, phone: raw.phone_number,
                 website: raw.website, category: raw.category || raw.place_type,
                 placeType: raw.place_type, introduction: raw.introduction,
-                source: 'auto_scrape', status: 'new',
+                status: 'new',
               });
               totalAdvanced++;
             } catch { totalErrors++; }
