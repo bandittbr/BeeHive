@@ -92,6 +92,8 @@ async function getStealthBrowser(): Promise<any> {
       '--disable-backgrounding-occluded-windows',
       '--disable-renderer-backgrounding',
       '--disable-ipc-flooding-protection',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-component-update',
     ];
 
     // Dynamic import de puppeteer-extra (CJS → ESM)
@@ -101,8 +103,12 @@ async function getStealthBrowser(): Promise<any> {
     const StealthPlugin = (stealthMod as any).default || stealthMod;
     puppeteerExtra.use(StealthPlugin());
 
+    // headless: 'shell' usa o MODO ANTIGO de headless (--headless em vez de
+    // --headless=new). O WhatsApp pode detectar o novo modo headless.
+    // userDataDir: aponta pro mesmo diretório que o LocalAuth do whatsapp-web.js
+    // espera (AUTH_DIR/session/), para que a sessão WhatsApp persista.
     const launchOpts: Record<string, unknown> = {
-      headless: true,
+      headless: 'shell' as string,
       defaultViewport: null,
       args,
       userDataDir: path.join(AUTH_DIR, 'session'),
