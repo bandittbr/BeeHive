@@ -216,6 +216,8 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
 
     client.on('authenticated', () => {
       dbg('[whatsapp] Autenticado!');
+      _qrBuffer = null; // QR já foi escaneado, não precisa mais
+      // NÃO seta _clientReady ainda — só o 'ready' faz isso
       saveStatus({ connected: true, connectedAt: Date.now(), waitingQr: false, error: undefined });
     });
 
@@ -283,7 +285,13 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     });
     await qrPromise;
 
+    // Se autenticou / ficou pronto (sessão válida ou scan concluído)
+    if (_clientReady || loadStatus().connected) {
+      return { ok: true, message: 'WhatsApp conectado' };
+    }
+
     // Se o QR chegou (mesmo que depois do timeout), salva waiting state
+    // Só retorna waiting se realmente ainda não autenticou (checked above)
     if (_qrBuffer) {
       saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
       return {
@@ -292,11 +300,6 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
         waitingQr: true,
         qrPath: '.beehive-qr-cache.png',
       };
-    }
-
-    // Se autenticou direto (sessão válida)
-    if (_clientReady || loadStatus().connected) {
-      return { ok: true, message: 'WhatsApp já conectado' };
     }
 
     // Timeout sem QR — mas o client ainda está rodando, pode chegar depois
@@ -333,10 +336,22 @@ export function whatsappGetStatus(): WhatsAppStatus {
   const fileStatus = loadStatus();
   // O estado em memória é a fonte da verdade
   if (_clientReady && _whatsAppClient) {
-    return { ...fileStatus, connected: true };
+    // Se o client está pronto, força connected=true e limpa erro se houver
+    if (fileStatus.error) {
+      saveStatus({ connected: true, error: undefined, waitingQr: false });
+    }
+    return { ...fileStatus, connected: true, error: undefined, waitingQr: false };
   }
-  // Se o arquivo diz connected mas a memória não confirma, corrige
-  if (fileStatus.connected && (!_whatsAppClient || !_clientReady)) {
+  // Há um client em andamento (autenticado ou aguardando QR) — NÃO corrige
+  if (_whatsAppClient) {
+    // O client existe mas ainda não está pronto — pode estar entre authenticated e ready
+    if (fileStatus.connected) {
+      return { ...fileStatus, connected: true };
+    }
+    return fileStatus;
+  }
+  // Não há client algum: se o arquivo diz connected, corrige
+  if (fileStatus.connected) {
     const corrected: WhatsAppStatus = {
       connected: false,
       error: 'Conexão perdida após reinício do servidor. Reconecte o WhatsApp.',
