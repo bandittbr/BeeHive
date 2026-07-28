@@ -229,8 +229,14 @@ function buildAss(cues: Cue[], ws: number, we: number, groupSize = 3): string {
 export async function runClip(req: JobRequest, onChunk: Chunk): Promise<{ result: unknown }> {
   const input = String(req.payload.input ?? 'source.mp4').trim();
   const vertical = req.payload.vertical !== false;
-  const segments = Array.isArray(req.payload.segments) ? (req.payload.segments as any[]) : [];
-  if (segments.length === 0) throw new Error('clip: payload.segments vazio');
+const segments = Array.isArray(req.payload.segments) ? (req.payload.segments as any[]) : [];
+   console.log('[runClip] input:', input);
+   console.log('[runClip] vertical:', vertical);
+   console.log('[runClip] segments:', segments);
+   if (segments.length === 0) {
+      console.error('[runClip] ERROR: payload.segments vazio');
+      throw new Error('clip: payload.segments vazio');
+   }
 
   const dir = resolveInWorkspace(req.cwd ?? '.');
   const abs = path.join(dir, input);
