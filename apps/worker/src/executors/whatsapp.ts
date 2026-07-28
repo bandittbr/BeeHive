@@ -51,89 +51,34 @@ let _clientReady = false;              // true after 'ready' event
 let _qrBuffer: Buffer | null = null;   // last QR code as PNG buffer
 let _connecting = false;               // guard against concurrent connections
 
-// ── Stealth browser (puppeteer-extra) ──
-// Lançamos UM browser com o stealth plugin e o whatsapp-web.js se conecta
-// via WebSocket (browserWSEndpoint). Isso evita detecção de automação,
-// que impedia o WebSocket do WhatsApp de conectar.
-let _stealthBrowser: any = null;       // puppeteer-extra browser instance
-let _stealthBrowserInitializing = false; // guard for concurrent init
-
-async function getStealthBrowser(): Promise<any> {
-  if (_stealthBrowser?.isConnected?.()) {
-    return _stealthBrowser;
-  }
-  if (_stealthBrowserInitializing) {
-    // Outra chamada já está iniciando — aguarda
-    for (let i = 0; i < 60; i++) {
-      await new Promise((r) => setTimeout(r, 1000));
-      if (_stealthBrowser?.isConnected?.()) return _stealthBrowser;
-    }
-    throw new Error('Timeout aguardando stealth browser');
-  }
-  _stealthBrowserInitializing = true;
-  try {
-    // Limpa locks do profile anterior
-    clearChromiumLocks();
-
-    const chromiumPath = await getChromiumPath();
-    const args = [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--disable-software-rasterizer',
-      '--no-first-run',
-      '--no-zygote',
-      '--single-process',
-      '--disable-extensions',
-      '--disable-sync',
-      '--window-size=800,600',
-      '--disable-background-timer-throttling',
-      '--disable-backgrounding-occluded-windows',
-      '--disable-renderer-backgrounding',
-      '--disable-ipc-flooding-protection',
-      '--disable-blink-features=AutomationControlled',
-      '--disable-component-update',
-    ];
-
-    // Dynamic import de puppeteer-extra (CJS → ESM)
-    const mod = await import('puppeteer-extra');
-    const puppeteerExtra = (mod as any).default || mod;
-    const stealthMod = await import('puppeteer-extra-plugin-stealth');
-    const StealthPlugin = (stealthMod as any).default || stealthMod;
-    puppeteerExtra.use(StealthPlugin());
-
-    // headless: 'shell' usa o MODO ANTIGO de headless (--headless em vez de
-    // --headless=new). O WhatsApp pode detectar o novo modo headless.
-    // userDataDir: aponta pro mesmo diretório que o LocalAuth do whatsapp-web.js
-    // espera (AUTH_DIR/session/), para que a sessão WhatsApp persista.
-    const launchOpts: Record<string, unknown> = {
-      headless: 'shell' as string,
-      defaultViewport: null,
-      args,
-      userDataDir: path.join(AUTH_DIR, 'session'),
-    };
-    if (chromiumPath) {
-      launchOpts.executablePath = chromiumPath;
-      debugLog('[whatsapp] Stealth browser path: ' + chromiumPath);
-    }
-
-    debugLog('[whatsapp] Lançando stealth browser...');
-    _stealthBrowser = await puppeteerExtra.launch(launchOpts);
-    debugLog('[whatsapp] Stealth browser OK (wsEndpoint=' + _stealthBrowser.wsEndpoint() + ')');
-    return _stealthBrowser;
-  } finally {
-    _stealthBrowserInitializing = false;
-  }
-}
-
-async function closeStealthBrowser(): Promise<void> {
-  if (_stealthBrowser) {
-    try {
-      await _stealthBrowser.close();
-    } catch { /* ok */ }
-    _stealthBrowser = null;
-  }
+// ── Chromium launch options ──
+// Usamos o próprio puppeteer do whatsapp-web.js para lançar o browser,
+// com flags extras para estabilidade do WebSocket do WhatsApp.
+function buildLaunchOpts(chromiumPath: string | null): Record<string, unknown> {
+  const args = [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--no-first-run',
+    '--no-zygote',
+    '--disable-extensions',
+    '--disable-sync',
+    '--window-size=800,600',
+    '--disable-background-timer-throttling',
+    '--disable-backgrounding-occluded-windows',
+    '--disable-renderer-backgrounding',
+    '--disable-ipc-flooding-protection',
+    '--disable-component-update',
+  ];
+  const opts: Record<string, unknown> = {
+    headless: true,
+    defaultViewport: null,
+    args,
+  };
+  if (chromiumPath) opts.executablePath = chromiumPath;
+  return opts;
 }
 
 // ── Status helpers ──────────────────────────────────────────────
@@ -231,26 +176,25 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
   clearChromiumLocks();
 
   try {
-    // ── Get/launch stealth browser (puppeteer-extra + stealth plugin) ──
-    const stealthBrowser = await getStealthBrowser();
-    const wsEndpoint = stealthBrowser.wsEndpoint();
+    // ── Get Chromium path ──
+    const chromiumPath = await getChromiumPath();
 
     // ── Import whatsapp-web.js ──
-    // Dynamic import de CJS → ESM: pode vir como default ou direto
     const wweb: any = await import('whatsapp-web.js');
     const mod = wweb.default || wweb;
     const Client: any = mod.Client;
     const LocalAuth: any = mod.LocalAuth;
 
-    // ── Create client CONECTADO ao stealth browser ──
-    // Passamos browserWSEndpoint em vez de args/executablePath para que
-    // o whatsapp-web.js se conecte ao nosso browser já com stealth plugin.
-    // O LocalAuth ainda vai configurar userDataDir em beforeBrowserInitialized,
-    // mas como estamos em modo connect, quem controla o userDataDir é o
-    // stealth browser (que já foi lançado com userDataDir: AUTH_DIR/session/).
+    // ── Create client ──
+    // whatsapp-web.js lança o Chromium DIRETAMENTE com nossas flags.
+    // Nada de browserWSEndpoint, nada de puppeteer-extra — só Chromium
+    // puro com flags otimizadas.
+    // webVersionCache: 'none' garante que SEMPRE use a versão LIVE do
+    // WhatsApp Web, evitando mismatch de versão que pode quebrar o inject().
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
-      puppeteer: { browserWSEndpoint: wsEndpoint },
+      puppeteer: buildLaunchOpts(chromiumPath),
+      webVersionCache: { type: 'none' },
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
       qrMaxRetries: 50,
       takeoverOnConflict: true,
@@ -455,9 +399,6 @@ export async function whatsappDisconnect(): Promise<{ ok: boolean; message: stri
   }
   _clientReady = false;
   _qrBuffer = null;
-
-  // Fecha o stealth browser (se for a última conexão)
-  await closeStealthBrowser();
 
   // Clean files
   try { if (fs.existsSync(QR_CACHE)) fs.unlinkSync(QR_CACHE); } catch { /* ok */ }
