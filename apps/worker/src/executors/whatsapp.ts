@@ -178,7 +178,7 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
       puppeteer: puppeteerOpts,
-      qrMaxRetries: 5,
+      qrMaxRetries: 50,
       takeoverOnConflict: true,
       takeoverTimeoutMs: 0,
       bypassCSP: true,
