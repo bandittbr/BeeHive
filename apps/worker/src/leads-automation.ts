@@ -233,12 +233,16 @@ export async function leadsAutomationTick(): Promise<void> {
       const waStatus = await whatsappGetStatus();
       const authDir = path.join(WORKSPACE_ROOT, '.wwebjs_auth');
       const hasSession = fs.existsSync(authDir) && fs.readdirSync(authDir).length > 0;
-      if (!waStatus.connected && hasSession) {
-        console.log('[leads-auto] Sessão WhatsApp encontrada, reconectando automaticamente...');
+      if (!waStatus.connected && !waStatus.waitingQr && hasSession) {
+        console.log('[leads-auto] Sessão WhatsApp encontrada, reconectando...');
         try {
           const { whatsappConnect } = await import('./executors/whatsapp.js');
-          await whatsappConnect({ headless: true, timeout: 90000 });
-          console.log('[leads-auto] Reconexão WhatsApp iniciada');
+          const result = await whatsappConnect({ headless: true });
+          if (result.waitingQr) {
+            console.log('[leads-auto] WhatsApp aguardando QR Code — escaneie no painel');
+          } else if (result.ok) {
+            console.log('[leads-auto] WhatsApp reconectado com sucesso');
+          }
         } catch (e) {
           console.error('[leads-auto] Falha ao reconectar WhatsApp:', e);
         }

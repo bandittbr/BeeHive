@@ -182,8 +182,9 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     });
 
     client.on('auth_failure', (msg: string) => {
-      dbg('[whatsapp] Auth failure: ' + msg);
-      saveStatus({ connected: false, error: 'Falha de autenticação: ' + msg, waitingQr: false });
+      dbg('[whatsapp] Auth failure: ' + msg + ' — aguardando novo QR Code');
+      // Auth failure = sessão expirou. O client vai emitir QR em seguida.
+      saveStatus({ connected: false, error: 'Sessão expirada: ' + msg + '. Escaneie o QR Code novamente.', waitingQr: true });
     });
 
     client.on('ready', () => {
@@ -215,40 +216,38 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     });
 
     // ── Wait for the first QR ──
-    // Aguarda até que o QR apareça (até 60s pra dar tempo do Chromium carregar)
-    const qrPromise = new Promise<void>((resolve, reject) => {
+    // Aguarda até que o QR apareça (até 90s pra dar tempo do Chromium carregar).
+    // NÃO rejeita no timeout — o client continua rodando e o QR pode chegar depois.
+    let qrTimeout = false;
+    const qrPromise = new Promise<void>((resolve) => {
       const cleanup: (() => void)[] = [];
-      const onQr = () => { cleanup.forEach(fn => fn()); resolve(); };
-      const onError = (msg: string) => { cleanup.forEach(fn => fn()); reject(new Error(msg)); };
-      const onReady = () => { cleanup.forEach(fn => fn()); resolve(); };
+      const done = () => { cleanup.forEach(fn => fn()); resolve(); };
 
-      client.on('qr', onQr);
-      cleanup.push(() => client.removeListener('qr', onQr));
+      client.on('qr', done);
+      cleanup.push(() => client.removeListener('qr', done));
 
-      client.on('authenticated', onReady);
-      cleanup.push(() => client.removeListener('authenticated', onReady));
+      client.on('authenticated', done);
+      cleanup.push(() => client.removeListener('authenticated', done));
 
-      client.on('ready', onReady);
-      cleanup.push(() => client.removeListener('ready', onReady));
+      client.on('ready', done);
+      cleanup.push(() => client.removeListener('ready', done));
 
-      client.on('auth_failure', (m: string) => onError(m));
-      cleanup.push(() => client.removeListener('auth_failure', onError));
+      client.on('auth_failure', done);
+      cleanup.push(() => client.removeListener('auth_failure', done));
 
-      // Timeout de 60s
+      // Timeout de 90s: não rejeita, só marca e resolve
       const timer = setTimeout(() => {
         cleanup.forEach(fn => fn());
-        // Se o QR já foi recebido alguma vez, não rejeita — deixa continuar
-        if (!_qrBuffer) {
-          reject(new Error('Timeout aguardando QR Code (60s)'));
-        } else {
-          resolve(); // QR já apareceu, pode prosseguir
-        }
-      }, 60000);
+        qrTimeout = true;
+        resolve(); // Não rejeita — o QR pode chegar depois do timeout
+      }, 90000);
       cleanup.push(() => clearTimeout(timer));
     });
     await qrPromise;
 
+    // Se o QR chegou (mesmo que depois do timeout), salva waiting state
     if (_qrBuffer) {
+      saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
       return {
         ok: true,
         message: 'QR Code gerado. Escaneie com o WhatsApp do celular.',
@@ -257,12 +256,24 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       };
     }
 
-    // Check if somehow already connected
+    // Se autenticou direto (sessão válida)
     if (_clientReady || loadStatus().connected) {
       return { ok: true, message: 'WhatsApp já conectado' };
     }
 
+    // Timeout sem QR — mas o client ainda está rodando, pode chegar depois
+    if (qrTimeout) {
+      saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now(), error: undefined });
+      return {
+        ok: true,
+        message: 'Aguardando QR Code (inicialização lenta)...',
+        waitingQr: true,
+        qrPath: '.beehive-qr-cache.png',
+      };
+    }
+
     // QR not received yet but initialization is in progress
+    saveStatus({ connected: false, waitingQr: true });
     return {
       ok: true,
       message: 'Aguardando QR Code...',
