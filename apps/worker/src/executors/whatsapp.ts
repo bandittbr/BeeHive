@@ -157,8 +157,11 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     const LocalAuth: any = mod.LocalAuth;
 
     // ── Build puppeteer options ──
+    // NOTA: defaultViewport:null é CRÍTICO — sem isso, Puppeteer usa 800x600,
+    // o que pode quebrar o WebSocket do WhatsApp Web e impedir o 'authenticated'
     const puppeteerOpts: Record<string, unknown> = {
       headless: true,
+      defaultViewport: null,
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -168,6 +171,13 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
         '--no-first-run',
         '--no-zygote',
         '--single-process',
+        '--disable-extensions',
+        '--disable-sync',
+        '--window-size=800,600',
+        '--disable-background-timer-throttling',
+        '--disable-backgrounding-occluded-windows',
+        '--disable-renderer-backgrounding',
+        '--disable-ipc-flooding-protection',
       ],
     };
     if (chromiumPath) {
@@ -175,12 +185,15 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     }
 
     // ── Create client ──
+    // NOTA: o userAgent padrão (Chrome 101) é antigo e pode ser bloqueado
+    // pelo WhatsApp. Usamos um user agent moderno.
     const client = new Client({
       authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
       puppeteer: puppeteerOpts,
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36',
       qrMaxRetries: 50,
       takeoverOnConflict: true,
-      takeoverTimeoutMs: 0,
+      takeoverTimeoutMs: 15000,
       bypassCSP: true,
     });
 
@@ -232,6 +245,11 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       _clientReady = false;
       if (_whatsAppClient === client) _whatsAppClient = null;
       saveStatus({ connected: false, error: 'Desconectado: ' + reason, waitingQr: false });
+    });
+
+    // Monitora estado da conexão WhatsApp Web (SYNCING, CONNECTED, TIMEOUT, etc.)
+    client.on('change_state', (state: string) => {
+      dbg('[whatsapp] change_state: ' + state);
     });
 
     // ── Initialize client ──
