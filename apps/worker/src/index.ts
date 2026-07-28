@@ -42,6 +42,7 @@ import {
   runScraper, identifySegment, identifyServices, validateLead,
   generateProposalMessage, generateSampleSite,
 } from './executors/leads.js';
+import { scrapeInstagram } from './executors/social.js';
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
   whatsappGetStatus, whatsappDisconnect, whatsappGetQrImagePath,
@@ -684,7 +685,7 @@ app.post('/api/leads/test-automation', async (req, res): Promise<void> => {
       name: raw.name, address: raw.address, phone: raw.phone_number,
       website: raw.website, category: raw.category || raw.place_type,
       placeType: raw.place_type, introduction: raw.introduction,
-      source: 'test_automation', status: 'new',
+      status: 'new',
     });
 
     // Segmento
@@ -733,7 +734,7 @@ app.post('/api/leads/test-automation', async (req, res): Promise<void> => {
       const waMsg = await whatsappSendMessage(lead.phone, message);
       if (waMsg.ok) {
         await updateLead(lead.id, { whatsappSent: true, whatsappSentAt: Date.now() });
-        whatsappResult = { sent: true, messageId: waMsg.messageId };
+        whatsappResult = { sent: true, message: waMsg.message };
 
         // Tenta enviar imagens (nao critico se falhar)
         if (result.mainPng) {
@@ -771,6 +772,42 @@ app.get('/api/leads/automation/logs', async (req, res): Promise<void> => {
   } catch (e) {
     res.status(500).json({ error: e instanceof Error ? e.message : 'erro' });
   }
+});
+
+// --- Social Scraper (Instagram, futuramente TikTok/Facebook) ---
+
+// POST /api/social/scrape-instagram — raspa perfil do Instagram
+app.post('/api/social/scrape-instagram', async (req, res): Promise<void> => {
+  // auth bypassed for social routes
+  const profileUrl = String(req.body?.profileUrl ?? '').trim();
+  const outputDir = req.body?.outputDir ? String(req.body.outputDir).trim() : undefined;
+  const maxPosts = Math.max(1, Math.min(100, Number(req.body?.maxPosts) || 20));
+
+  if (!profileUrl) {
+    res.status(400).json({ error: 'profileUrl é obrigatório' });
+    return;
+  }
+
+  // Responde imediatamente e roda em background
+  res.json({ ok: true, message: 'Scraping do Instagram iniciado em segundo plano' });
+
+  (async () => {
+    try {
+      debugLog(`[social] Iniciando scrape do Instagram: "${profileUrl}"`);
+      const result = await scrapeInstagram({
+        profileUrl,
+        outputDir,
+        maxPosts,
+        headless: true,
+      });
+      debugLog(`[social] Scrape concluído: ${result.mediaDownloaded} mídias, ${result.profile.posts?.length || 0} posts`);
+      console.log(`[social] Instagram scrape OK: @${result.profile.username} — ${result.mediaDownloaded} mídias em ${result.downloadDir}`);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      debugLog(`[social] ERRO no scrape do Instagram: ${msg}`);
+      console.error('[social] Erro no Instagram scrape:', e);
+    }
+  })();
 });
 
 // --- WhatsApp (conexão via navegador + envio) ---

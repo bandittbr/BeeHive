@@ -1,7 +1,7 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados / Leads).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState, useEffect } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users, ImageIcon } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users, ImageIcon, Instagram } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
@@ -17,6 +17,7 @@ import {
 import { ScheduleView } from './ScheduleView';
 import { LeadsView } from './LeadsView';
 import { ModelosVirtuais } from './ModelosVirtuais';
+import { SocialScraper } from './SocialScraper';
 import type { BizType, BizAccount, SocialAccount } from '../../types';
 
 interface BizTypeConfig {
@@ -55,7 +56,7 @@ const SOCIAL_PLATFORMS: { id: SocialAccount['platform']; label: string }[] = [
   { id: 'twitter', label: 'X / Twitter' },
 ];
 
-type NegociosSubArea = 'conteudo' | 'leads' | 'modelos';
+type NegociosSubArea = 'conteudo' | 'leads' | 'modelos' | 'social';
 
 export function NegociosView() {
   const [subArea, setSubArea] = useState<NegociosSubArea>('conteudo');
@@ -89,6 +90,12 @@ export function NegociosView() {
         >
           <ImageIcon size={16} /> Modelos Virtuais
         </button>
+        <button
+          className={`negocios-subnav-btn${subArea === 'social' ? ' active' : ''}`}
+          onClick={() => setSubArea('social')}
+        >
+          <Instagram size={16} /> Social Scraper
+        </button>
       </div>
 
       {subArea === 'conteudo' && (
@@ -107,6 +114,10 @@ export function NegociosView() {
 
       {subArea === 'modelos' && (
         <ModelosVirtuais />
+      )}
+
+      {subArea === 'social' && (
+        <SocialScraper />
       )}
     </div>
   );
