@@ -79,37 +79,23 @@ function saveQrBufferToFile(buffer: Buffer): void {
 
 // ── Clear Chromium profile locks ─────────────────────────────────
 /**
- * Remove arquivos de lock do Chromium (SingletonLock, SingletonSocket, etc.)
- * que podem travar o profile quando um novo container inicia enquanto
- * o Chromium do container anterior ainda não liberou o profile.
- * Isso é comum em deploys no Railway/Render.
+ * Remove o diretório session/ do LocalAuth (onde o Chromium armazena o
+ * perfil e os locks SingletonLock/SingletonSocket).
+ * Quando um novo container Railway inicia, o Chromium do container anterior
+ * pode ter deixado o profile travado. Removendo session/ recriamos o perfil.
+ * A sessão do WhatsApp fica em .wwebjs_auth/session/Session/ e será perdida,
+ * mas isso é melhor do que o Chromium travar com "profile in use".
+ * O usuário precisará escanear o QR novamente após reinício.
  */
 function clearChromiumLocks(): void {
-  const dirsToCheck = [AUTH_DIR];
-  // whatsapp-web.js LocalAuth armazena o profile em subdiretórios
-  // Varrer recursivamente o AUTH_DIR procurando arquivos de lock
-  const lockFiles = ['SingletonLock', 'SingletonSocket', 'SingletonCookie'];
-  let cleared = 0;
-  while (dirsToCheck.length > 0) {
-    const dir = dirsToCheck.pop()!;
+  const sessionDir = path.join(AUTH_DIR, 'session');
+  if (fs.existsSync(sessionDir)) {
     try {
-      if (!fs.existsSync(dir)) continue;
-      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          dirsToCheck.push(fullPath);
-        } else if (entry.isFile() && lockFiles.includes(entry.name)) {
-          try {
-            fs.unlinkSync(fullPath);
-            debugLog(`[whatsapp] Lock removido: ${fullPath}`);
-            cleared++;
-          } catch { /* ok — se falhar, o Chromium que lute */ }
-        }
-      }
-    } catch { /* ignore unreadable dirs */ }
-  }
-  if (cleared > 0) {
-    debugLog(`[whatsapp] ${cleared} arquivo(s) de lock do Chromium removido(s)`);
+      fs.rmSync(sessionDir, { recursive: true, force: true });
+      debugLog('[whatsapp] Perfil Chromium session/ removido (locks limpos)');
+    } catch (e) {
+      debugLog('[whatsapp] ERRO ao remover session/: ' + (e instanceof Error ? e.message : String(e)));
+    }
   }
 }
 
