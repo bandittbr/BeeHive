@@ -46,7 +46,7 @@ import { scrapeInstagram } from './executors/social.js';
 import {
   whatsappConnect, whatsappSendMessage, whatsappSendImage,
   whatsappGetStatus, whatsappDisconnect, whatsappGetQrImagePath,
-} from './executors/whatsapp.js';
+} from './executors/whatsapp-baileys.js';
 import { debugLog, getDebugLogs } from './debug-log.js';
 import {
   listLeads, getLead, addLead, addLeadsBatch, updateLead, deleteLead, getLeadsDashboard,
@@ -831,7 +831,7 @@ app.get('/api/debug/logs', (_req, res): void => {
 
 // GET /api/debug/qr-check — verifica estado do QR_CACHE no servidor
 app.get('/api/debug/qr-check', (_req, res): void => {
-  import('./executors/whatsapp.js').then(mod => {
+  import('./executors/whatsapp-baileys.js').then(mod => {
     const qrPath = mod.whatsappGetQrImagePath();
     const exists = qrPath !== null;
     const info: Record<string, unknown> = {

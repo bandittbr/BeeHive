@@ -12,9 +12,11 @@
   "dependencies": {
     "@beehive/sdk": "workspace:*",
     "@beehive/shared": "workspace:*",
+    "@whiskeysockets/baileys": "7.0.0-rc13",
     "cors": "^2.8.5",
     "express": "^4.21.2",
     "nanoid": "^5.0.9",
+    "pino": "^10.3.1",
     "playwright-extra": "^4.3.6",
     "puppeteer": "^25.3.0",
     "puppeteer-extra": "^3.3.6",

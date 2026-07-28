@@ -22,7 +22,7 @@ import {
   identifySegment, identifyServices, validateLead, runScraper,
   generateSampleSite, generateProposalMessage,
 } from './executors/leads.js';
-import { whatsappSendMessage, whatsappSendImage, whatsappGetStatus } from './executors/whatsapp.js';
+import { whatsappSendMessage, whatsappSendImage, whatsappGetStatus } from './executors/whatsapp-baileys.js';
 import { WORKSPACE_ROOT } from './workspace.js';
 
 let ticking = false;
@@ -236,7 +236,7 @@ export async function leadsAutomationTick(): Promise<void> {
       if (!waStatus.connected && !waStatus.waitingQr && hasSession) {
         console.log('[leads-auto] Sessão WhatsApp encontrada, reconectando...');
         try {
-          const { whatsappConnect } = await import('./executors/whatsapp.js');
+          const { whatsappConnect } = await import('./executors/whatsapp-baileys.js');
           const result = await whatsappConnect({ headless: true });
           if (result.waitingQr) {
             console.log('[leads-auto] WhatsApp aguardando QR Code — escaneie no painel');
