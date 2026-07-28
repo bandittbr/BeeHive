@@ -152,8 +152,10 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
   _connecting = true;
   _qrBuffer = null;
   _clientReady = false;
-  // Limpa qualquer erro pendente do status
-  saveStatus({ connected: false, error: undefined, waitingQr: false });
+  // RESETA completamente o status (sem merge com dados velhos do volume)
+  fs.writeFileSync(STATUS_FILE, JSON.stringify({ connected: false }, null, 2), 'utf8');
+  // Remove QR cache de deploy anterior (volume persistente)
+  try { if (fs.existsSync(QR_CACHE)) fs.unlinkSync(QR_CACHE); } catch { /* ok */ }
   // Remove arquivos de lock do Chromium (profile travado por container anterior)
   clearChromiumLocks();
 
@@ -258,11 +260,15 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
     // ── Wait for the first QR ──
     // Aguarda até que o QR apareça (até 90s pra dar tempo do Chromium carregar).
     // NÃO rejeita no timeout — o client continua rodando e o QR pode chegar depois.
+    // Também resolve em authenticated/ready (usuário escaneou rápido) e auth_failure.
     let qrTimeout = false;
-    const qrPromise = new Promise<void>((resolve) => {
+    const firstEventPromise = new Promise<void>((resolve) => {
       const cleanup: (() => void)[] = [];
       const done = () => { cleanup.forEach(fn => fn()); resolve(); };
 
+      // NOTA: 'qr' resolve IMEDIATAMENTE para que o frontend mostre o QR logo.
+      // Se o usuário escanear antes do timeout, 'authenticated' ou 'ready'
+      // também resolvem, e a promise já estava resolvida mesmo.
       client.on('qr', done);
       cleanup.push(() => client.removeListener('qr', done));
 
@@ -283,15 +289,16 @@ export async function whatsappConnect(options?: { headless?: boolean; timeout?: 
       }, 90000);
       cleanup.push(() => clearTimeout(timer));
     });
-    await qrPromise;
+    await firstEventPromise;
 
-    // Se autenticou / ficou pronto (sessão válida ou scan concluído)
+    // Se autenticou / ficou pronto (sessão válida ou scan ultra-rápido)
     if (_clientReady || loadStatus().connected) {
+      // Garante que o QR buffer não fique como pendente
+      _qrBuffer = null;
       return { ok: true, message: 'WhatsApp conectado' };
     }
 
-    // Se o QR chegou (mesmo que depois do timeout), salva waiting state
-    // Só retorna waiting se realmente ainda não autenticou (checked above)
+    // Se o QR chegou, retorna waiting
     if (_qrBuffer) {
       saveStatus({ connected: false, waitingQr: true, qrWaitStartedAt: Date.now() });
       return {
@@ -336,10 +343,8 @@ export function whatsappGetStatus(): WhatsAppStatus {
   const fileStatus = loadStatus();
   // O estado em memória é a fonte da verdade
   if (_clientReady && _whatsAppClient) {
-    // Se o client está pronto, força connected=true e limpa erro se houver
-    if (fileStatus.error) {
-      saveStatus({ connected: true, error: undefined, waitingQr: false });
-    }
+    // Se o client está pronto, força connected=true e limpa erro/waitingQr
+    saveStatus({ connected: true, error: undefined, waitingQr: false });
     return { ...fileStatus, connected: true, error: undefined, waitingQr: false };
   }
   // Há um client em andamento (autenticado ou aguardando QR) — NÃO corrige
@@ -350,15 +355,21 @@ export function whatsappGetStatus(): WhatsAppStatus {
     }
     return fileStatus;
   }
-  // Não há client algum: se o arquivo diz connected, corrige
-  if (fileStatus.connected) {
-    const corrected: WhatsAppStatus = {
+  // Não há client algum — limpa qualquer estado residual de deploy anterior
+  // (waitingQr, phone, connectedAt) que possa ter persistido no volume
+  if (fileStatus.waitingQr || fileStatus.connected || fileStatus.phone) {
+    const clean: WhatsAppStatus = {
       connected: false,
-      error: 'Conexão perdida após reinício do servidor. Reconecte o WhatsApp.',
+      error: fileStatus.connected
+        ? 'Conexão perdida após reinício do servidor. Reconecte o WhatsApp.'
+        : undefined,
+      waitingQr: false,
       lastCheckAt: Date.now(),
     };
-    saveStatus(corrected);
-    return corrected;
+    saveStatus(clean);
+    // QR cache de deploy anterior também precisa sumir
+    try { if (fs.existsSync(QR_CACHE)) fs.unlinkSync(QR_CACHE); } catch { /* ok */ }
+    return clean;
   }
   return fileStatus;
 }
