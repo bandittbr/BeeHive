@@ -18,11 +18,6 @@ const PLATFORMS = [
 // URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
-interface PlatformCredentials {
-  clientId: string;
-  clientSecret: string;
-}
-
 interface PersonaState {
   id: string;
   name: string;
@@ -63,7 +58,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
 
   useEffect(() => { loadAll(); }, []);
 
-  // Escuta callback do OAuth
+  // Escuta callback do OAuth (quando volta da rede social)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
@@ -237,6 +232,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       
+      // Adiciona à persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), acc.id];
@@ -263,6 +259,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       deleteCorteSocialAccount(accountIdStr);
       setSocialAccounts(prev => prev.filter(a => a.id !== accountIdStr));
       
+      // Remove da persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newIds = (currentChannel.socialAccountIds || []).filter(id => id !== accountIdStr);
