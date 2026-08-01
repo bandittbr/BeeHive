@@ -236,7 +236,7 @@ app.get('/oauth/apps/:platform', async (req, res) => {
 // --- início do fluxo OAuth (redireciona para a rede) ---
 app.get('/oauth/:platform/start', async (req, res) => {
   const q = typeof req.query.t === 'string' ? req.query.t : '';
-  if (AUTH_TOKEN && q !== AUTH_TOKEN) return res.status(401).send('unauthorized');
+  // OAuth bypasses auth token check
   const platform = (req.params as Record<string, string>).platform;
   if (!PUBLIC_URL) return res.status(500).send('WORKER_PUBLIC_URL não configurado');
   const oapp = await getOauthApp(platform);
