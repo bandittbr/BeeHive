@@ -47,7 +47,7 @@
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html, body, #root { height: 100%; overflow: hidden; }
+html, body, #root { height: 100%; overflow: auto; }
 body { font-family: var(--font); font-size: 14px; color: var(--text); background: var(--bg); -webkit-font-smoothing: antialiased; }
 
 /* ===== APP ===== */
