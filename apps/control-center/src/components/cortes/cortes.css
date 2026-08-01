@@ -15,9 +15,9 @@
   -webkit-overflow-scrolling: touch;
 }
 
-/* Mobile adjustments */
+/* Mobile adjustments - fit content without scroll on mobile */
 @media (max-width: 768px) {
-  /* CRITICAL: Allow natural flow on mobile - remove height constraints */
+  /* CRITICAL: Remove height constraint for natural flow */
   .cortes-main {
     padding: 10px;
     gap: 10px;
@@ -25,31 +25,6 @@
     overflow-y: visible !important;
     min-height: auto !important;
   }
-  .empty-state h3 {
-    font-size: 14px;
-  }
-  
-  .empty-state p {
-    font-size: 11px;
-  }
-}
-
-/* Small phones */
-@media (max-width: 380px) {
-  .cortes-main {
-    padding: 8px;
-    gap: 8px;
-  }
-  
-  .cortes-page-header h1 {
-    font-size: 14px;
-  }
-  
-  .cortes-tab {
-    padding: 5px 8px;
-    font-size: 11px;
-  }
-}
   
   .cortes-page-header {
     flex-direction: column;
@@ -73,10 +48,13 @@
     font-size: 11px;
   }
   
+  /* Tabs horizontal scroll */
   .cortes-tabs {
     overflow-x: auto;
     -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
+    margin-bottom: 8px;
+    gap: 2px;
   }
   
   .cortes-tabs::-webkit-scrollbar {
@@ -84,26 +62,297 @@
   }
   
   .cortes-tab {
-    padding: 10px 16px;
+    padding: 6px 10px;
     white-space: nowrap;
+    font-size: 12px;
+  }
+  
+  /* Sections compact */
+  .cortes-section {
+    margin-bottom: 8px;
+  }
+  
+  .cortes-section-header {
+    margin-bottom: 6px;
+  }
+  
+  .cortes-section-header h2 {
+    font-size: 14px;
+  }
+  
+  .cortes-section-header p {
+    font-size: 11px;
+  }
+  
+  /* Cards compact */
+  .cortes-card {
+    border-radius: 8px;
+  }
+  
+  .cortes-card-body {
+    padding: 10px;
+  }
+  
+  /* Social items compact */
+  .cortes-social-item {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .cortes-platform-badge {
+    width: 26px;
+    height: 26px;
+    font-size: 12px;
+  }
+  
+  .cortes-social-platform {
+    font-size: 9px;
+  }
+  
+  .cortes-social-handle {
+    font-size: 11px;
+  }
+  
+  /* Channel items compact */
+  .cortes-channel-item {
+    padding: 8px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+  
+  .cortes-channel-info {
+    width: 100%;
+  }
+  
+  .cortes-channel-name {
     font-size: 13px;
   }
   
-  .cortes-projects-grid {
-    grid-template-columns: 1fr;
+  .cortes-channel-category {
+    font-size: 9px;
   }
   
-  .cortes-clips-grid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 12px;
+  .cortes-account-tag {
+    font-size: 10px;
+    padding: 2px 6px;
   }
   
-  .cortes-settings-grid {
-    grid-template-columns: 1fr;
+  .cortes-channel-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  /* Forms compact */
+  .cortes-form-group {
+    margin-bottom: 8px;
+  }
+  
+  .cortes-form-group label {
+    font-size: 11px;
+  }
+  
+  .cortes-form-group input,
+  .cortes-form-group select,
+  .cortes-form-group textarea {
+    padding: 7px 10px;
+    font-size: 14px;
+    height: 36px;
   }
   
   .cortes-form-row {
     grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  /* Checkboxes */
+  .cortes-checkboxes {
+    padding: 8px;
+    gap: 6px;
+  }
+  
+  .cortes-check-label {
+    font-size: 12px;
+    gap: 6px;
+  }
+  
+  /* Buttons smaller */
+  .btn-sm {
+    padding: 5px 10px;
+    font-size: 11px;
+  }
+  
+  .btn-xs {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+  
+  .btn-icon {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .btn-icon-danger {
+    width: 28px;
+    height: 28px;
+  }
+  
+  /* Modal compact */
+  .cortes-modal-overlay {
+    padding: 10px;
+  }
+  
+  .cortes-modal {
+    max-width: 100%;
+    max-height: calc(100vh - 20px);
+    border-radius: 12px;
+  }
+  
+  .cortes-new-project {
+    padding: 12px;
+  }
+  
+  .cortes-new-project-header h2 {
+    font-size: 15px;
+  }
+  
+  /* Settings compact */
+  .cortes-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .cortes-settings-card {
+    border-radius: 8px;
+  }
+  
+  .cortes-settings-card-header {
+    padding: 8px 10px;
+  }
+  
+  .cortes-settings-card-header h3 {
+    font-size: 12px;
+  }
+  
+  .cortes-settings-card-body {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  /* Projects grid */
+  .cortes-projects-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
+  .cortes-project-card {
+    padding: 10px;
+  }
+  
+  .cortes-project-name {
+    font-size: 13px;
+  }
+  
+  .cortes-meta-row {
+    font-size: 10px;
+  }
+  
+  .cortes-project-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .cortes-project-actions .btn-primary {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* Clips grid */
+  .cortes-clips-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6px;
+  }
+  
+  .cortes-clip-title {
+    font-size: 10px;
+  }
+  
+  /* Empty state */
+  .empty-state {
+    padding: 20px 12px;
+  }
+  
+  .empty-state h3 {
+    font-size: 14px;
+  }
+  
+  .empty-state p {
+    font-size: 11px;
+  }
+  
+  /* Loading */
+  .cortes-loading {
+    padding: 20px;
+    font-size: 12px;
+  }
+  
+  /* Color options */
+  .color-options {
+    gap: 3px;
+  }
+  
+  .color-option {
+    width: 22px;
+    height: 22px;
+  }
+  
+  /* Submit row */
+  .cortes-submit-row {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .cortes-submit-row .btn-primary,
+  .cortes-submit-row .btn-ghost {
+    width: 100%;
+    justify-content: center;
+  }
+  
+  /* Format options */
+  .cortes-format-btn {
+    padding: 6px;
+    font-size: 11px;
+  }
+  
+  /* Help text */
+  .cortes-help-text {
+    font-size: 10px;
+  }
+  
+  /* Error text */
+  .cortes-error-text {
+    font-size: 11px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+  .cortes-main {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .cortes-page-header h1 {
+    font-size: 14px;
+  }
+  
+  .cortes-tab {
+    padding: 5px 8px;
+    font-size: 11px;
+  }
+  
+  .cortes-clip-title {
+    font-size: 9px;
   }
 }
 
