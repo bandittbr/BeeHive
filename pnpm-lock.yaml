@@ -216,6 +216,9 @@ importers:
       '@beehive/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@prisma/client':
+        specifier: ^7.8.0
+        version: 7.9.0(prisma@7.9.0(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3))(typescript@5.9.3)
       '@whiskeysockets/baileys':
         specifier: 7.0.0-rc13
         version: 7.0.0-rc13(sharp@0.35.3(@types/node@22.20.1))
@@ -234,6 +237,9 @@ importers:
       playwright-extra:
         specifier: ^4.3.6
         version: 4.3.6(playwright-core@1.61.1)(playwright@1.61.1)
+      prisma:
+        specifier: ^7.8.0
+        version: 7.9.0(@types/react-dom@18.3.7(@types/react@18.3.31))(@types/react@18.3.31)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(typescript@5.9.3)
       puppeteer:
         specifier: ^25.3.0
         version: 25.3.0(yauzl@2.10.0)
