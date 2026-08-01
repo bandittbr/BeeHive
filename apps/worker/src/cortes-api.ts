@@ -1,44 +1,22 @@
 // Cortes API Routes - Gerencia projetos, canais, contas sociais e configurações
 import { Router } from 'express';
-import fs from 'node:fs';
-import path from 'node:path';
-import { execSync } from 'node:child_process';
 
 const router = Router();
 
-// Use Railway volume for persistent storage
-const DATA_DIR = process.env.CORTES_DATA_DIR || 
-  process.env.RAILWAY_VOLUME_PATH || 
-  path.join(process.cwd(), 'workspace', 'data', 'cortes');
-
-// Ensure data directory exists
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
+// Armazenamento em memória (persistente durante runtime do container)
+let channels: CorteChannel[] = [];
+let socialAccounts: CorteSocialAccount[] = [];
+let projects: CorteProject[] = [];
+let settings: CorteSettings | null = null;
 
 // Helper functions
-function readJsonFile<T>(filename: string, defaultValue: T): T {
-  const filepath = path.join(DATA_DIR, filename);
-  if (fs.existsSync(filepath)) {
-    try {
-      return JSON.parse(fs.readFileSync(filepath, 'utf8')) as T;
-    } catch {
-      return defaultValue;
-    }
-  }
-  return defaultValue;
-}
-
-function writeJsonFile(filename: string, data: any) {
-  const filepath = path.join(DATA_DIR, filename);
-  fs.mkdirSync(path.dirname(filepath), { recursive: true });
-  fs.writeFileSync(filepath, JSON.stringify(data, null, 2));
+function generateId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 }
 
 // ── Canais ────────────────────────────────────────────────────────────────────
 
 router.get('/channels', (_req, res) => {
-  const channels = readJsonFile<CorteChannel[]>('channels.json', []);
   res.json(channels.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
 });
 
@@ -46,9 +24,8 @@ router.post('/channels', (req, res) => {
   const { name, category, description } = req.body;
   if (!name?.trim()) return res.status(400).json({ error: 'Nome é obrigatório' });
   
-  const channels = readJsonFile<CorteChannel[]>('channels.json', []);
   const channel: CorteChannel = {
-    id: `ch_${Date.now()}`,
+    id: generateId('ch'),
     name: name.trim(),
     category: category?.trim() || null,
     description: description?.trim() || null,
@@ -57,50 +34,38 @@ router.post('/channels', (req, res) => {
     updatedAt: new Date().toISOString(),
   };
   channels.push(channel);
-  writeJsonFile('channels.json', channels);
   res.json(channel);
 });
 
 router.patch('/channels/:id', (req, res) => {
   const { id } = req.params;
   const updates = req.body;
-  let channels = readJsonFile<CorteChannel[]>('channels.json', []);
   
   const index = channels.findIndex(c => c.id === id);
   if (index === -1) return res.status(404).json({ error: 'Canal não encontrado' });
   
   channels[index] = { ...channels[index], ...updates, updatedAt: new Date().toISOString() };
-  writeJsonFile('channels.json', channels);
   res.json(channels[index]);
 });
 
 router.delete('/channels/:id', (req, res) => {
   const { id } = req.params;
-  let channels = readJsonFile<CorteChannel[]>('channels.json', []);
   channels = channels.filter(c => c.id !== id);
-  writeJsonFile('channels.json', channels);
   res.json({ ok: true });
 });
 
 // ── Redes Sociais ─────────────────────────────────────────────────────────────
 
 router.get('/social-accounts', (_req, res) => {
-  const accounts = readJsonFile<CorteSocialAccount[]>('social-accounts.json', []);
-  res.json(accounts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
+  res.json(socialAccounts.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
 });
 
 router.post('/social-accounts', (req, res) => {
   const { platform, accountId, displayName, handle } = req.body;
   if (!platform || !accountId) return res.status(400).json({ error: 'Platform e accountId são obrigatórios' });
   
-  const accounts = readJsonFile<CorteSocialAccount[]>('social-accounts.json', []);
-  
-  // Check for duplicate
-  const existing = accounts.find(a => a.platform === platform && a.accountId === accountId);
-  if (existing) return res.status(409).json({ error: 'Conta já cadastrada' });
-  
   const account: CorteSocialAccount = {
-    id: `sa_${Date.now()}`,
+    id: generateId('sa'),
     platform,
     accountId,
     displayName: displayName?.trim() || null,
@@ -109,29 +74,24 @@ router.post('/social-accounts', (req, res) => {
     updatedAt: new Date().toISOString(),
     channelIds: [],
   };
-  accounts.push(account);
-  writeJsonFile('social-accounts.json', accounts);
+  socialAccounts.push(account);
   res.json(account);
 });
 
 router.delete('/social-accounts/:id', (req, res) => {
   const { id } = req.params;
-  const accounts = readJsonFile<CorteSocialAccount[]>('social-accounts.json', []);
-  const filtered = accounts.filter(a => a.id !== id);
-  writeJsonFile('social-accounts.json', filtered);
+  socialAccounts = socialAccounts.filter(a => a.id !== id);
   res.json({ ok: true });
 });
 
 // ── Projetos ──────────────────────────────────────────────────────────────────
 
 router.get('/projects', (_req, res) => {
-  const projects = readJsonFile<CorteProject[]>('projects.json', []);
   res.json(projects.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()));
 });
 
 router.get('/projects/:id', (req, res) => {
   const { id } = req.params;
-  const projects = readJsonFile<CorteProject[]>('projects.json', []);
   const project = projects.find(p => p.id === id);
   if (!project) return res.status(404).json({ error: 'Projeto não encontrado' });
   res.json(project);
@@ -145,9 +105,8 @@ router.post('/projects', (req, res) => {
   
   if (!url || !name) return res.status(400).json({ error: 'URL e nome são obrigatórios' });
   
-  const projects = readJsonFile<CorteProject[]>('projects.json', []);
   const project: CorteProject = {
-    id: `cp_${Date.now()}`,
+    id: generateId('cp'),
     name: name.trim(),
     sourceVideoUrl: url.trim(),
     duration: duration || 15,
@@ -165,102 +124,29 @@ router.post('/projects', (req, res) => {
     ...(channelId ? { channelId } : {}),
   };
   projects.push(project);
-  writeJsonFile('projects.json', projects);
   res.json(project);
 });
 
 router.patch('/projects/:id', (req, res) => {
   const { id } = req.params;
   const updates = req.body;
-  let projects = readJsonFile<CorteProject[]>('projects.json', []);
   
   const index = projects.findIndex(p => p.id === id);
   if (index === -1) return res.status(404).json({ error: 'Projeto não encontrado' });
   
   projects[index] = { ...projects[index], ...updates, updatedAt: new Date().toISOString() };
-  writeJsonFile('projects.json', projects);
   res.json(projects[index]);
 });
 
 router.delete('/projects/:id', (req, res) => {
   const { id } = req.params;
-  let projects = readJsonFile<CorteProject[]>('projects.json', []);
   projects = projects.filter(p => p.id !== id);
-  writeJsonFile('projects.json', projects);
   res.json({ ok: true });
-});
-
-// ── Gerar Cortes (via gerador existente) ─────────────────────────────────────
-
-router.post('/generate', (req, res) => {
-  const { projectId, url, duration, format, autoCaptions } = req.body;
-  
-  if (!url) return res.status(400).json({ error: 'URL é obrigatória' });
-  if (!projectId) return res.status(400).json({ error: 'projectId é obrigatório' });
-  
-  // Update project to GENERATING status
-  let projects = readJsonFile<CorteProject[]>('projects.json', []);
-  const projectIndex = projects.findIndex(p => p.id === projectId);
-  
-  if (projectIndex === -1) return res.status(404).json({ error: 'Projeto não encontrado' });
-  
-  projects[projectIndex] = {
-    ...projects[projectIndex],
-    status: 'GENERATING',
-    updatedAt: new Date().toISOString(),
-  };
-  writeJsonFile('projects.json', projects);
-  
-  const GENERATOR_PATH = process.env.CORTES_GENERATOR_PATH || 'E:/BeeHive/AI-Youtube-Shorts-Generator';
-  
-  try {
-    const numClips = Math.max(1, Number(duration) && Number(duration) > 0 ? Math.round(120 / (duration || 15)) : 3);
-    
-    // Execute Python generator
-    const result = execSync(
-      `python main.py "${url}" --num-clips ${numClips} --aspect-ratio ${format || '9:16'}`,
-      {
-        cwd: GENERATOR_PATH,
-        encoding: 'utf-8',
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: 600000, // 10 minutes timeout
-      }
-    );
-    
-    // Update project status
-    projects = readJsonFile<CorteProject[]>('projects.json', []);
-    const idx = projects.findIndex(p => p.id === projectId);
-    if (idx !== -1) {
-      projects[idx] = {
-        ...projects[idx],
-        status: 'READY',
-        updatedAt: new Date().toISOString(),
-      };
-      writeJsonFile('projects.json', projects);
-    }
-    
-    res.json({ jobId: projectId, status: 'completed', output: result });
-  } catch (error: any) {
-    // Update project to ERROR status
-    projects = readJsonFile<CorteProject[]>('projects.json', []);
-    const idx = projects.findIndex(p => p.id === projectId);
-    if (idx !== -1) {
-      projects[idx] = {
-        ...projects[idx],
-        status: 'ERROR',
-        error: error.message,
-        updatedAt: new Date().toISOString(),
-      };
-      writeJsonFile('projects.json', projects);
-    }
-    res.status(500).json({ error: error.message });
-  }
 });
 
 // ── Configurações ────────────────────────────────────────────────────────────
 
 router.get('/settings', (_req, res) => {
-  let settings = readJsonFile<CorteSettings | null>('settings.json', null);
   if (!settings) {
     settings = {
       id: 'default',
@@ -279,15 +165,12 @@ router.get('/settings', (_req, res) => {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    writeJsonFile('settings.json', settings);
   }
   res.json(settings);
 });
 
 router.post('/settings', (req, res) => {
   const updates = req.body;
-  let settings = readJsonFile<CorteSettings | null>('settings.json', null);
-  
   if (settings) {
     settings = { ...settings, ...updates, updatedAt: new Date().toISOString() };
   } else {
@@ -309,8 +192,6 @@ router.post('/settings', (req, res) => {
       updatedAt: new Date().toISOString(),
     };
   }
-  
-  writeJsonFile('settings.json', settings);
   res.json(settings);
 });
 
