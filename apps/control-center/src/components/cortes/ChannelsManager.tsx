@@ -167,7 +167,17 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                 <input type="text" placeholder="ID / Link da conta" value={accountId} onChange={e => setAccountId(e.target.value)} />
                 <input type="text" placeholder="Nome de exibição (opcional)" value={accountHandle} onChange={e => setAccountHandle(e.target.value)} />
                 <div className="cortes-form-actions">
-                  <button className="btn-primary btn-sm" onClick={handleAddAccount} disabled={creatingAcc}>
+                  <button 
+                    className="btn-primary btn-sm" 
+                    onClick={() => {
+                      if (!accountId.trim()) {
+                        alert('Por favor, preencha o ID/Link da conta');
+                        return;
+                      }
+                      handleAddAccount();
+                    }}
+                    disabled={creatingAcc}
+                  >
                     {creatingAcc ? <Loader2 size={13} className="spin" /> : <CheckCircle2 size={13} />} Salvar
                   </button>
                   <button className="btn-ghost btn-sm" onClick={() => { setAddingAccount(false); setAccountId(''); setAccountHandle(''); }}>Cancelar</button>
@@ -231,7 +241,17 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                 <input type="text" placeholder="Categoria (ex: Comédia, Terror)" value={channelCategory} onChange={e => setChannelCategory(e.target.value)} />
                 <textarea placeholder="Descrição (opcional)" rows={2} value={channelDesc} onChange={e => setChannelDesc(e.target.value)} />
                 <div className="cortes-form-actions">
-                  <button className="btn-primary btn-sm" onClick={handleCreateChannel} disabled={creating || !channelName.trim()}>
+                  <button 
+                    className="btn-primary btn-sm" 
+                    onClick={() => {
+                      if (!channelName.trim()) {
+                        alert('Por favor, preencha o nome do canal');
+                        return;
+                      }
+                      handleCreateChannel();
+                    }}
+                    disabled={creating}
+                  >
                     {creating ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Criar canal
                   </button>
                   <button className="btn-ghost btn-sm" onClick={() => { setAddingChannel(false); setChannelName(''); setChannelCategory(''); setChannelDesc(''); }}>Cancelar</button>
