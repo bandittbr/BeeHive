@@ -1,0 +1,66 @@
+# Dependencies
+node_modules/
+apps/*/node_modules/
+**/node_modules/
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# Virtual environment
+CrewAI/.venv/
+CrewAI/__pycache__/
+**/.venv/
+__pycache__/
+*.pyc
+
+# Secrets / keys
+CrewAI/*.txt
+
+# Cache
+.cache/
+.vite/
+
+# Local data
+bee-hive.db
+*.db
+data/
+
+# Python generator (motor externo, não precisa ir para o frontend)
+AI-Youtube-Shorts-Generator/
+**/AI-Youtube-Shorts-Generator/
+
+# Services (backend separado)
+services/
+apps/worker/dist/
+apps/api/
+
+# Documentation não essencial
+CRONOGRAMA_RESOLUCAO.md
+REPORTE_ANALISE_BEEHIVE.md
+analyze_report.py
+update_appstore.py
+add_cortes_to_worker.py
+test*.py
+*.py
+
+# Agnes
+.agnes/
