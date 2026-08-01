@@ -9,9 +9,9 @@ import type { CorteChannel, CorteSocialAccount } from '../../types/cortes';
 
 const PLATFORM_ICON: Record<string, React.ReactNode> = {
   youtube: <Globe size={14} />,
-  instagram: <Instagram size={14} />,
-  facebook: <Facebook size={14} />,
-  twitter: <Twitter size={14} />,
+  instagram: <Globe size={14} />,
+  facebook: <Globe size={14} />,
+  twitter: <Globe size={14} />,
   tiktok: <Globe size={14} />,
 };
 
@@ -187,12 +187,18 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                       <span className="cortes-channel-name">{ch.name}</span>
                       {ch.category && <span className="cortes-channel-category">{ch.category}</span>}
                       <div className="cortes-channel-accounts">
-                        {socialAccounts.filter(sa => ch.socialAccountIds?.includes(sa.id)).map(sa => (
-                          <span key={sa.id} className="cortes-account-tag">
-                            {PLATFORM_ICON[sa.platform]} {sa.displayName || sa.accountId}
-                          </span>
-                        ))}
-                        {(!ch.socialAccountIds || ch.socialAccountIds.length === 0) && <span className="cortes-empty-tag">Nenhuma rede associada</span>}
+                        {ch.socialAccountIds?.filter(id => socialAccounts.some(sa => sa.id === id)).length > 0 ? (
+                          ch.socialAccountIds?.filter(id => socialAccounts.some(sa => sa.id === id)).map(id => {
+                            const sa = socialAccounts.find(s => s.id === id);
+                            return (
+                              <span key={id} className="cortes-account-tag">
+                                {PLATFORM_ICON[sa?.platform || 'youtube']} {sa?.displayName || sa?.accountId}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="cortes-empty-tag">Nenhuma rede associada</span>
+                        )}
                       </div>
                     </div>
                     <div className="cortes-channel-actions">
