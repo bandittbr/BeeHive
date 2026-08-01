@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Pencil, CheckCircle2, Globe, Instagram, Facebook, Twitter, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, CheckCircle2, Globe, Loader2 } from 'lucide-react';
 import {
   listChannels, createChannel, updateChannel, deleteChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
