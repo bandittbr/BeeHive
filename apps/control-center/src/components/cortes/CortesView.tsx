@@ -3,11 +3,12 @@ import { Users, Settings, Plus, Loader2 } from 'lucide-react';
 import { NewProjectForm } from './NewProjectForm';
 import { ChannelsManagerView } from './ChannelsManager';
 import { CorteSettingsView } from './CorteSettings';
+import { OauthSettingsView } from './OauthSettings';
 import type { CorteChannel, CorteSocialAccount, CorteProject, CorteSettings } from '../../types/cortes';
 import { useAppStore } from '../../stores/appStore';
 import { listChannels, getSettings, listSocialAccounts } from '../../services/cortes-api';
 
-type CortesTab = 'canais' | 'configuracoes';
+type CortesTab = 'canais' | 'oauth' | 'configuracoes';
 
 export function CortesView() {
   const { corteChannels, corteProjects, corteSocialAccounts, corteSettings,
@@ -63,19 +64,28 @@ export function CortesView() {
               className={`cortes-tab${activeTab === 'canais' ? ' active' : ''}`}
               onClick={() => setActiveTab('canais')}
             >
-              <Users size={16} /> Canais & Redes
+              <Users size={16} /> Canais
+            </button>
+            <button
+              className={`cortes-tab${activeTab === 'oauth' ? ' active' : ''}`}
+              onClick={() => setActiveTab('oauth')}
+            >
+              <Settings size={16} /> OAuth
             </button>
             <button
               className={`cortes-tab${activeTab === 'configuracoes' ? ' active' : ''}`}
               onClick={() => setActiveTab('configuracoes')}
             >
-              <Settings size={16} /> Configurações
+              <Settings size={16} /> Config
             </button>
           </div>
 
           {/* Tab content */}
           {activeTab === 'canais' && (
             <ChannelsManagerView onRefresh={loadAllData} />
+          )}
+          {activeTab === 'oauth' && (
+            <OauthSettingsView />
           )}
           {activeTab === 'configuracoes' && (
             <CorteSettingsView />
