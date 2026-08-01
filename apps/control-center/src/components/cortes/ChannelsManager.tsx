@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Link as LinkIcon } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Clock, Calendar } from 'lucide-react';
 import {
   listChannels, createChannel, deleteChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
@@ -15,7 +15,15 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '♪', color: '#00F2EA' },
 ];
 
-// URL do backend Railway
+// Configurações de segurança
+const SCHEDULING_RULES = {
+  minIntervalMinutes: 60,      // Mínimo 1h entre posts
+  maxPostsPerDay: 3,          // Máximo 3 posts por dia por rede
+  safeHours: [9, 12, 15, 18, 21], // Horários seguros (9h, 12h, 15h, 18h, 21h)
+  avoidNight: true,           // Evitar postar à noite
+};
+
+// URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
@@ -42,10 +50,17 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelCategory, setNewChannelCategory] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
+  
+  // Estado para configurações de agendamento
+  const [scheduleMode, setScheduleMode] = useState<'immediate' | 'scheduled'>('scheduled');
+  const [selectedSchedule, setSelectedSchedule] = useState<{ date: string; time: string }>({
+    date: new Date().toISOString().split('T')[0],
+    time: '09:00',
+  });
 
   useEffect(() => { loadAll(); }, []);
 
-  // Escuta callback do OAuth (quando volta da rede social)
+  // Escuta callback do OAuth
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
@@ -54,7 +69,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     
     if (connected && accountIdParam) {
       handleOAuthCallback(connected, accountIdParam, displayName || undefined);
-      // Limpa URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -123,50 +137,22 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
-  // Inicia fluxo OAuth
   function startOAuth(platform: string, channelId: string) {
     setConnectingTo(`${platform}:${channelId}`);
-    // Abre popup do OAuth
     const redirectUri = `${window.location.origin}/`;
-    const authUrl = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${channelId}`;
-    
-    // Abre em popup/janela nova
-    const width = 600;
-    const height = 500;
-    const left = (window.screen.width - width) / 2;
-    const top = (window.screen.height - height) / 2;
-    
-    window.open(authUrl, 'oauth_' + platform, `width=${width},height=${height},left=${left},top=${top}`);
-    
-    // Timeout para verificar se ainda está conectado
-    const checkInterval = setInterval(() => {
-      const urlParams = new URLSearchParams(window.location.search);
-      const connected = urlParams.get('connected');
-      if (connected === platform) {
-        clearInterval(checkInterval);
-        setConnectingTo(null);
-        loadAll();
-      }
-    }, 1000);
-    
-    // Cleanup após 5 minutos
-    setTimeout(() => clearInterval(checkInterval), 300000);
+    window.location.href = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${channelId}`;
   }
 
-  // Handle callback do OAuth
   async function handleOAuthCallback(platform: string, accountId: string, displayName?: string) {
     try {
-      // Cria a conta social
       const acc = await createSocialAccount({ 
         platform, 
         accountId, 
         displayName: displayName || accountId
       });
-      
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       
-      // Atualiza todos os canais que não têm essa conta
       const updatedChannels = channels.map(ch => {
         if (!ch.socialAccountIds?.includes(acc.id)) {
           return { ...ch, socialAccountIds: [...(ch.socialAccountIds || []), acc.id] };
@@ -174,10 +160,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
         return ch;
       });
       setChannels(updatedChannels);
-      
       onRefresh();
     } catch (e) {
-      console.error('OAuth callback failed:', e);
       alert('Erro ao conectar conta: ' + (e instanceof Error ? e.message : String(e)));
       setConnectingTo(null);
     }
@@ -198,7 +182,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       
-      // Atualiza canal
       const currentChannel = channels.find(c => c.id === channelId);
       const newSocialAccountIds = [...(currentChannel?.socialAccountIds || []), acc.id];
       const updatedChannels = channels.map(c => 
@@ -235,12 +218,114 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  // Calcular próximo horário seguro
+  function getNextSafeSchedule(date: string, currentTime: string): string {
+    const now = new Date();
+    const [hour, minute] = currentTime.split(':').map(Number);
+    
+    // Adiciona intervalo mínimo
+    const nextTime = new Date(now);
+    nextTime.setHours(hour, minute, 0, 0);
+    nextTime.setMinutes(nextTime.getMinutes() + SCHEDULING_RULES.minIntervalMinutes);
+    
+    // Formata para string
+    const h = nextTime.getHours().toString().padStart(2, '0');
+    const m = nextTime.getMinutes().toString().padStart(2, '0');
+    return `${h}:${m}`;
+  }
+
   if (loading) {
     return <div className="cortes-loading"><Loader2 size={20} className="spin" /><span>Carregando...</span></div>;
   }
 
   return (
     <div className="cortes-channels">
+      {/* Seção: Agenda de Publicação */}
+      <section className="cortes-section">
+        <div className="cortes-section-header">
+          <h2>⏰ Agenda de Publicação</h2>
+          <p>Configure o horário seguro para publicar os cortes (evita bans)</p>
+        </div>
+        
+        <div className="cortes-card">
+          <div className="cortes-card-body">
+            <div className="cortes-schedule-config">
+              {/* Modo de publicação */}
+              <div className="cortes-mode-selector">
+                <label className="cortes-label">Modo de Publicação:</label>
+                <div className="cortes-mode-options">
+                  <button 
+                    className={`cortes-mode-btn ${scheduleMode === 'immediate' ? 'active' : ''}`}
+                    onClick={() => setScheduleMode('immediate')}
+                  >
+                    <Clock size={14} /> Imediato
+                  </button>
+                  <button 
+                    className={`cortes-mode-btn ${scheduleMode === 'scheduled' ? 'active' : ''}`}
+                    onClick={() => setScheduleMode('scheduled')}
+                  >
+                    <Calendar size={14} /> Agendado
+                  </button>
+                </div>
+              </div>
+
+              {/* Configuração de datas */}
+              {scheduleMode === 'scheduled' && (
+                <div className="cortes-date-config">
+                  <div className="cortes-form-group">
+                    <label>Data</label>
+                    <input 
+                      type="date" 
+                      value={selectedSchedule.date}
+                      onChange={e => setSelectedSchedule(prev => ({ ...prev, date: e.target.value }))}
+                    />
+                  </div>
+                  <div className="cortes-form-group">
+                    <label>Horário Inicial</label>
+                    <input 
+                      type="time" 
+                      value={selectedSchedule.time}
+                      onChange={e => setSelectedSchedule(prev => ({ ...prev, time: e.target.value }))}
+                    />
+                  </div>
+                  
+                  {/* Regras de segurança */}
+                  <div className="cortes-rules-info">
+                    <h4>🔒 Regras de Segurança:</h4>
+                    <ul>
+                      <li>Mínimo de {SCHEDULING_RULES.minIntervalMinutes}min entre posts</li>
+                      <li>Máximo de {SCHEDULING_RULES.maxPostsPerDay} posts/dia por rede</li>
+                      <li>Evitando horários noturnos (22h-6h)</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
+
+              {/* Preview do schedule */}
+              {scheduleMode === 'scheduled' && (
+                <div className="cortes-schedule-preview">
+                  <h4>📅 Previsão de Publicação:</h4>
+                  <div className="cortes-time-slots">
+                    {Array.from({ length: SCHEDULING_RULES.maxPostsPerDay }, (_, i) => {
+                      const [hour, minute] = selectedSchedule.time.split(':').map(Number);
+                      const slotTime = new Date();
+                      slotTime.setDate(parseInt(selectedSchedule.date));
+                      slotTime.setHours(hour + (i * 3), minute, 0, 0); // 3h entre posts
+                      return (
+                        <div key={i} className="cortes-time-slot">
+                          <span>{slotTime.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          <span className="cortes-slot-label">Post {i + 1}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Seção: Personas */}
       <section className="cortes-section">
         <div className="cortes-section-header">
@@ -328,7 +413,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                           <div className="cortes-actions-row">
                             {/* OAuth - Conectar com login */}
                             <div className="cortes-oauth-section">
-                              <p className="cortes-help-text">Conecte sua conta (será aberto um popup para autenticação)</p>
+                              <p className="cortes-help-text">Conecte sua conta ({PLATFORMS.find(p => p.id === 'youtube')?.label || 'selecionar'})</p>
                               <div className="cortes-platform-grid">
                                 {PLATFORMS.map(p => {
                                   const isConnecting = connectingTo?.startsWith(`${p.id}:`);
