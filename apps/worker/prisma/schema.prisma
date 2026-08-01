@@ -1,0 +1,558 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model Project {
+  id                   String   @id @default(cuid())
+  name                 String
+  icon                 String
+  description          String
+  status               ProjectStatus @default(ACTIVE)
+  agents               Agent[]
+  workflows            Workflow[]
+  artifacts            Artifact[]
+  pipelines            Pipeline[]
+  scheduledJobs        ScheduledJob[]
+  templates            WorkflowTemplate[]
+  secrets              Secret[]
+  costRecords          CostRecord[]
+  evaluationSuites     EvaluationSuite[]
+  conversations        Conversation[]
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@map("projects")
+}
+
+model Agent {
+  id        String   @id @default(cuid())
+  name      String
+  status    AgentStatus @default(IDLE)
+  task      String
+  color     String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pipeline  Pipeline? @relation(fields: [pipelineId], references: [id])
+  pipelineId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("agents")
+}
+
+model Workflow {
+  id        String   @id @default(cuid())
+  name      String
+  status    WorkflowStatus @default(SCHEDULED)
+  progress  Int      @default(0)
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("workflows")
+}
+
+model Artifact {
+  id        String   @id @default(cuid())
+  name      String
+  type      String
+  size      String
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("artifacts")
+}
+
+model Pipeline {
+  id            String          @id @default(cuid())
+  name          String
+  description   String?
+  nodes         PipelineNode[]
+  edges         PipelineEdge[]
+  projectId     String
+  project       Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  agents        Agent[]
+  scheduledJobs ScheduledJob[]
+  versions      PipelineVersion[]
+  approvalGates ApprovalGate[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@map("pipelines")
+}
+
+model PipelineNode {
+  id        String         @id @default(cuid())
+  type      String
+  label     String
+  positionX Float
+  positionY Float
+  config    Json
+  inputs    String         @default("[]")
+  outputs   String         @default("[]")
+  disabled  Boolean        @default(false)
+  pipelineId String
+  pipeline  Pipeline       @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("pipeline_nodes")
+}
+
+model PipelineEdge {
+  id           String  @id @default(cuid())
+  source       String
+  target       String
+  sourceHandle String?
+  targetHandle String?
+  pipelineId   String
+  pipeline     Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+
+  @@map("pipeline_edges")
+}
+
+enum ProjectStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+}
+
+enum AgentStatus {
+  RUNNING
+  IDLE
+  WORKING
+  WAITING
+  ERROR
+}
+
+enum WorkflowStatus {
+  RUNNING
+  COMPLETED
+  ERROR
+  SCHEDULED
+}
+
+enum PipelineStepType {
+  AGENT
+  PROVIDER
+  TOOL
+  ARTIFACT
+}
+
+enum PipelineStepStatus {
+  PENDING
+  ACTIVE
+  DONE
+  ERROR
+}
+
+model ScheduledJob {
+  id              String   @id @default(cuid())
+  pipelineId      String
+  pipeline        Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name            String
+  cronExpression  String
+  enabled         Boolean  @default(true)
+  timezone        String   @default("America/Sao_Paulo")
+  webhookSecret   String?
+  createdBy       String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastRunAt       DateTime?
+  nextRunAt       DateTime?
+  lastRunStatus   String?
+  lastRunOutput   String?
+  lastError       String?
+  runCount        Int      @default(0)
+  executions      PipelineExecution[]
+
+  @@map("scheduled_jobs")
+}
+
+model PipelineExecution {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         ScheduledJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  pipelineId  String
+  projectId   String
+  status      String   @default("running")
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  output      String?
+  error       String?
+  triggeredBy String   @default("cron")
+
+  @@map("pipeline_executions")
+}
+
+model PipelineVersion {
+  id          String   @id @default(cuid())
+  pipelineId  String
+  pipeline    Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  version     Int
+  name        String
+  description String?
+  nodes       Json
+  edges       Json
+  createdBy   String
+  createdAt   DateTime @default(now())
+  isCurrent   Boolean  @default(false)
+  changelog   String?
+
+  @@unique([pipelineId, version])
+  @@map("pipeline_versions")
+}
+
+model ApprovalGate {
+  id              String   @id @default(cuid())
+  pipelineId      String
+  pipeline        Pipeline @relation(fields: [pipelineId], references: [id], onDelete: Cascade)
+  nodeId          String
+  name            String
+  description     String?
+  approvers       Json
+  status          ApprovalStatus @default(PENDING)
+  requestedAt     DateTime @default(now())
+  respondedAt     DateTime?
+  respondedBy     String?
+  response        String?
+  comment         String?
+  timeoutMinutes  Int      @default(60)
+  expiresAt       DateTime?
+
+  @@map("approval_gates")
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+model WorkflowTemplate {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  category    String
+  tags        Json
+  nodes       Json
+  edges       Json
+  thumbnail   String?
+  isPublic    Boolean  @default(true)
+  createdBy   String
+  usageCount  Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("workflow_templates")
+}
+
+model Secret {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  key       String
+  value     String   // Encrypted
+  type      SecretType @default(STRING)
+  description String?
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([projectId, key])
+  @@map("secrets")
+}
+
+enum SecretType {
+  STRING
+  API_KEY
+  DATABASE_URL
+  OAUTH_TOKEN
+  SSH_KEY
+  CERTIFICATE
+}
+
+model CostRecord {
+  id            String   @id @default(cuid())
+  projectId     String
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  executionId   String?
+  pipelineId    String?
+  nodeId        String?
+  nodeType      String?
+  model         String?
+  promptTokens  Int      @default(0)
+  completionTokens Int   @default(0)
+  totalTokens   Int      @default(0)
+  costUsd       Float    @default(0)
+  metadata      Json?
+  createdAt     DateTime @default(now())
+
+  @@map("cost_records")
+}
+
+model EvaluationSuite {
+  id          String   @id @default(cuid())
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  pipelineId  String?
+  name        String
+  description String?
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  testCases   EvaluationTestCase[]
+  runs        EvaluationRun[]
+
+  @@map("evaluation_suites")
+}
+
+model EvaluationTestCase {
+  id            String   @id @default(cuid())
+  suiteId       String
+  suite         EvaluationSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  name          String
+  description   String?
+  input         Json
+  expectedOutput Json?
+  assertions    Json    // Array of {type, path, expected, operator}
+  metadata      Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  runs          EvaluationTestCaseRun[]
+
+  @@map("evaluation_test_cases")
+}
+
+model EvaluationRun {
+  id              String   @id @default(cuid())
+  suiteId         String
+  suite           EvaluationSuite @relation(fields: [suiteId], references: [id], onDelete: Cascade)
+  pipelineId      String
+  status          EvaluationRunStatus @default(PENDING)
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  totalCases      Int      @default(0)
+  passedCases     Int      @default(0)
+  failedCases     Int      @default(0)
+  error           String?
+  results         Json     // Array of {testCaseId, passed, output, error, duration}
+  createdAt       DateTime @default(now())
+
+  testCaseRuns    EvaluationTestCaseRun[]
+
+  @@map("evaluation_runs")
+}
+
+model EvaluationTestCaseRun {
+  id              String   @id @default(cuid())
+  runId           String
+  run             EvaluationRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  testCaseId      String
+  testCase        EvaluationTestCase @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+  status          TestCaseRunStatus @default(PENDING)
+  output          Json?
+  error           String?
+  durationMs      Int?
+  assertionResults Json    // Array of {assertion, passed, actual, expected}
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+
+  @@map("evaluation_test_case_runs")
+}
+
+enum EvaluationRunStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum TestCaseRunStatus {
+  PENDING
+  RUNNING
+  PASSED
+  FAILED
+  ERROR
+  SKIPPED
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  title     String
+  model     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages  Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String   // "user" | "assistant" | "system"
+  content        String
+  model          String?
+  metadata       Json?    // For attached files, reasoning, etc.
+  createdAt      DateTime @default(now())
+
+  @@map("messages")
+}
+
+// ===== Cortes Models =====
+
+enum CorteProjectStatus {
+  PENDING
+  GENERATING
+  READY
+  ERROR
+  PUBLISHED
+}
+
+enum CorteClipStatus {
+  PENDING
+  PROCESSING
+  READY
+  ERROR
+  PUBLISHED
+}
+
+enum FontColor {
+  BLUE
+  GREEN
+  YELLOW
+  PINK
+  RED
+  WHITE
+}
+
+model CorteChannel {
+  id              String   @id @default(cuid())
+  name            String
+  category        String?  // "Comédia", "Terror", etc.
+  description     String?
+  socialAccountIds Json @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  projects        CorteProject[]
+
+  @@map("corte_channels")
+}
+
+model CorteSocialAccount {
+  id          String   @id @default(cuid())
+  platform    String   // "youtube", "instagram", "tiktok", "facebook", "twitter"
+  accountId   String   // ID da conta na rede
+  displayName String?
+  handle      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channelIds  Json @default("[]") // canais que usam essa conta
+
+  @@unique([platform, accountId])
+  @@map("corte_social_accounts")
+}
+
+model CorteProject {
+  id                String               @id @default(cuid())
+  name              String
+  sourceVideoUrl    String
+  duration          Int                  @default(15)    // segundos
+  format            String               @default("9:16") // "9:16", "16:9", "1:1"
+  quantityRequested Int                  @default(3)
+  autoHighlights    Boolean              @default(true)
+  autoCaptions      Boolean              @default(true)
+  autoTitle         Boolean              @default(true)
+  autoDescription   Boolean              @default(true)
+  autoHashtags      Boolean              @default(true)
+  status            CorteProjectStatus   @default(PENDING)
+  error             String?
+  channel_id        String?
+  channel           CorteChannel?        @relation(fields: [channel_id], references: [id], onDelete: SetNull)
+  clips             CorteClip[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@map("corte_projects")
+}
+
+model CorteClip {
+  id             String           @id @default(cuid())
+  project_id     String
+  project        CorteProject     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  index          Int              @default(0)
+  start_time     Float            @default(0)
+  end_time       Float            @default(0)
+  video_file     String?
+  thumbnail_file String?
+  caption        String?
+  title          String?
+  description    String?
+  hashtags       Json             @default("[]")
+  status         CorteClipStatus  @default(PENDING)
+  error          String?
+  published_at   DateTime?
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+
+  @@map("corte_clips")
+}
+
+model CorteSettings {
+  id                      String   @id @default(cuid())
+  subtitle_font_size      Int      @default(24)
+  subtitle_font_family    String   @default("Arial")
+  subtitle_vertical_pos   String   @default("bottom") // top, center, bottom
+  subtitle_max_chars      Int      @default(20)
+  subtitle_color          String   @default("#FFFFFF")
+  active_word_color       FontColor @default(YELLOW)
+  active_word_size        Int      @default(110) // porcentagem
+  subtitle_style          String   @default("outline") // outline, shadow, solid
+  line_spacing            Int      @default(120) // porcentagem
+  video_quality           String   @default("720p")
+  default_duration        Int      @default(15)
+  default_quantity        Int      @default(3)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("corte_settings")
+}
+
+model AiProvider {
+  id              String   @id @default(cuid())
+  providerType    String   // "openai" | "anthropic" | "openrouter" | "google" | "ollama" | "deepseek" | "custom"
+  name            String   // Nome para exibição
+  encryptedKey    String   // API key criptografada (AES-GCM)
+  iv              String   // Vetor de inicialização (12 bytes base64)
+  authTag         String   // Tag de autenticação GCM (16 bytes base64)
+  baseUrl         String?  // Endpoint customizado (para OpenAI-compatible, Ollama)
+  config          Json?    // Configurações específicas (models[], settings)
+  isDefault       Boolean  @default(false)
+  status          String   @default("connected") // "connected" | "disconnected" | "error" | "testing"
+  lastTestedAt    DateTime?
+  lastTestedError String?  // Último erro de teste
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("ai_providers")
+}

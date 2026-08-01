@@ -6,7 +6,8 @@
   "description": "BeeHive Cowork Nuvem — worker que executa terminal, arquivos, git, browser, kernel e plugins sob demanda.",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "start": "tsx src/index.ts",
+    "prisma:generate": "prisma generate",
+    "start": "prisma generate && tsx src/index.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
@@ -21,6 +22,8 @@
     "puppeteer": "^25.3.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
+    "prisma": "^7.8.0",
+    "@prisma/client": "^7.8.0",
     "qrcode": "^1.5.4",
     "whatsapp-web.js": "^1.34.7"
   },
