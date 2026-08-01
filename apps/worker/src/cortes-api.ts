@@ -5,14 +5,17 @@ import path from 'node:path';
 
 const router = Router();
 
-// Usar SQLite no volume persistente do Railway
-const DATABASE_PATH = process.env.DATABASE_URL || 
-  `file:${path.join(process.cwd(), 'workspace', 'data', 'bee-hive.db')}`;
+// Usar variável de ambiente DATABASE_URL configurada no Railway
+const DATABASE_URL = process.env.DATABASE_URL;
+
+if (!DATABASE_URL) {
+  console.warn('⚠️ DATABASE_URL não configurado! Dados não persistirão entre reinicializações.');
+}
 
 const prisma = new PrismaClient({
   datasources: {
     db: {
-      url: DATABASE_PATH,
+      url: DATABASE_URL,
     },
   },
 });
