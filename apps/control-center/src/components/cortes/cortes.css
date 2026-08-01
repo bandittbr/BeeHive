@@ -96,7 +96,111 @@
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
+}
+
+/* OAuth Config Section */
+.cortes-oauth-config-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.cortes-oauth-config-section h4 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin: 0;
+}
+
+.cortes-platform-config-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 16px;
+}
+
+.cortes-platform-config {
+  padding: 16px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: all 0.2s;
+}
+
+.cortes-platform-config.connected {
+  border-color: var(--success);
+  background: rgba(111, 168, 94, 0.05);
+}
+
+.cortes-platform-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cortes-platform-icon {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.cortes-platform-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+}
+
+.cortes-connected-badge {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: rgba(111, 168, 94, 0.15);
+  border-radius: 999px;
+  color: var(--success);
+  font-weight: 600;
+}
+
+.cortes-oauth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cortes-oauth-form input {
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 12px;
+  outline: none;
+}
+
+.cortes-oauth-form input:focus {
+  border-color: var(--primary);
+}
+
+.cortes-oauth-form input::placeholder {
+  color: var(--text-muted);
+}
+
+.cortes-oauth-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cortes-connected-account {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  background: var(--surface);
+  border-radius: 6px;
+}
+
+.cortes-account-display {
+  font-size: 12px;
+  color: var(--text-secondary);
 }
 
 /* Connected Accounts */
@@ -185,52 +289,7 @@
   color: var(--danger);
 }
 
-/* Add Account Section */
-.cortes-add-account-section {
-  padding-top: 16px;
-  border-top: 1px solid var(--border-light);
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.cortes-help-text {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 0;
-}
-
-.cortes-oauth-buttons {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.cortes-oauth-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 16px;
-  background: var(--bg);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--text-secondary);
-  transition: all 0.2s;
-}
-
-.cortes-oauth-btn:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-}
-
-.cortes-platform-icon {
-  font-size: 16px;
-  line-height: 1;
-}
-
+/* Manual Form */
 .cortes-manual-form {
   display: flex;
   flex-direction: column;
@@ -332,6 +391,11 @@
   font-size: 12px;
 }
 
+.btn-xs {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
 .btn-icon-danger {
   width: 32px;
   height: 32px;
@@ -397,6 +461,12 @@
   border-radius: 12px;
 }
 
+.cortes-empty-state svg {
+  color: var(--text-muted);
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
 .cortes-empty-state h3 {
   font-size: 18px;
   font-weight: 600;
@@ -449,11 +519,15 @@
     padding: 16px;
   }
   
-  .cortes-oauth-buttons {
+  .cortes-platform-config-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .cortes-oauth-actions {
     flex-direction: column;
   }
   
-  .cortes-oauth-btn {
+  .cortes-oauth-actions button {
     width: 100%;
     justify-content: center;
   }

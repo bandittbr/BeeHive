@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Settings, Link as LinkIcon } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Settings, Globe } from 'lucide-react';
 import {
-  listChannels, createChannel, deleteChannel,
+  listChannels, createChannel, deleteChannel, updateChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
 } from '../../services/cortes-api';
 import { useAppStore } from '../../stores/appStore';
@@ -18,6 +18,14 @@ const PLATFORMS = [
 // URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
+interface PlatformConfig {
+  platform: string;
+  clientId?: string;
+  clientSecret?: string;
+  connectedAccountId?: string;
+  displayName?: string;
+}
+
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const { addCorteChannel, deleteCorteChannel, addCorteSocialAccount, deleteCorteSocialAccount } = useAppStore();
   const [channels, setChannels] = useState<CorteChannel[]>([]);
@@ -27,31 +35,33 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   // Estado para expansão das personas
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
   
-  // Estado para OAuth flow - qual conta está sendo conectada
-  const [oauthState, setOauthState] = useState<{ platform: string; channelId: string } | null>(null);
-  
-  // Estado para formulário manual
-  const [addingManual, setAddingManual] = useState<string | null>(null); // channelId
-  const [manualPlatform, setManualPlatform] = useState('youtube');
-  const [accountId, setAccountId] = useState('');
-  const [accountHandle, setAccountHandle] = useState('');
-  const [creatingAcc, setCreatingAcc] = useState(false);
-  
   // Estado para novo canal
   const [showNewChannel, setShowNewChannel] = useState(false);
   const [newChannelName, setNewChannelName] = useState('');
   const [newChannelCategory, setNewChannelCategory] = useState('');
   const [creatingChannel, setCreatingChannel] = useState(false);
+  
+  // Estado para configuração OAuth de cada plataforma
+  const [platformConfigs, setPlatformConfigs] = useState<Record<string, PlatformConfig>>({});
+  const [savingConfig, setSavingConfig] = useState<string | null>(null);
+  const [oauthState, setOauthState] = useState<{ platform: string; channelId: string } | null>(null);
+  
+  // Estado para formulário manual
+  const [addingManual, setAddingManual] = useState<string | null>(null);
+  const [manualPlatform, setManualPlatform] = useState('youtube');
+  const [accountId, setAccountId] = useState('');
+  const [accountHandle, setAccountHandle] = useState('');
+  const [creatingAcc, setCreatingAcc] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
-  // Escuta callback do OAuth (quando volta da rede social)
+  // Escuta callback do OAuth
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const connected = urlParams.get('connected');
     const accountIdParam = urlParams.get('accountId');
     const displayName = urlParams.get('displayName');
-    const state = urlParams.get('state'); // channelId
+    const state = urlParams.get('state');
     
     if (connected && accountIdParam && state) {
       handleOAuthCallback(connected, accountIdParam, displayName || undefined, state);
@@ -67,6 +77,17 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setSocialAccounts(acc);
       ch.forEach(c => addCorteChannel(c));
       acc.forEach(a => addCorteSocialAccount(a));
+      
+      // Load platform configs
+      const configs: Record<string, PlatformConfig> = {};
+      acc.forEach(a => {
+        configs[a.platform] = {
+          platform: a.platform,
+          connectedAccountId: a.id,
+          displayName: a.displayName,
+        };
+      });
+      setPlatformConfigs(configs);
     } catch (e) {
       console.error('Failed to load', e);
     } finally {
@@ -102,7 +123,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setNewChannelName('');
       setNewChannelCategory('');
       setShowNewChannel(false);
-      // Expande automaticamente para conectar contas
+      // Expande automaticamente para configurar contas
       setExpandedChannels(prev => new Set([...prev, ch.id]));
       onRefresh();
     } catch (e) {
@@ -118,37 +139,22 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       await deleteChannel(id);
       deleteCorteChannel(id);
       setChannels(prev => prev.filter(c => c.id !== id));
-      // Remove contas relacionadas
-      const channelAccounts = socialAccounts.filter(sa => channels.find(c => c.id === id)?.socialAccountIds?.includes(sa.id));
-      channelAccounts.forEach(acc => {
-        deleteSocialAccount(acc.id).catch(() => {});
-        deleteCorteSocialAccount(acc.id);
-      });
-      setSocialAccounts(prev => prev.filter(a => !channelAccounts.some(ca => ca.id === a.id)));
-      setExpandedChannels(prev => {
-        const next = new Set(prev);
-        next.delete(id);
-        return next;
-      });
       onRefresh();
     } catch (e) {
       console.error('Failed to delete channel', e);
     }
   }
 
-  // Inicia OAuth diretamente da persona
   function startOAuth(platform: string, channelId: string) {
     setOauthState({ platform, channelId });
     const redirectUri = `${window.location.origin}/`;
-    const state = channelId;
     window.open(
-      `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`,
+      `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${channelId}`,
       'oauth_popup',
       'width=600,height=500,left=' + (window.screen.width/2 - 300) + ',top=' + (window.screen.height/2 - 250)
     );
   }
 
-  // Handle callback do OAuth
   async function handleOAuthCallback(platform: string, accountId: string, displayName?: string, channelId?: string) {
     if (!channelId) {
       alert('Erro: ID da persona não encontrado');
@@ -181,6 +187,30 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  async function handleSavePlatformConfig(platform: string, clientId: string, clientSecret: string) {
+    if (!clientId || !clientSecret) {
+      alert('Preencha Client ID e Client Secret');
+      return;
+    }
+    setSavingConfig(platform);
+    try {
+      const res = await fetch(`${BACKEND_URL}/oauth/apps/${platform}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clientId, clientSecret }),
+      });
+      if (!res.ok) throw new Error('Falha ao salvar');
+      setPlatformConfigs(prev => ({
+        ...prev,
+        [platform]: { platform, clientId, clientSecret }
+      }));
+    } catch (e) {
+      alert('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSavingConfig(null);
+    }
+  }
+
   async function handleAddManual(channelId: string) {
     if (!accountId.trim()) {
       alert('Por favor, preencha o ID/Link da conta');
@@ -196,7 +226,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       
-      // Adiciona à persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), acc.id];
@@ -223,7 +252,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       deleteCorteSocialAccount(accountIdStr);
       setSocialAccounts(prev => prev.filter(a => a.id !== accountIdStr));
       
-      // Remove da persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newIds = (currentChannel.socialAccountIds || []).filter(id => id !== accountIdStr);
@@ -248,8 +276,9 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       <div className="cortes-personas-list">
         {channels.length === 0 ? (
           <div className="cortes-empty-state">
-            <h3>Nenhuma persona criada</h3>
-            <p>Crie sua primeira persona para organizar suas contas de rede social</p>
+            <Globe size={48} />
+            <h3>Comece criando sua primeira persona</h3>
+            <p>Personas ajudam a organizar suas contas de rede social por projeto ou nicho</p>
           </div>
         ) : (
           channels.map(ch => {
@@ -285,7 +314,85 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                 {/* Conteúdo expandido */}
                 {isExpanded && (
                   <div className="cortes-persona-content">
-                    {/* Contas conectadas */}
+                    {/* Configuração OAuth por plataforma */}
+                    <div className="cortes-oauth-config-section">
+                      <h4>🔑 Configurar Conexões</h4>
+                      <p className="cortes-help-text">Adicione as credenciais OAuth para conectar suas contas</p>
+                      
+                      <div className="cortes-platform-config-grid">
+                        {PLATFORMS.map(p => {
+                          const config = platformConfigs[p.id] || {};
+                          const hasConnection = channelAccounts.some(a => a.platform === p.id);
+                          const isSaving = savingConfig === p.id;
+                          
+                          return (
+                            <div key={p.id} className={`cortes-platform-config ${hasConnection ? 'connected' : ''}`}>
+                              <div className="cortes-platform-header">
+                                <span className="cortes-platform-icon" style={{ color: p.color }}>{p.icon}</span>
+                                <span className="cortes-platform-name">{p.label}</span>
+                                {hasConnection && <span className="cortes-connected-badge">✓ Conectado</span>}
+                              </div>
+                              
+                              {!hasConnection && (
+                                <div className="cortes-oauth-form">
+                                  <input 
+                                    type="text"
+                                    placeholder="Client ID"
+                                    value={config.clientId || ''}
+                                    onChange={e => setPlatformConfigs(prev => ({
+                                      ...prev,
+                                      [p.id]: { ...prev[p.id], clientId: e.target.value }
+                                    }))}
+                                  />
+                                  <input 
+                                    type="password"
+                                    placeholder="Client Secret"
+                                    value={config.clientSecret || ''}
+                                    onChange={e => setPlatformConfigs(prev => ({
+                                      ...prev,
+                                      [p.id]: { ...prev[p.id], clientSecret: e.target.value }
+                                    }))}
+                                  />
+                                  <div className="cortes-oauth-actions">
+                                    <button 
+                                      className="btn-primary btn-sm"
+                                      onClick={() => handleSavePlatformConfig(p.id, config.clientId || '', config.clientSecret || '')}
+                                      disabled={isSaving || !config.clientId || !config.clientSecret}
+                                    >
+                                      {isSaving ? <Loader2 size={12} className="spin" /> : <Settings size={12} />} Salvar
+                                    </button>
+                                    <button 
+                                      className="btn-outline btn-sm"
+                                      onClick={() => startOAuth(p.id, ch.id)}
+                                      disabled={!config.clientId || !config.clientSecret}
+                                    >
+                                      <Globe size={12} /> Conectar
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {hasConnection && (
+                                <div className="cortes-connected-account">
+                                  <span className="cortes-account-display">Conectado como: {config.displayName || 'Conta conectada'}</span>
+                                  <button 
+                                    className="btn-ghost btn-xs"
+                                    onClick={() => {
+                                      const acc = channelAccounts.find(a => a.platform === p.id);
+                                      if (acc) handleDeleteAccount(acc.id, ch.id);
+                                    }}
+                                  >
+                                    Desconectar
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Contas já conectadas */}
                     {channelAccounts.length > 0 && (
                       <div className="cortes-connected-accounts">
                         <h4>Contas Conectadas</h4>
@@ -309,77 +416,54 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                       </div>
                     )}
 
-                    {/* Botões para adicionar conta */}
-                    <div className="cortes-add-account-section">
-                      <p className="cortes-help-text">Adicionar nova conta:</p>
-                      
-                      {/* OAuth buttons */}
-                      <div className="cortes-oauth-buttons">
-                        {PLATFORMS.map(p => (
-                          <button
-                            key={p.id}
-                            className="cortes-oauth-btn"
-                            style={{ borderColor: p.color + '40', background: p.color + '10' }}
-                            onClick={() => startOAuth(p.id, ch.id)}
+                    {/* Adicionar manualmente */}
+                    {addingManual === ch.id ? (
+                      <div className="cortes-manual-form">
+                        <select value={manualPlatform} onChange={e => setManualPlatform(e.target.value)}>
+                          {PLATFORMS.map(p => (
+                            <option key={p.id} value={p.id}>{p.label}</option>
+                          ))}
+                        </select>
+                        <input 
+                          type="text" 
+                          placeholder="ID ou Link da conta" 
+                          value={accountId}
+                          onChange={e => setAccountId(e.target.value)}
+                        />
+                        <input 
+                          type="text" 
+                          placeholder="Nome (opcional)" 
+                          value={accountHandle}
+                          onChange={e => setAccountHandle(e.target.value)}
+                        />
+                        <div className="cortes-form-actions">
+                          <button 
+                            className="btn-primary btn-sm"
+                            onClick={() => handleAddManual(ch.id)}
+                            disabled={creatingAcc || !accountId.trim()}
                           >
-                            <span className="cortes-platform-icon" style={{ color: p.color }}>{p.icon}</span>
-                            <span>{p.label}</span>
+                            {creatingAcc ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Adicionar
                           </button>
-                        ))}
-                      </div>
-
-                      {/* Manual fallback */}
-                      {addingManual === ch.id ? (
-                        <div className="cortes-manual-form">
-                          <select 
-                            value={manualPlatform} 
-                            onChange={e => setManualPlatform(e.target.value)}
+                          <button 
+                            className="btn-ghost btn-sm"
+                            onClick={() => {
+                              setAddingManual(null);
+                              setAccountId('');
+                              setAccountHandle('');
+                            }}
                           >
-                            {PLATFORMS.map(p => (
-                              <option key={p.id} value={p.id}>{p.label}</option>
-                            ))}
-                          </select>
-                          <input 
-                            type="text" 
-                            placeholder="ID ou Link da conta" 
-                            value={accountId}
-                            onChange={e => setAccountId(e.target.value)}
-                          />
-                          <input 
-                            type="text" 
-                            placeholder="Nome (opcional)" 
-                            value={accountHandle}
-                            onChange={e => setAccountHandle(e.target.value)}
-                          />
-                          <div className="cortes-form-actions">
-                            <button 
-                              className="btn-primary btn-sm"
-                              onClick={() => handleAddManual(ch.id)}
-                              disabled={creatingAcc || !accountId.trim()}
-                            >
-                              {creatingAcc ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Adicionar
-                            </button>
-                            <button 
-                              className="btn-ghost btn-sm"
-                              onClick={() => {
-                                setAddingManual(null);
-                                setAccountId('');
-                                setAccountHandle('');
-                              }}
-                            >
-                              Cancelar
-                            </button>
-                          </div>
+                            Cancelar
+                          </button>
                         </div>
-                      ) : (
-                        <button 
-                          className="btn-outline btn-sm"
-                          onClick={() => setAddingManual(ch.id)}
-                        >
-                          <Plus size={14} /> Adicionar manualmente
-                        </button>
-                      )}
-                    </div>
+                      </div>
+                    ) : (
+                      <button 
+                        className="btn-outline"
+                        onClick={() => setAddingManual(ch.id)}
+                      >
+                        <Plus size={14} /> Adicionar conta manualmente
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -408,7 +492,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
           />
           <input 
             type="text" 
-            placeholder="Categoria (opcional)" 
+            placeholder="Categoria (opcional, ex: Comédia)" 
             value={newChannelCategory}
             onChange={e => setNewChannelCategory(e.target.value)}
           />

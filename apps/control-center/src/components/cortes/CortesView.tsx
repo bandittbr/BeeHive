@@ -3,7 +3,6 @@ import { Users, Settings, Plus, Loader2 } from 'lucide-react';
 import { NewProjectForm } from './NewProjectForm';
 import { ChannelsManagerView } from './ChannelsManager';
 import { CorteSettingsView } from './CorteSettings';
-import { OauthSettingsView } from './OauthSettings';
 import type { CorteChannel, CorteSocialAccount, CorteProject, CorteSettings } from '../../types/cortes';
 import { useAppStore } from '../../stores/appStore';
 import { listChannels, getSettings, listSocialAccounts } from '../../services/cortes-api';
