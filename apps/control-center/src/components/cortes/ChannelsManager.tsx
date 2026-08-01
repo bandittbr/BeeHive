@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Settings, Globe } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Key, Globe, CheckCircle2 } from 'lucide-react';
 import {
   listChannels, createChannel, deleteChannel, updateChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
@@ -18,12 +18,17 @@ const PLATFORMS = [
 // URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
-interface PlatformConfig {
-  platform: string;
-  clientId?: string;
-  clientSecret?: string;
-  connectedAccountId?: string;
-  displayName?: string;
+interface PlatformCredentials {
+  clientId: string;
+  clientSecret: string;
+}
+
+interface PersonaState {
+  id: string;
+  name: string;
+  category?: string;
+  credentials: Record<string, PlatformCredentials>;
+  connectedAccounts: string[];
 }
 
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
@@ -35,16 +40,13 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   // Estado para expansão das personas
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
   
-  // Estado para novo canal
-  const [showNewChannel, setShowNewChannel] = useState(false);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelCategory, setNewChannelCategory] = useState('');
-  const [creatingChannel, setCreatingChannel] = useState(false);
+  // Estado para credenciais OAuth por plataforma
+  const [credentials, setCredentials] = useState<Record<string, PlatformCredentials>>({});
+  const [savingCreds, setSavingCreds] = useState<string | null>(null);
   
-  // Estado para configuração OAuth de cada plataforma
-  const [platformConfigs, setPlatformConfigs] = useState<Record<string, PlatformConfig>>({});
-  const [savingConfig, setSavingConfig] = useState<string | null>(null);
-  const [oauthState, setOauthState] = useState<{ platform: string; channelId: string } | null>(null);
+  // Estado para OAuth flow
+  const [oauthPlatform, setOauthPlatform] = useState<string | null>(null);
+  const [oauthChannelId, setOauthChannelId] = useState<string | null>(null);
   
   // Estado para formulário manual
   const [addingManual, setAddingManual] = useState<string | null>(null);
@@ -52,6 +54,12 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const [accountId, setAccountId] = useState('');
   const [accountHandle, setAccountHandle] = useState('');
   const [creatingAcc, setCreatingAcc] = useState(false);
+  
+  // Estado para novo canal
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelCategory, setNewChannelCategory] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -77,17 +85,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setSocialAccounts(acc);
       ch.forEach(c => addCorteChannel(c));
       acc.forEach(a => addCorteSocialAccount(a));
-      
-      // Load platform configs
-      const configs: Record<string, PlatformConfig> = {};
-      acc.forEach(a => {
-        configs[a.platform] = {
-          platform: a.platform,
-          connectedAccountId: a.id,
-          displayName: a.displayName,
-        };
-      });
-      setPlatformConfigs(configs);
     } catch (e) {
       console.error('Failed to load', e);
     } finally {
@@ -123,7 +120,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setNewChannelName('');
       setNewChannelCategory('');
       setShowNewChannel(false);
-      // Expande automaticamente para configurar contas
+      // Expande automaticamente para configurar OAuth
       setExpandedChannels(prev => new Set([...prev, ch.id]));
       onRefresh();
     } catch (e) {
@@ -145,11 +142,47 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  async function handleSaveCredentials(platform: string) {
+    const cred = credentials[platform];
+    if (!cred?.clientId || !cred.clientSecret) {
+      alert('Preencha Client ID e Client Secret');
+      return;
+    }
+    setSavingCreds(platform);
+    try {
+      const res = await fetch(`${BACKEND_URL}/oauth/apps/${platform}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          clientId: cred.clientId, 
+          clientSecret: cred.clientSecret 
+        }),
+      });
+      if (!res.ok) throw new Error('Falha ao salvar');
+      // Update UI to show saved
+      setCredentials(prev => ({
+        ...prev,
+        [platform]: { ...prev[platform], clientId: cred.clientId, clientSecret: cred.clientSecret }
+      }));
+    } catch (e) {
+      alert('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
+    } finally {
+      setSavingCreds(null);
+    }
+  }
+
   function startOAuth(platform: string, channelId: string) {
-    setOauthState({ platform, channelId });
+    const cred = credentials[platform];
+    if (!cred?.clientId || !cred.clientSecret) {
+      alert('Configure as credenciais OAuth primeiro!');
+      return;
+    }
+    setOauthPlatform(platform);
+    setOauthChannelId(channelId);
     const redirectUri = `${window.location.origin}/`;
+    const state = channelId;
     window.open(
-      `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${channelId}`,
+      `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`,
       'oauth_popup',
       'width=600,height=500,left=' + (window.screen.width/2 - 300) + ',top=' + (window.screen.height/2 - 250)
     );
@@ -179,35 +212,13 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
         setChannels(updatedChannels);
       }
       
-      setOauthState(null);
+      setOauthPlatform(null);
+      setOauthChannelId(null);
       onRefresh();
     } catch (e) {
       alert('Erro ao conectar conta: ' + (e instanceof Error ? e.message : String(e)));
-      setOauthState(null);
-    }
-  }
-
-  async function handleSavePlatformConfig(platform: string, clientId: string, clientSecret: string) {
-    if (!clientId || !clientSecret) {
-      alert('Preencha Client ID e Client Secret');
-      return;
-    }
-    setSavingConfig(platform);
-    try {
-      const res = await fetch(`${BACKEND_URL}/oauth/apps/${platform}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId, clientSecret }),
-      });
-      if (!res.ok) throw new Error('Falha ao salvar');
-      setPlatformConfigs(prev => ({
-        ...prev,
-        [platform]: { platform, clientId, clientSecret }
-      }));
-    } catch (e) {
-      alert('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
-    } finally {
-      setSavingConfig(null);
+      setOauthPlatform(null);
+      setOauthChannelId(null);
     }
   }
 
@@ -276,7 +287,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       <div className="cortes-personas-list">
         {channels.length === 0 ? (
           <div className="cortes-empty-state">
-            <Globe size={48} />
+            <Key size={48} />
             <h3>Comece criando sua primeira persona</h3>
             <p>Personas ajudam a organizar suas contas de rede social por projeto ou nicho</p>
           </div>
@@ -314,32 +325,35 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                 {/* Conteúdo expandido */}
                 {isExpanded && (
                   <div className="cortes-persona-content">
-                    {/* Configuração OAuth por plataforma */}
-                    <div className="cortes-oauth-config-section">
-                      <h4>🔑 Configurar Conexões</h4>
-                      <p className="cortes-help-text">Adicione as credenciais OAuth para conectar suas contas</p>
+                    {/* Seção OAuth - Configuração direta na persona */}
+                    <div className="cortes-oauth-section">
+                      <div className="cortes-section-header">
+                        <Key size={18} />
+                        <h4>Credenciais OAuth por Plataforma</h4>
+                      </div>
+                      <p className="cortes-help-text">Configure as credenciais para cada rede social. Você pode obter isso no painel de desenvolvedores de cada plataforma.</p>
                       
-                      <div className="cortes-platform-config-grid">
+                      <div className="cortes-platforms-config">
                         {PLATFORMS.map(p => {
-                          const config = platformConfigs[p.id] || {};
+                          const hasCreds = credentials[p.id]?.clientId && credentials[p.id]?.clientSecret;
                           const hasConnection = channelAccounts.some(a => a.platform === p.id);
-                          const isSaving = savingConfig === p.id;
+                          const isSaving = savingCreds === p.id;
                           
                           return (
-                            <div key={p.id} className={`cortes-platform-config ${hasConnection ? 'connected' : ''}`}>
+                            <div key={p.id} className={`cortes-platform-config ${hasCreds ? 'configured' : ''} ${hasConnection ? 'connected' : ''}`}>
                               <div className="cortes-platform-header">
                                 <span className="cortes-platform-icon" style={{ color: p.color }}>{p.icon}</span>
                                 <span className="cortes-platform-name">{p.label}</span>
-                                {hasConnection && <span className="cortes-connected-badge">✓ Conectado</span>}
+                                {hasConnection && <CheckCircle2 size={16} color="var(--success)" />}
                               </div>
                               
-                              {!hasConnection && (
+                              {!hasConnection ? (
                                 <div className="cortes-oauth-form">
                                   <input 
                                     type="text"
                                     placeholder="Client ID"
-                                    value={config.clientId || ''}
-                                    onChange={e => setPlatformConfigs(prev => ({
+                                    value={credentials[p.id]?.clientId || ''}
+                                    onChange={e => setCredentials(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientId: e.target.value }
                                     }))}
@@ -347,8 +361,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                   <input 
                                     type="password"
                                     placeholder="Client Secret"
-                                    value={config.clientSecret || ''}
-                                    onChange={e => setPlatformConfigs(prev => ({
+                                    value={credentials[p.id]?.clientSecret || ''}
+                                    onChange={e => setCredentials(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientSecret: e.target.value }
                                     }))}
@@ -356,25 +370,24 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                   <div className="cortes-oauth-actions">
                                     <button 
                                       className="btn-primary btn-sm"
-                                      onClick={() => handleSavePlatformConfig(p.id, config.clientId || '', config.clientSecret || '')}
-                                      disabled={isSaving || !config.clientId || !config.clientSecret}
+                                      onClick={() => handleSaveCredentials(p.id)}
+                                      disabled={isSaving || !credentials[p.id]?.clientId || !credentials[p.id]?.clientSecret}
                                     >
-                                      {isSaving ? <Loader2 size={12} className="spin" /> : <Settings size={12} />} Salvar
+                                      {isSaving ? <Loader2 size={12} className="spin" /> : <Key size={12} />} Salvar Credenciais
                                     </button>
-                                    <button 
-                                      className="btn-outline btn-sm"
-                                      onClick={() => startOAuth(p.id, ch.id)}
-                                      disabled={!config.clientId || !config.clientSecret}
-                                    >
-                                      <Globe size={12} /> Conectar
-                                    </button>
+                                    {hasCreds && (
+                                      <button 
+                                        className="btn-outline btn-sm"
+                                        onClick={() => startOAuth(p.id, ch.id)}
+                                      >
+                                        <Globe size={12} /> Conectar Conta
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
-                              )}
-                              
-                              {hasConnection && (
-                                <div className="cortes-connected-account">
-                                  <span className="cortes-account-display">Conectado como: {config.displayName || 'Conta conectada'}</span>
+                              ) : (
+                                <div className="cortes-connected-info">
+                                  <span>✓ Conta conectada com sucesso</span>
                                   <button 
                                     className="btn-ghost btn-xs"
                                     onClick={() => {
@@ -461,7 +474,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                         className="btn-outline"
                         onClick={() => setAddingManual(ch.id)}
                       >
-                        <Plus size={14} /> Adicionar conta manualmente
+                        <Plus size={14} /> Adicionar manualmente
                       </button>
                     )}
                   </div>
