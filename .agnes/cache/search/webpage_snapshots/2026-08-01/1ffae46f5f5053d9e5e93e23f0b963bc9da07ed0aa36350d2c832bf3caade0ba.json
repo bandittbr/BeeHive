@@ -1,0 +1,20 @@
+{
+  "kind": "webpage_snapshot",
+  "url": "https://beehive-production-d895.up.railway.app/api/cortes/channels",
+  "final_url": "https://beehive-production-d895.up.railway.app/api/cortes/channels",
+  "status": 404,
+  "read_status": "http_error",
+  "content_type": "text/html; charset=utf-8",
+  "fetched_at": "2026-08-01T14:46:34.743454600+00:00",
+  "title": "Error",
+  "description": "",
+  "site_name": null,
+  "published_at": null,
+  "source_type": "unknown",
+  "text": "",
+  "quote_candidates": [],
+  "word_count": 0,
+  "truncated": false,
+  "blocked": false,
+  "source": "direct_http"
+}

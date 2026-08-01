@@ -4,7 +4,7 @@
  */
 import { useState } from 'react';
 import {
-  Instagram, Download, FolderOpen, Loader2, CheckCircle2,
+  InstagramIcon, Download, FolderOpen, Loader2, CheckCircle2,
   XCircle, AlertTriangle, ExternalLink,
 } from 'lucide-react';
 import { scrapeInstagram } from '../../services/socialScraperService';

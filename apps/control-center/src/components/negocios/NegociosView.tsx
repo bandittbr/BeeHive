@@ -1,7 +1,7 @@
 // Módulo Negócios — negócios digitais autônomos (Cortes / Dark / Afiliados / Leads).
 // Extraído do App.tsx para facilitar a evolução da Fase 4.
 import { useState, useEffect } from 'react';
-import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users, ImageIcon, Instagram } from 'lucide-react';
+import { Plus, X, Scissors, Link2, Clapperboard, Loader2, Sparkles, Video, Download, CheckCircle2, Calendar, Bot, Play, Trash2, ChevronRight, BarChart3, Globe, Users, ImageIcon, InstagramIcon } from 'lucide-react';
 import { useAppStore } from '../../stores/appStore';
 import { generateContentPackage } from '../../services/contentPipeline';
 import { generateCortes, type CorteClip } from '../../services/cortesPipeline';
