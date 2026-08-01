@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Pencil, CheckCircle2, Globe, Instagram, Youtube, Facebook, Twitter, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Pencil, CheckCircle2, Globe, Instagram, Facebook, Twitter, Loader2 } from 'lucide-react';
 import {
   listChannels, createChannel, updateChannel, deleteChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
@@ -8,14 +8,14 @@ import { useAppStore } from '../../stores/appStore';
 import type { CorteChannel, CorteSocialAccount } from '../../types/cortes';
 
 const PLATFORM_ICON: Record<string, React.ReactNode> = {
-  youtube: <Youtube size={14} />,
+  youtube: <Globe size={14} />,
   instagram: <Instagram size={14} />,
   facebook: <Facebook size={14} />,
   twitter: <Twitter size={14} />,
   tiktok: <Globe size={14} />,
 };
 
-export function ChannelsManagerView() {
+export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const { addCorteChannel, updateCorteChannel, deleteCorteChannel } = useAppStore();
   const [channels, setChannels] = useState<CorteChannel[]>([]);
   const [socialAccounts, setSocialAccounts] = useState<CorteSocialAccount[]>([]);
@@ -59,6 +59,7 @@ export function ChannelsManagerView() {
       setChannelCategory('');
       setChannelDesc('');
       setAddingChannel(false);
+      onRefresh();
     } catch (e) {
       console.error('Failed to create channel', e);
     } finally {
@@ -72,6 +73,7 @@ export function ChannelsManagerView() {
       await deleteChannel(id);
       deleteCorteChannel(id);
       setChannels(prev => prev.filter(c => c.id !== id));
+      onRefresh();
     } catch (e) {
       console.error('Failed to delete channel', e);
     }
@@ -87,6 +89,7 @@ export function ChannelsManagerView() {
       setAccountId('');
       setAccountHandle('');
       setAddingAccount(false);
+      onRefresh();
     } catch (e) {
       console.error('Failed to add account', e);
     } finally {
@@ -99,6 +102,7 @@ export function ChannelsManagerView() {
       await deleteSocialAccount(id);
       deleteCorteSocialAccount(id);
       setSocialAccounts(prev => prev.filter(a => a.id !== id));
+      onRefresh();
     } catch (e) {
       console.error('Failed to delete account', e);
     }
@@ -183,12 +187,12 @@ export function ChannelsManagerView() {
                       <span className="cortes-channel-name">{ch.name}</span>
                       {ch.category && <span className="cortes-channel-category">{ch.category}</span>}
                       <div className="cortes-channel-accounts">
-                        {socialAccounts.filter(sa => ch.socialAccountIds.includes(sa.id)).map(sa => (
+                        {socialAccounts.filter(sa => ch.socialAccountIds?.includes(sa.id)).map(sa => (
                           <span key={sa.id} className="cortes-account-tag">
                             {PLATFORM_ICON[sa.platform]} {sa.displayName || sa.accountId}
                           </span>
                         ))}
-                        {ch.socialAccountIds.length === 0 && <span className="cortes-empty-tag">Nenhuma rede associada</span>}
+                        {(!ch.socialAccountIds || ch.socialAccountIds.length === 0) && <span className="cortes-empty-tag">Nenhuma rede associada</span>}
                       </div>
                     </div>
                     <div className="cortes-channel-actions">
