@@ -49,10 +49,16 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   }
 
   async function handleCreateChannel() {
-    if (!channelName.trim() || creating) return;
+    console.log('handleCreateChannel called');
+    if (!channelName.trim() || creating) {
+      console.log('Validation failed or already creating');
+      return;
+    }
     setCreating(true);
     try {
+      console.log('Calling createChannel...');
       const ch = await createChannel({ name: channelName.trim(), category: channelCategory.trim() || undefined, description: channelDesc.trim() || undefined });
+      console.log('Channel created:', ch);
       addCorteChannel(ch);
       setChannels(prev => [...prev, ch]);
       setChannelName('');
@@ -61,7 +67,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setAddingChannel(false);
       onRefresh();
     } catch (e) {
-      console.error('Failed to create channel', e);
+      console.error('Failed to create channel:', e);
+      alert('Erro ao criar canal: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setCreating(false);
     }
@@ -80,10 +87,16 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   }
 
   async function handleAddAccount() {
-    if (!accountId.trim() || creatingAcc) return;
+    console.log('handleAddAccount called');
+    if (!accountId.trim() || creatingAcc) {
+      console.log('Validation failed or already creating');
+      return;
+    }
     setCreatingAcc(true);
     try {
+      console.log('Calling createSocialAccount...');
       const acc = await createSocialAccount({ platform: accountPlatform, accountId: accountId.trim(), displayName: accountHandle.trim() || undefined });
+      console.log('Account created:', acc);
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       setAccountId('');
@@ -91,7 +104,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setAddingAccount(false);
       onRefresh();
     } catch (e) {
-      console.error('Failed to add account', e);
+      console.error('Failed to add account:', e);
+      alert('Erro ao adicionar conta: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setCreatingAcc(false);
     }
