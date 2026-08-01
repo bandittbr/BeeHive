@@ -44,17 +44,20 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   }
 
   async function handleAddAccount() {
+    console.log('handleAddAccount called');
     if (!accountId.trim()) {
       alert('Por favor, preencha o ID/Link da conta');
       return;
     }
     setCreatingAcc(true);
     try {
+      console.log('Calling API with:', { platform: accountPlatform, accountId: accountId.trim() });
       const acc = await createSocialAccount({ 
         platform: accountPlatform, 
         accountId: accountId.trim(), 
         displayName: accountHandle.trim() || undefined 
       });
+      console.log('Account created:', acc);
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       setAccountId('');
@@ -62,7 +65,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setAddingAccount(false);
       onRefresh();
     } catch (e) {
-      console.error('Failed to add account', e);
+      console.error('Failed to add account:', e);
       alert('Erro ao adicionar conta: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setCreatingAcc(false);
