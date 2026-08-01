@@ -46,3 +46,19 @@ __pycache__/
 
 
 /generated/prisma
+
+# Python generator (motor externo, não precisa ir para o deploy)
+AI-Youtube-Shorts-Generator/
+*.pyc
+__pycache__/
+*.log
+**/venv/
+**/.venv/
+
+# Python generator (motor externo, não precisa ir para o deploy)
+AI-Youtube-Shorts-Generator/
+*.pyc
+__pycache__/
+*.log
+**/venv/
+**/.venv/

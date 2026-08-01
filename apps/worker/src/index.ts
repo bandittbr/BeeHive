@@ -1496,6 +1496,10 @@ app.post('/api/modelos/tick', async (_req, res): Promise<void> => {
   }
 });
 
+// Cortes API routes
+import cortesRouter from './cortes-api.js';
+app.use('/api/cortes', cortesRouter);
+
 app.listen(PORT, () => {
   console.log(`[beehive-worker] porta ${PORT} · storage=${storageMode()} · public=${PUBLIC_URL ? 'on' : 'off'} · agendador on`);
 });
