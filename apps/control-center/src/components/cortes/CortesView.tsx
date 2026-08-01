@@ -9,7 +9,7 @@ import type { CorteChannel, CorteSocialAccount, CorteProject, CorteSettings } fr
 import { useAppStore } from '../../stores/appStore';
 import { listChannels, listProjects, getSettings, listSocialAccounts } from '../../services/cortes-api';
 
-type CortesTab = 'projetos' | 'canais' | 'configuracoes';
+type CortesTab = 'canais' | 'configuracoes';
 
 export function CortesView() {
   const { corteChannels, corteProjects, corteSocialAccounts, corteSettings,
@@ -86,12 +86,6 @@ export function CortesView() {
           {/* Tab navigation */}
           <div className="cortes-tabs">
             <button
-              className={`cortes-tab${activeTab === 'projetos' ? ' active' : ''}`}
-              onClick={() => setActiveTab('projetos')}
-            >
-              <Layers size={16} /> Projetos
-            </button>
-            <button
               className={`cortes-tab${activeTab === 'canais' ? ' active' : ''}`}
               onClick={() => setActiveTab('canais')}
             >
@@ -106,11 +100,8 @@ export function CortesView() {
           </div>
 
           {/* Tab content */}
-          {activeTab === 'projetos' && (
-            <ProjetosView 
-              onOpenProject={handleOpenProject} 
-              onRefresh={loadAllData}
-            />
+          {activeTab === 'canais' && (
+            <ChannelsManagerView onRefresh={loadAllData} />
           )}
           {activeTab === 'canais' && (
             <ChannelsManagerView onRefresh={loadAllData} />
