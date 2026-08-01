@@ -1,13 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Scissors, Layers, Users, Settings, Plus, Loader2 } from 'lucide-react';
-import { ProjetosView } from './ProjetosView';
-import { ProjectDetailView } from './ProjectDetail';
+import { Users, Settings, Plus, Loader2 } from 'lucide-react';
 import { NewProjectForm } from './NewProjectForm';
 import { ChannelsManagerView } from './ChannelsManager';
 import { CorteSettingsView } from './CorteSettings';
 import type { CorteChannel, CorteSocialAccount, CorteProject, CorteSettings } from '../../types/cortes';
 import { useAppStore } from '../../stores/appStore';
-import { listChannels, listProjects, getSettings, listSocialAccounts } from '../../services/cortes-api';
+import { listChannels, getSettings, listSocialAccounts } from '../../services/cortes-api';
 
 type CortesTab = 'canais' | 'configuracoes';
 
@@ -15,8 +13,7 @@ export function CortesView() {
   const { corteChannels, corteProjects, corteSocialAccounts, corteSettings,
     addCorteChannel, addCorteProject, addCorteSocialAccount, setCorteSettings } = useAppStore();
   
-  const [activeTab, setActiveTab] = useState<CortesTab>('projetos');
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<CortesTab>('canais');
   const [showNewProject, setShowNewProject] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -27,15 +24,13 @@ export function CortesView() {
   async function loadAllData() {
     try {
       setLoading(true);
-      const [channels, projects, settings, socialAccounts] = await Promise.all([
+      const [channels, settings, socialAccounts] = await Promise.all([
         listChannels(),
-        listProjects(),
         getSettings().catch(() => null),
         listSocialAccounts(),
       ]);
       
       if (channels.length > 0) channels.forEach(ch => addCorteChannel(ch));
-      if (projects.length > 0) projects.forEach(p => addCorteProject(p));
       if (settings) setCorteSettings(settings);
       if (socialAccounts.length > 0) socialAccounts.forEach(sa => addCorteSocialAccount(sa));
     } catch (e) {
@@ -43,27 +38,6 @@ export function CortesView() {
     } finally {
       setLoading(false);
     }
-  }
-
-  function handleOpenProject(id: string) {
-    setSelectedProjectId(id);
-  }
-
-  function handleBack() {
-    setSelectedProjectId(null);
-  }
-
-  // Show project detail if selected
-  if (selectedProjectId) {
-    return (
-      <div className="cortes-main">
-        <ProjectDetailView 
-          projectId={selectedProjectId} 
-          onBack={handleBack} 
-          onLoad={loadAllData}
-        />
-      </div>
-    );
   }
 
   return (
@@ -100,9 +74,6 @@ export function CortesView() {
           </div>
 
           {/* Tab content */}
-          {activeTab === 'canais' && (
-            <ChannelsManagerView onRefresh={loadAllData} />
-          )}
           {activeTab === 'canais' && (
             <ChannelsManagerView onRefresh={loadAllData} />
           )}

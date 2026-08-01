@@ -170,7 +170,7 @@ html.light .logo-img-light { display: block; }
 .user-plan { font-size: 10.5px; color: var(--primary-light); }
 
 /* ===== MAIN ===== */
-.main { overflow: hidden; display: flex; flex-direction: column; flex: 1; }
+.main { overflow: auto; display: flex; flex-direction: column; flex: 1; min-height: 0; }
 
 /* ===== HOME CHAT LAYOUT =====
    Flex, não grid: o painel de artefatos (site/imagem gerado) é opcional e
