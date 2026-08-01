@@ -273,7 +273,9 @@ app.get('/oauth/:platform/callback', async (req, res) => {
       expiresAt: r.expiresIn ? Date.now() + r.expiresIn * 1000 : undefined,
     });
     pendingStates.delete(state);
-    res.send(page('Conta conectada', `${r.displayName || r.accountId} conectada com sucesso.`));
+          const frontendUrl = process.env.FRONTEND_URL || 'https://beehiveos.vercel.app';
+      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}`;
+      res.redirect(returnUri);
   } catch (e) {
     res.status(400).send(page('Falha ao conectar', String(e instanceof Error ? e.message : e)));
   }

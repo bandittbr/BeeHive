@@ -52,7 +52,7 @@ body { font-family: var(--font); font-size: 14px; color: var(--text); background
 
 /* ===== APP ===== */
 .app { display: grid; grid-template-columns: var(--sidebar-w) 1fr; height: 100vh; overflow: auto; }
-.app-body { display: flex; flex-direction: column; min-width: 0; }
+.app-body { display: flex; flex-direction: column; min-width: 0; flex: 1; overflow: hidden; }
 
 /* ===== SIDEBAR (rotulada) ===== */
 .sidebar {
@@ -170,7 +170,7 @@ html.light .logo-img-light { display: block; }
 .user-plan { font-size: 10.5px; color: var(--primary-light); }
 
 /* ===== MAIN ===== */
-.main { overflow: auto; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.main { overflow: auto; display: flex; flex-direction: column; flex: 1; min-height: 0; height: 100%; }
 
 /* ===== HOME CHAT LAYOUT =====
    Flex, não grid: o painel de artefatos (site/imagem gerado) é opcional e
