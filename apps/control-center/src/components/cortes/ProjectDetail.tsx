@@ -1,0 +1,311 @@
+import { useState, useEffect } from 'react';
+import { useAppStore } from '../../stores/appStore';
+import { getProject, listProjects, updateProject, publishClip } from '../../services/cortes-api';
+import { generateCortes } from '../../services/cortesPipeline';
+import type { CorteProject, CorteClipStatus } from '../../types/cortes';
+import { Loader2, Download, Play, Edit2, Share2, CheckCircle2, XCircle } from 'lucide-react';
+
+interface ProjectDetailProps {
+  projectId: string;
+  onBack: () => void;
+  onLoad: () => void;
+}
+
+const STATUS_LABEL: Record<CorteClipStatus, string> = {
+  PENDING: 'Pendente',
+  PROCESSING: 'Processando',
+  READY: 'Pronto',
+  ERROR: 'Erro',
+  PUBLISHED: 'Publicado',
+};
+
+export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailProps) {
+  const { corteChannels, updateCorteProject } = useAppStore();
+  const [project, setProject] = useState<CorteProject | null>(null);
+  const [url, setUrl] = useState('');
+  const [name, setName] = useState('');
+  const [quantity, setQuantity] = useState(3);
+  const [duration, setDuration] = useState(15);
+  const [format, setFormat] = useState('9:16');
+  const [channelId, setChannelId] = useState('');
+  const [autoHighlights, setAutoHighlights] = useState(true);
+  const [autoCaptions, setAutoCaptions] = useState(true);
+  const [autoTitle, setAutoTitle] = useState(true);
+  const [autoDescription, setAutoDescription] = useState(true);
+  const [autoHashtags, setAutoHashtags] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  const [expandedClip, setExpandedClip] = useState<string | null>(null);
+  const [publishingClip, setPublishingClip] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadProject();
+  }, [projectId]);
+
+  async function loadProject() {
+    try {
+      const p = await getProject(projectId);
+      setProject(p);
+      setUrl(p.sourceVideoUrl);
+      setName(p.name);
+      setQuantity(p.quantityRequested);
+      setDuration(p.duration);
+      setFormat(p.format);
+      setChannelId(p.channelId || '');
+      setAutoHighlights(p.autoHighlights);
+      setAutoCaptions(p.autoCaptions);
+      setAutoTitle(p.autoTitle);
+      setAutoDescription(p.autoDescription);
+      setAutoHashtags(p.autoHashtags);
+    } catch (e) {
+      console.error('Failed to load project', e);
+    }
+  }
+
+  async function handleGenerate() {
+    if (!project || busy || !url.trim()) return;
+    setBusy(true);
+    setErr('');
+    try {
+      updateProject(project.id, { status: 'GENERATING' });
+      setProject(prev => prev ? { ...prev, status: 'GENERATING' } : null);
+      
+      const res = await generateCortes({
+        url,
+        count: quantity,
+        duration,
+        format,
+        autoCaptions,
+        onProgress: (msg) => {
+          console.log('Progress:', msg);
+        },
+      });
+      
+      if (res.error) {
+        setErr(res.error);
+        updateProject(project.id, { status: 'ERROR', error: res.error });
+        setProject(prev => prev ? { ...prev, status: 'ERROR', error: res.error } : null);
+        return;
+      }
+      
+      updateProject(project.id, { status: 'READY' });
+      setProject(prev => prev ? { ...prev, status: 'READY' } : null);
+    } catch (e) {
+      setErr(String(e));
+      updateProject(project.id, { status: 'ERROR' });
+      setProject(prev => prev ? { ...prev, status: 'ERROR' } : null);
+    } finally {
+      setBusy(false);
+      onLoad();
+    }
+  }
+
+  async function handlePublishClip(clipId: string) {
+    setPublishingClip(clipId);
+    try {
+      const result = await publishClip(clipId);
+      if (result.success) {
+        // Update local project state
+        if (project) {
+          const updatedClips = project.clips.map(c => 
+            c.id === clipId ? { ...c, status: 'PUBLISHED', publishedAt: new Date().toISOString() } : c
+          );
+          setProject({ ...project, clips: updatedClips });
+          updateProject(project.id, { clips: updatedClips });
+        }
+      } else {
+        setErr(result.error || 'Falha ao publicar');
+      }
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setPublishingClip(null);
+    }
+  }
+
+  const clips = project?.clips ?? [];
+  const channel = corteChannels.find(c => c.id === project?.channelId);
+
+  return (
+    <div className="cortes-project-detail">
+      {/* Header */}
+      <div className="cortes-project-header">
+        <button className="btn-ghost btn-sm" onClick={onBack}>← Voltar</button>
+        <h2>{project?.name}</h2>
+        <span className={`status-pill ${project?.status.toLowerCase()}`}>{project?.status}</span>
+      </div>
+
+      {/* Channel info */}
+      {channel && (
+        <div className="cortes-card" style={{ marginBottom: 16 }}>
+          <div className="cortes-card-body">
+            <strong>Canal:</strong> {channel.name}
+            {channel.category && <span className="cortes-channel-tag">{channel.category}</span>}
+          </div>
+        </div>
+      )}
+
+      {/* Clips */}
+      <div className="cortes-section">
+        <div className="cortes-section-header">
+          <h2>Cortes Gerados</h2>
+          <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>{clips.length} corte{clips.length !== 1 ? 's' : ''}</span>
+        </div>
+        <div className="cortes-card">
+          <div className="cortes-card-body">
+            {clips.length === 0 ? (
+              <div className="empty-state">
+                <p>Nenhum corte gerado ainda. Cole uma URL e clique em "Gerar Cortes".</p>
+              </div>
+            ) : (
+              <div className="cortes-clips-grid">
+                {clips.map((clip, i) => (
+                  <div 
+                    key={clip.id} 
+                    className="cortes-clip-card"
+                    onClick={() => setExpandedClip(expandedClip === clip.id ? null : clip.id)}
+                  >
+                    <div className="cortes-clip-video-wrap">
+                      {clip.videoFile ? (
+                        <video src={clip.videoFile} controls preload="metadata" playsInline className="cortes-clip-video" />
+                      ) : (
+                        <div className="cortes-clip-placeholder">
+                          <Play size={24} />
+                        </div>
+                      )}
+                      <span className="cortes-clip-index">#{String(i + 1).padStart(2, '0')}</span>
+                      <span className={`cortes-clip-status ${clip.status.toLowerCase()}`}>{STATUS_LABEL[clip.status]}</span>
+                    </div>
+                    <div className="cortes-clip-info">
+                      <span className="cortes-clip-title">{clip.title || `Corte ${i + 1}`}</span>
+                      {expandedClip === clip.id && (
+                        <div className="cortes-clip-expanded" onClick={e => e.stopPropagation()}>
+                          {clip.caption && <div><strong>Legenda:</strong> {clip.caption}</div>}
+                          {clip.description && <div><strong>Descrição:</strong> {clip.description}</div>}
+                          {clip.hashtags.length > 0 && <div><strong>Hashtags:</strong> {clip.hashtags.map(h => `#${h}`).join(' ')}</div>}
+                          <div className="cortes-clip-actions">
+                            {clip.videoFile && (
+                              <a href={clip.videoFile} download className="btn-outline btn-xs">
+                                <Download size={12} /> Baixar
+                              </a>
+                            )}
+                            <button className="btn-outline btn-xs">
+                              <Edit2 size={12} /> Editar
+                            </button>
+                            {clip.status !== 'PUBLISHED' && publishingClip !== clip.id ? (
+                              <button 
+                                className="btn-primary btn-xs" 
+                                onClick={(e) => { e.stopPropagation(); handlePublishClip(clip.id); }}
+                              >
+                                <Share2 size={12} /> Publicar
+                              </button>
+                            ) : publishingClip === clip.id ? (
+                              <button className="btn-outline btn-xs" disabled>
+                                <Loader2 size={12} className="spin" /> Publicando...
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Form para gerar novo projeto */}
+      <div className="cortes-section">
+        <div className="cortes-section-header">
+          <h2>Gerar Novos Cortes</h2>
+          <p>Preencha os dados abaixo e clique em "Gerar Cortes"</p>
+        </div>
+        <div className="cortes-card">
+          <div className="cortes-card-body cortes-gen-form">
+            <div className="cortes-form-group">
+              <label>URL do vídeo do YouTube</label>
+              <input
+                type="text"
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={url}
+                onChange={e => setUrl(e.target.value)}
+              />
+            </div>
+            <div className="cortes-form-row">
+              <div className="cortes-form-group">
+                <label>Nome do projeto</label>
+                <input
+                  type="text"
+                  placeholder="Ex: Cortes Comédia"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                />
+              </div>
+              <div className="cortes-form-group">
+                <label>Canal</label>
+                <select value={channelId} onChange={e => setChannelId(e.target.value)}>
+                  <option value="">— Nenhum canal —</option>
+                  {/* Use corteChannels from store */}
+                </select>
+              </div>
+            </div>
+            <div className="cortes-form-row">
+              <div className="cortes-form-group">
+                <label>Quantidade de cortes</label>
+                <select value={quantity} onChange={e => setQuantity(Number(e.target.value))}>
+                  {[1, 2, 3, 5, 8, 10, 15, 20].map(n => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+              <div className="cortes-form-group">
+                <label>Duração (segundos)</label>
+                <select value={duration} onChange={e => setDuration(Number(e.target.value))}>
+                  {[15, 20, 25, 30].map(d => <option key={d} value={d}>{d}s</option>)}
+                  <option value={0}>Personalizado</option>
+                </select>
+              </div>
+              <div className="cortes-form-group">
+                <label>Formato</label>
+                <select value={format} onChange={e => setFormat(e.target.value)}>
+                  <option value="9:16">9:16 (Vertical)</option>
+                  <option value="1:1">1:1 (Quadrado)</option>
+                  <option value="16:9">16:9 (Horizontal)</option>
+                </select>
+              </div>
+            </div>
+            <div className="cortes-checkboxes">
+              <label className="cortes-check-label">
+                <input type="checkbox" checked={autoHighlights} onChange={e => setAutoHighlights(e.target.checked)} />
+                Selecionar melhores momentos com IA
+              </label>
+              <label className="cortes-check-label">
+                <input type="checkbox" checked={autoCaptions} onChange={e => setAutoCaptions(e.target.checked)} />
+                Gerar legendas dinâmicas
+              </label>
+              <label className="cortes-check-label">
+                <input type="checkbox" checked={autoTitle} onChange={e => setAutoTitle(e.target.checked)} />
+                Gerar título
+              </label>
+              <label className="cortes-check-label">
+                <input type="checkbox" checked={autoDescription} onChange={e => setAutoDescription(e.target.checked)} />
+                Gerar descrição
+              </label>
+              <label className="cortes-check-label">
+                <input type="checkbox" checked={autoHashtags} onChange={e => setAutoHashtags(e.target.checked)} />
+                Gerar hashtags
+              </label>
+            </div>
+            {err && <p style={{ fontSize: 12, color: 'var(--danger)', gridColumn: '1 / -1' }}>{err}</p>}
+            <div className="cortes-gen-actions">
+              <button className="btn-primary" onClick={handleGenerate} disabled={busy || !url.trim()}>
+                {busy ? <Loader2 size={14} className="spin" /> : null}
+                {busy ? 'Processando...' : 'Gerar Cortes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

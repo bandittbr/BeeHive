@@ -1,5 +1,6 @@
 ﻿import { create } from 'zustand';
 import type { Project, Conversation, Message, Provider, Model, SettingsState, Mission, ActivityEvent, Workflow, Artifact, Agent, BizAccount, SocialAccount } from '../types';
+import type { CorteChannel, CorteSocialAccount, CorteProject, CorteClip, CorteSettings } from '../types/cortes';
 
 interface AppState {
   // Projects
@@ -212,5 +213,29 @@ export const useAppStore = create<AppState>((set, get) => ({
   removeSocialAccount: (bizId, socialId) => set((s) => ({
     bizAccounts: s.bizAccounts.map(b => b.id === bizId ? { ...b, socialAccounts: b.socialAccounts.filter(sa => sa.id !== socialId) } : b),
   })),
-}));
 
+  // Cortes
+  corteChannels: [] as CorteChannel[],
+  corteSocialAccounts: [] as CorteSocialAccount[],
+  corteProjects: [] as CorteProject[],
+  corteSettings: null as CorteSettings | null,
+  addCorteChannel: (ch) => set((s) => ({ corteChannels: [...s.corteChannels, ch] })),
+  updateCorteChannel: (id, updates) => set((s) => ({
+    corteChannels: s.corteChannels.map(channel => channel.id === id ? { ...channel, ...updates } : channel),
+  })),
+  deleteCorteChannel: (id) => set((s) => ({
+    corteChannels: s.corteChannels.filter(channel => channel.id !== id),
+  })),
+  addCorteSocialAccount: (sa) => set((s) => ({ corteSocialAccounts: [...s.corteSocialAccounts, sa] })),
+  deleteCorteSocialAccount: (id) => set((s) => ({
+    corteSocialAccounts: s.corteSocialAccounts.filter(sa => sa.id !== id),
+  })),
+  addCorteProject: (p) => set((s) => ({ corteProjects: [p, ...s.corteProjects] })),
+  updateCorteProject: (id, updates) => set((s) => ({
+    corteProjects: s.corteProjects.map(project => project.id === id ? { ...project, ...updates } : project),
+  })),
+  deleteCorteProject: (id) => set((s) => ({
+    corteProjects: s.corteProjects.filter(project => project.id !== id),
+  })),
+  setCorteSettings: (settings) => set((s) => ({ corteSettings: settings ?? s.corteSettings })),
+}));

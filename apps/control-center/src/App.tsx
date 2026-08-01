@@ -39,6 +39,7 @@ import { useConversations, useMessages } from './hooks/useConversations';
 import { createExecutionService, UnifiedExecutionService, ExecutionConfig, ExecutionResult } from './services/execution.service';
 import { MessageList } from './components/chat/MessageList';
 import { NegociosView } from './components/negocios/NegociosView';
+import { CortesView } from './components/cortes/CortesView';
 import { useArtifacts } from './lib/useArtifacts';
 import type { ArtifactItem } from './lib/artifacts';
 import { ArtifactPanel } from './components/chat/artifact-panel';
@@ -61,6 +62,7 @@ import { PermissionApprovalModal } from './components/chat/permission-approval-m
 import { usePermissionStore } from './stores/permissionStore';
 import type { Project, Agent, Workflow as WorkflowType, Artifact, BizAccount, BizType, SocialAccount, Pipeline } from './types';
 import './App.css';
+import './components/cortes/cortes.css';
 
 // ============================================================
 // APP SHELL — Sidebar rotulada + Topbar + Áreas
@@ -265,7 +267,7 @@ const { projects } = useAppStore();
           )}
           {activeArea === 'projetos' && !openedProject && <ProjectsListView projects={projects} onOpen={openProject} onNew={handleNewProject} />}
           {activeArea === 'projetos' && openedProject && <ProjectView project={openedProject} activeView={projectView} onViewChange={setProjectView} rightPanel={rightPanel} onRightPanelChange={setRightPanel} onBack={goToProjectsList} />}
-          {activeArea === 'negocios' && <NegociosView />}
+          {activeArea === 'negocios' && <CortesView />}
           {activeArea === 'settings' && <SettingsView />}
         </main>
       </div>

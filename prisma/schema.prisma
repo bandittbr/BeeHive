@@ -417,6 +417,127 @@ model Message {
   @@map("messages")
 }
 
+// ===== Cortes Models =====
+
+enum CorteProjectStatus {
+  PENDING
+  GENERATING
+  READY
+  ERROR
+  PUBLISHED
+}
+
+enum CorteClipStatus {
+  PENDING
+  PROCESSING
+  READY
+  ERROR
+  PUBLISHED
+}
+
+enum FontColor {
+  BLUE
+  GREEN
+  YELLOW
+  PINK
+  RED
+  WHITE
+}
+
+model CorteChannel {
+  id              String   @id @default(cuid())
+  name            String
+  category        String?  // "Comédia", "Terror", etc.
+  description     String?
+  socialAccountIds Json @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  projects        CorteProject[]
+
+  @@map("corte_channels")
+}
+
+model CorteSocialAccount {
+  id          String   @id @default(cuid())
+  platform    String   // "youtube", "instagram", "tiktok", "facebook", "twitter"
+  accountId   String   // ID da conta na rede
+  displayName String?
+  handle      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channelIds  Json @default("[]") // canais que usam essa conta
+
+  @@unique([platform, accountId])
+  @@map("corte_social_accounts")
+}
+
+model CorteProject {
+  id                String               @id @default(cuid())
+  name              String
+  sourceVideoUrl    String
+  duration          Int                  @default(15)    // segundos
+  format            String               @default("9:16") // "9:16", "16:9", "1:1"
+  quantityRequested Int                  @default(3)
+  autoHighlights    Boolean              @default(true)
+  autoCaptions      Boolean              @default(true)
+  autoTitle         Boolean              @default(true)
+  autoDescription   Boolean              @default(true)
+  autoHashtags      Boolean              @default(true)
+  status            CorteProjectStatus   @default(PENDING)
+  error             String?
+  channel_id        String?
+  channel           CorteChannel?        @relation(fields: [channel_id], references: [id], onDelete: SetNull)
+  clips             CorteClip[]
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+
+  @@map("corte_projects")
+}
+
+model CorteClip {
+  id             String           @id @default(cuid())
+  project_id     String
+  project        CorteProject     @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  index          Int              @default(0)
+  start_time     Float            @default(0)
+  end_time       Float            @default(0)
+  video_file     String?
+  thumbnail_file String?
+  caption        String?
+  title          String?
+  description    String?
+  hashtags       Json             @default("[]")
+  status         CorteClipStatus  @default(PENDING)
+  error          String?
+  published_at   DateTime?
+  created_at     DateTime         @default(now())
+  updated_at     DateTime         @updatedAt
+
+  @@map("corte_clips")
+}
+
+model CorteSettings {
+  id                      String   @id @default(cuid())
+  subtitle_font_size      Int      @default(24)
+  subtitle_font_family    String   @default("Arial")
+  subtitle_vertical_pos   String   @default("bottom") // top, center, bottom
+  subtitle_max_chars      Int      @default(20)
+  subtitle_color          String   @default("#FFFFFF")
+  active_word_color       FontColor @default(YELLOW)
+  active_word_size        Int      @default(110) // porcentagem
+  subtitle_style          String   @default("outline") // outline, shadow, solid
+  line_spacing            Int      @default(120) // porcentagem
+  video_quality           String   @default("720p")
+  default_duration        Int      @default(15)
+  default_quantity        Int      @default(3)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  @@map("corte_settings")
+}
+
 model AiProvider {
   id              String   @id @default(cuid())
   providerType    String   // "openai" | "anthropic" | "openrouter" | "google" | "ollama" | "deepseek" | "custom"
