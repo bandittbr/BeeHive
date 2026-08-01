@@ -5,7 +5,11 @@ import path from 'node:path';
 import { execSync } from 'node:child_process';
 
 const router = Router();
-const DATA_DIR = process.env.CORTES_DATA_DIR || path.join(process.cwd(), 'data', 'cortes');
+
+// Use Railway volume for persistent storage
+const DATA_DIR = process.env.CORTES_DATA_DIR || 
+  process.env.RAILWAY_VOLUME_PATH || 
+  path.join(process.cwd(), 'workspace', 'data', 'cortes');
 
 // Ensure data directory exists
 if (!fs.existsSync(DATA_DIR)) {
