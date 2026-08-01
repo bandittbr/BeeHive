@@ -889,11 +889,91 @@
   margin: 8px 0;
 }
 
-/* Channels & Social Accounts */
+/* Channels & Social Accounts - Personas Structure */
 .cortes-channels {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.cortes-channel-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cortes-channel-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.cortes-channel-item:hover {
+  border-color: var(--primary-light);
+}
+
+.cortes-channel-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.cortes-channel-toggle {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.cortes-channel-toggle:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.cortes-channel-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.cortes-channel-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cortes-channel-category {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--surface-2);
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.cortes-account-count {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cortes-channel-content {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .cortes-social-list {

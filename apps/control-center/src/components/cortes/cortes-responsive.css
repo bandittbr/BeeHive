@@ -1,0 +1,285 @@
+/* Mobile-first responsive adjustments */
+@media (max-width: 768px) {
+  /* Main container - remove height constraint on mobile to allow natural flow */
+  .cortes-main {
+    padding: 12px;
+    gap: 12px;
+    height: auto;
+    overflow-y: visible;
+    min-height: 0;
+  }
+  
+  /* Page header more compact */
+  .cortes-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  
+  .cortes-page-header h1 {
+    font-size: 18px;
+    margin: 0;
+  }
+  
+  .cortes-page-header p {
+    font-size: 12px;
+    margin: 0;
+  }
+  
+  .cortes-page-header .btn-primary {
+    align-self: flex-end;
+    padding: 6px 12px;
+    font-size: 12px;
+  }
+  
+  /* Tabs horizontal scroll on mobile */
+  .cortes-tabs {
+    display: flex;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+    margin-bottom: 12px;
+    gap: 4px;
+  }
+  
+  .cortes-tabs::-webkit-scrollbar {
+    display: none;
+  }
+  
+  .cortes-tab {
+    padding: 8px 14px;
+    font-size: 13px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  
+  /* Cards more compact */
+  .cortes-section {
+    margin-bottom: 12px;
+  }
+  
+  .cortes-section-header {
+    margin-bottom: 8px;
+  }
+  
+  .cortes-section-header h2 {
+    font-size: 14px;
+  }
+  
+  .cortes-card {
+    border-radius: 8px;
+  }
+  
+  .cortes-card-body {
+    padding: 12px;
+  }
+  
+  /* Social accounts list compact */
+  .cortes-social-item {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .cortes-platform-badge {
+    width: 28px;
+    height: 28px;
+  }
+  
+  .cortes-social-platform {
+    font-size: 10px;
+  }
+  
+  .cortes-social-handle {
+    font-size: 12px;
+  }
+  
+  /* Channel items compact */
+  .cortes-channel-item {
+    padding: 10px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .cortes-channel-info {
+    width: 100%;
+  }
+  
+  .cortes-channel-name {
+    font-size: 13px;
+  }
+  
+  .cortes-channel-category {
+    font-size: 10px;
+  }
+  
+  .cortes-channel-actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+  
+  /* Forms more compact */
+  .cortes-form-group {
+    margin-bottom: 10px;
+  }
+  
+  .cortes-form-group label {
+    font-size: 11px;
+  }
+  
+  .cortes-form-group input,
+  .cortes-form-group select,
+  .cortes-form-group textarea {
+    padding: 8px 10px;
+    font-size: 14px; /* Prevent zoom on iOS */
+  }
+  
+  .cortes-form-row {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+  
+  /* Checkboxes */
+  .cortes-checkboxes {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .cortes-check-label {
+    font-size: 13px;
+    gap: 8px;
+  }
+  
+  /* Buttons */
+  .btn-sm {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .btn-xs {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  /* Modal for new project */
+  .cortes-modal {
+    max-width: 100%;
+    margin: 10px;
+    max-height: calc(100vh - 20px);
+    border-radius: 12px;
+  }
+  
+  .cortes-new-project {
+    padding: 16px;
+  }
+  
+  .cortes-new-project-header h2 {
+    font-size: 16px;
+  }
+  
+  /* Settings */
+  .cortes-settings-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .cortes-settings-card {
+    border-radius: 8px;
+  }
+  
+  .cortes-settings-card-header {
+    padding: 10px 12px;
+  }
+  
+  .cortes-settings-card-header h3 {
+    font-size: 13px;
+  }
+  
+  .cortes-settings-card-body {
+    padding: 12px;
+    gap: 10px;
+  }
+  
+  /* Projects grid */
+  .cortes-projects-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  
+  .cortes-project-card {
+    padding: 12px;
+  }
+  
+  .cortes-project-name {
+    font-size: 14px;
+  }
+  
+  .cortes-meta-row {
+    font-size: 11px;
+  }
+  
+  /* Clips grid */
+  .cortes-clips-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  
+  .cortes-clip-card {
+    border-radius: 8px;
+  }
+  
+  .cortes-clip-title {
+    font-size: 11px;
+  }
+  
+  /* Empty state */
+  .empty-state {
+    padding: 24px 16px;
+  }
+  
+  .empty-state h3 {
+    font-size: 14px;
+  }
+  
+  .empty-state p {
+    font-size: 12px;
+  }
+  
+  /* Loading */
+  .cortes-loading {
+    padding: 24px;
+  }
+  
+  /* Color options */
+  .color-options {
+    gap: 4px;
+  }
+  
+  .color-option {
+    width: 24px;
+    height: 24px;
+  }
+}
+
+/* Small phones */
+@media (max-width: 380px) {
+  .cortes-main {
+    padding: 8px;
+    gap: 8px;
+  }
+  
+  .cortes-page-header h1 {
+    font-size: 16px;
+  }
+  
+  .cortes-tab {
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  
+  .cortes-clip-info {
+    padding: 6px;
+  }
+}
