@@ -8,7 +8,7 @@ nixPkgs = ["nodejs_22", "pnpm", "python311", "python311Packages.pip", "gcc", "ff
 cmds = [
   "pnpm install",
   "pnpm rebuild better-sqlite3",
-  "pip install --user --break-system-packages -r pipeline/requirements.txt",
+  "pip install --user --break-system-packages -r pipeline/requirements.txt -r AI-Youtube-Shorts-Generator/requirements.txt",
   "npx playwright install-deps chromium",
   "mkdir -p /opt/playwright && PLAYWRIGHT_BROWSERS_PATH=/opt/playwright npx playwright install chromium",
 ]

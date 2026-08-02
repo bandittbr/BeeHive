@@ -1,7 +1,7 @@
 // ===== Cortes Types =====
 
 export type CorteProjectStatus = 'PENDING' | 'GENERATING' | 'READY' | 'ERROR' | 'PUBLISHED';
-export type CorteClipStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR' | 'PUBLISHED';
+export type CorteClipStatus = 'PENDING' | 'PROCESSING' | 'READY' | 'ERROR' | 'PUBLISHED' | 'SCHEDULED';
 export type FontColor = 'BLUE' | 'GREEN' | 'YELLOW' | 'PINK' | 'RED' | 'WHITE';
 
 export interface CorteChannel {
@@ -60,6 +60,7 @@ export interface CorteClip {
   status: CorteClipStatus;
   error?: string;
   publishedAt?: string;
+  scheduledAt?: string;
   createdAt: string;
   updatedAt: string;
 }

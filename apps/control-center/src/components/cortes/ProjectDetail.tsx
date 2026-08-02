@@ -63,43 +63,26 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
   }
 
   async function handleGenerate() {
-    if (!project || busy || !url.trim()) return;
-    setBusy(true);
-    setErr('');
+    if (!project || busy) return;
+    setBusy(true); setErr('');
     try {
-      updateProject(project.id, { status: 'GENERATING' });
-      setProject(prev => prev ? { ...prev, status: 'GENERATING' } : null);
-      
-      const res = await generateCortes({
-        url,
-        count: quantity,
-        duration,
-        format,
-        autoCaptions,
-        onProgress: (msg) => {
-          console.log('Progress:', msg);
-        },
-      });
-      
-      if (res.error) {
-        setErr(res.error);
-        updateProject(project.id, { status: 'ERROR', error: res.error });
-        setProject(prev => prev ? { ...prev, status: 'ERROR', error: res.error } : null);
-        return;
+      await updateProject(project.id, { status: 'GENERATING' });
+      setProject((previous) => previous ? { ...previous, status: 'GENERATING' } : null);
+      const { jobId } = await generateCortes({ projectId: project.id, url });
+      let attempts = 0;
+      while (attempts++ < 180) {
+        await new Promise((resolve) => window.setTimeout(resolve, 5000));
+        const job = await getGenerateJob(jobId);
+        if (job.status === 'done') { await loadProject(); break; }
+        if (job.status === 'error') throw new Error(job.error || 'Falha ao gerar os cortes.');
       }
-      
-      updateProject(project.id, { status: 'READY' });
-      setProject(prev => prev ? { ...prev, status: 'READY' } : null);
-    } catch (e) {
-      setErr(String(e));
-      updateProject(project.id, { status: 'ERROR' });
-      setProject(prev => prev ? { ...prev, status: 'ERROR' } : null);
-    } finally {
-      setBusy(false);
-      onLoad();
-    }
+      if (attempts >= 180) throw new Error('O processamento demorou mais que o esperado. Abra o projeto novamente para consultar o status.');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setErr(message);
+      if (project) { await updateProject(project.id, { status: 'ERROR', error: message }); setProject((previous) => previous ? { ...previous, status: 'ERROR', error: message } : null); }
+    } finally { setBusy(false); onLoad(); }
   }
-
   async function handlePublishClip(clipId: string) {
     setPublishingClip(clipId);
     try {

@@ -2,6 +2,7 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
 
 const router = Router();
 
@@ -245,6 +246,73 @@ router.post('/settings', (req, res) => {
   res.json(settings);
 });
 
+
+// A fila usa o modo API do gerador: download, transcricao e renderizacao sao
+// processados na nuvem. O browser do cliente nunca executa esse trabalho.
+type CorteJob = { id: string; projectId: string; status: 'queued' | 'running' | 'done' | 'error'; progress: number; message: string; error?: string };
+const jobs = new Map<string, CorteJob>();
+
+router.post('/generate', (req, res) => {
+  const projectId = String(req.body?.projectId || '');
+  const project = projects.find((item) => item.id === projectId);
+  if (!project) return res.status(404).json({ error: 'Projeto nao encontrado' });
+  if (!process.env.MUAPI_API_KEY) return res.status(503).json({ error: 'MUAPI_API_KEY ainda nao esta configurada no worker de nuvem.' });
+  const job: CorteJob = { id: `cj_${Date.now()}`, projectId, status: 'queued', progress: 0, message: 'Na fila para processamento em nuvem' };
+  jobs.set(job.id, job);
+  project.status = 'GENERATING'; project.error = undefined; project.updatedAt = new Date().toISOString(); saveProjects();
+  void runGeneration(job, project);
+  res.status(202).json({ jobId: job.id });
+});
+
+router.get('/jobs/:id', (req, res) => {
+  const job = jobs.get(req.params.id);
+  if (!job) return res.status(404).json({ error: 'Processamento nao encontrado. Atualize o projeto para ver o resultado.' });
+  res.json(job);
+});
+
+router.post('/clips/:id/schedule', (req, res) => {
+  const clip = findClip(req.params.id);
+  if (!clip) return res.status(404).json({ error: 'Corte nao encontrado' });
+  const scheduledAt = String(req.body?.scheduledAt || '');
+  if (Number.isNaN(Date.parse(scheduledAt))) return res.status(400).json({ error: 'Horario de agendamento invalido' });
+  clip.scheduledAt = scheduledAt; clip.status = 'SCHEDULED'; clip.updatedAt = new Date().toISOString(); saveProjects();
+  res.json(clip);
+});
+
+router.post('/clips/:id/publish', (req, res) => {
+  const clip = findClip(req.params.id);
+  if (!clip) return res.status(404).json({ success: false, error: 'Corte nao encontrado' });
+  const project = projects.find((item) => item.id === clip.projectId);
+  const connected = project?.channelId && socialAccounts.some((account) => account.channelIds.includes(project.channelId!));
+  if (!connected) return res.status(409).json({ success: false, error: 'Conecte uma conta social oficial antes de publicar.' });
+  clip.status = 'SCHEDULED'; clip.scheduledAt = new Date().toISOString(); clip.updatedAt = new Date().toISOString(); saveProjects();
+  res.json({ success: true, clip, message: 'Corte adicionado a fila de publicacao.' });
+});
+
+function findClip(id: string): CorteClip | undefined { return projects.flatMap((project) => project.clips).find((clip) => clip.id === id); }
+
+async function runGeneration(job: CorteJob, project: CorteProject): Promise<void> {
+  job.status = 'running'; job.progress = 8; job.message = 'Baixando e transcrevendo em nuvem';
+  const generatorDir = process.env.CORTES_GENERATOR_DIR || path.join(process.cwd(), 'AI-Youtube-Shorts-Generator');
+  const script = ['import json,sys', 'from shorts_generator import generate_shorts', 'r=generate_shorts(sys.argv[1],num_clips=int(sys.argv[2]),aspect_ratio=sys.argv[3],download_format=sys.argv[4],mode="api")', 'print(json.dumps(r, ensure_ascii=False))'].join(';');
+  try {
+    const result = await new Promise<any>((resolve, reject) => {
+      const child = spawn(process.env.PYTHON_BIN || 'python3', ['-c', script, project.sourceVideoUrl, String(project.quantityRequested), project.format, '720'], { cwd: generatorDir, env: process.env });
+      let stdout = ''; let stderr = '';
+      child.stdout.on('data', (data) => { stdout += String(data); job.progress = Math.min(90, job.progress + 2); job.message = 'Analisando os melhores momentos e renderizando cortes'; });
+      child.stderr.on('data', (data) => { stderr += String(data); });
+      child.on('error', reject);
+      child.on('close', (code) => { const line = stdout.trim().split(/\r?\n/).reverse().find((item) => item.trim().startsWith('{')); if (code !== 0 || !line) reject(new Error(stderr || 'O gerador nao retornou um resultado valido.')); else { try { resolve(JSON.parse(line)); } catch (error) { reject(error); } } });
+    });
+    project.clips = (result.shorts || []).filter((item: any) => item.clip_url).map((item: any, index: number) => ({ id: `cc_${project.id}_${index + 1}`, projectId: project.id, index: index + 1, startTime: Number(item.start_time || 0), endTime: Number(item.end_time || 0), videoFile: item.clip_url, thumbnailFile: youtubeThumbnail(project.sourceVideoUrl), title: item.title || `Corte ${index + 1}`, caption: item.hook_sentence || '', description: item.virality_reason || '', hashtags: [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+    project.status = 'READY'; project.updatedAt = new Date().toISOString(); job.status = 'done'; job.progress = 100; job.message = `${project.clips.length} corte(s) prontos para revisar`;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error); project.status = 'ERROR'; project.error = message; project.updatedAt = new Date().toISOString(); job.status = 'error'; job.error = message; job.message = 'Falha no processamento';
+  }
+  saveProjects();
+}
+
+function youtubeThumbnail(url: string): string | undefined { const id = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{6,})/)?.[1]; return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : undefined; }
 // Types (simple interfaces for this module)
 interface CorteChannel {
   id: string;
@@ -289,11 +357,20 @@ interface CorteProject {
 
 interface CorteClip {
   id: string;
+  projectId: string;
+  index: number;
   startTime: number;
   endTime: number;
+  videoFile?: string;
+  thumbnailFile?: string;
   title: string;
   caption: string;
+  description?: string;
+  hashtags?: string[];
   status: string;
+  scheduledAt?: string;
+  updatedAt: string;
+  createdAt: string;
 }
 
 interface CorteSettings {
