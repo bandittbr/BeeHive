@@ -62,7 +62,7 @@ import { callProviderCompletion, testProviderConnection } from './provider-call.
 
 const PORT = Number(process.env.PORT ?? 4000);
 const AUTH_TOKEN = process.env.WORKER_TOKEN ?? '';
-const PUBLIC_URL = (process.env.WORKER_PUBLIC_URL ?? '').replace(/\/+$/, '');
+const PUBLIC_URL = process.env.WORKER_PUBLIC_URL || 'https://beehive-production-d895.up.railway.app';
 const PLATFORMS: PlatformId[] = ['youtube', 'instagram', 'facebook', 'tiktok'];
 
 ensureWorkspace();

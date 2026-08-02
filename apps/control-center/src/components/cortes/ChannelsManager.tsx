@@ -69,7 +69,27 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     if (connected && accountIdParam && state) {
       handleOAuthCallback(connected, accountIdParam, displayName || undefined, state);
       window.history.replaceState({}, document.title, window.location.pathname);
+      
+      // Fecha o popup se estiver aberto
+      if (window.opener) {
+        try {
+          window.opener.postMessage({ type: 'OAUTH_SUCCESS', platform: connected, accountId: accountIdParam, displayName }, '*');
+          window.close();
+        } catch (e) {
+          // Cross-origin, tenta método alternativo
+          window.close();
+        }
+      }
     }
+    
+    // Listener para mensagem do popup
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'OAUTH_SUCCESS') {
+        handleOAuthCallback(event.data.platform, event.data.accountId, event.data.displayName, event.data.state);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   async function loadAll() {
@@ -174,13 +194,41 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
     setOauthPlatform(platform);
     setOauthChannelId(channelId);
-    const redirectUri = `${window.location.origin}/`;
+    // CORREÇÃO: Usar o redirect_uri correto esperado pelo backend
+    const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
     const state = channelId;
-    window.open(
-      `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`,
-      'oauth_popup',
-      'width=600,height=500,left=' + (window.screen.width/2 - 300) + ',top=' + (window.screen.height/2 - 250)
-    );
+    const oauthUrl = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`;
+    
+    // Abre em popup
+    const popup = window.open(oauthUrl, 'oauth_popup', 'width=600,height=500,left=' + (window.screen.width/2 - 300) + ',top=' + (window.screen.height/2 - 250));
+    
+    // Verifica se o popup foi bloqueado
+    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+      alert('Popup foi bloqueado! Por favor, permita popups para este site e tente novamente.');
+      return;
+    }
+    
+    // Monitora se o popup foi fechado
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        // Se fechou sem callback, verifica se precisa refresh
+        if (!credentials[platform]?.connectedAccountId) {
+          // O callback deve ter sido tratado pelo useEffect
+        }
+      }
+    }, 500);
+    
+    // Timeout de segurança
+    setTimeout(() => {
+      if (!popup.closed) {
+        try {
+          popup.close();
+        } catch (e) {}
+      }
+      setOauthPlatform(null);
+      setOauthChannelId(null);
+    }, 60000); // 1 minuto
   }
 
   async function handleOAuthCallback(platform: string, accountId: string, displayName?: string, channelId?: string) {
