@@ -8,7 +8,7 @@ import type {
   NewProjectForm,
 } from '../types/cortes';
 
-const API_BASE = 'https://beehive-production-d895.up.railway.app/api';
+const API_BASE = (import.meta.env.VITE_CORTES_API_BASE_URL || 'https://beehive-production-d895.up.railway.app/api').replace(/\/$/, '');
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
