@@ -3,6 +3,7 @@ import { Users, Settings, Plus, Loader2 } from 'lucide-react';
 import { NewProjectForm } from './NewProjectForm';
 import { ChannelsManagerView } from './ChannelsManager';
 import { CorteSettingsView } from './CorteSettings';
+// OAuth agora está integrado no ChannelsManager
 import type { CorteChannel, CorteSocialAccount, CorteProject, CorteSettings } from '../../types/cortes';
 import { useAppStore } from '../../stores/appStore';
 import { listChannels, getSettings, listSocialAccounts } from '../../services/cortes-api';
@@ -63,19 +64,13 @@ export function CortesView() {
               className={`cortes-tab${activeTab === 'canais' ? ' active' : ''}`}
               onClick={() => setActiveTab('canais')}
             >
-              <Users size={16} /> Canais
-            </button>
-            <button
-              className={`cortes-tab${activeTab === 'oauth' ? ' active' : ''}`}
-              onClick={() => setActiveTab('oauth')}
-            >
-              <Settings size={16} /> OAuth
+              <Users size={16} /> Canais & Redes
             </button>
             <button
               className={`cortes-tab${activeTab === 'configuracoes' ? ' active' : ''}`}
               onClick={() => setActiveTab('configuracoes')}
             >
-              <Settings size={16} /> Config
+              <Settings size={16} /> Configurações
             </button>
           </div>
 
@@ -83,9 +78,7 @@ export function CortesView() {
           {activeTab === 'canais' && (
             <ChannelsManagerView onRefresh={loadAllData} />
           )}
-          {activeTab === 'oauth' && (
-            <OauthSettingsView />
-          )}
+          {/* OAuth está integrado no tab Canais */}
           {activeTab === 'configuracoes' && (
             <CorteSettingsView />
           )}
