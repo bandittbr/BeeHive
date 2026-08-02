@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Key, Globe, CheckCircle2, X } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Key, Globe, CheckCircle2, X, RefreshCw } from 'lucide-react';
 import {
-  listChannels, createChannel, deleteChannel, updateChannel,
-  listSocialAccounts, createSocialAccount, deleteSocialAccount,
+  listChannels, createChannel, deleteChannel,
+  listSocialAccounts, createSocialAccount, deleteSocialAccount, updateChannel,
 } from '../../services/cortes-api';
 import { useAppStore } from '../../stores/appStore';
 import type { CorteChannel, CorteSocialAccount } from '../../types/cortes';
@@ -15,68 +15,62 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '♪', color: '#00F2EA' },
 ];
 
-// URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
-interface PlatformCredentials {
-  platform: string;
-  clientId?: string;
-  clientSecret?: string;
-}
-
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
-  const { addCorteChannel, deleteCorteChannel, addCorteSocialAccount, deleteCorteSocialAccount } = useAppStore();
+  const { addCorteChannel, deleteCorteChannel, addCorteSocialAccount, deleteCorteSocialAccount, updateCorteChannel } = useAppStore();
   const [channels, setChannels] = useState<CorteChannel[]>([]);
   const [socialAccounts, setSocialAccounts] = useState<CorteSocialAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // Estado para expansão das personas
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
   
-  // Estado para novo canal
-  const [showNewChannel, setShowNewChannel] = useState(false);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelCategory, setNewChannelCategory] = useState('');
-  const [creatingChannel, setCreatingChannel] = useState(false);
-  
-  // Estado para OAuth - AGORA NA PÁGINA PRINCIPAL, SEM POPUP
-  const [oauthState, setOauthState] = useState<{ 
-    platform: string; 
-    channelId: string;
-    phase: 'idle' | 'waiting_code' | 'connecting' | 'success' | 'error'
-  }>({ platform: '', channelId: '', phase: 'idle' });
+  // OAuth state
+  const [oauthChannelId, setOauthChannelId] = useState<string | null>(null);
+  const [oauthPlatform, setOauthPlatform] = useState<string | null>(null);
+  const [oauthStatus, setOauthStatus] = useState<'idle' | 'waiting' | 'connecting' | 'success' | 'error'>('idle');
   const [oauthError, setOauthError] = useState<string>('');
   
-  // Estado para credenciais OAuth por plataforma
-  const [credentials, setCredentials] = useState<Record<string, PlatformCredentials>>({});
+  // Credenciais OAuth por plataforma
+  const [oauthCreds, setOauthCreds] = useState<Record<string, { clientId: string; clientSecret: string }>>({});
   const [savingCreds, setSavingCreds] = useState<string | null>(null);
   
-  // Estado para formulário manual
+  // Formulário manual
   const [addingManual, setAddingManual] = useState<string | null>(null);
   const [manualPlatform, setManualPlatform] = useState('youtube');
   const [accountId, setAccountId] = useState('');
   const [accountHandle, setAccountHandle] = useState('');
   const [creatingAcc, setCreatingAcc] = useState(false);
+  
+  // Nova persona
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelCategory, setNewChannelCategory] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
-  // Escuta callback do OAuth na URL (sem popup!)
+  // DEBUG: Escuta callback OAuth na URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const code = urlParams.get('code');
     const platform = urlParams.get('platform');
-    const state = urlParams.get('state'); // channelId
+    const state = urlParams.get('state');
     const error = urlParams.get('error');
+    const errorDesc = urlParams.get('error_description');
+    
+    console.log('[OAuth Debug] URL Params:', { code, platform, state, error, errorDesc });
     
     if (error) {
-      setOauthState(prev => ({ ...prev, phase: 'error' }));
-      setOauthError(decodeURIComponent(error));
+      console.error('[OAuth Debug] Erro no OAuth:', error, errorDesc);
+      setOauthStatus('error');
+      setOauthError(`Erro: ${error} - ${errorDesc || 'Verifique as credenciais'}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
       return;
     }
     
     if (code && platform && state) {
+      console.log('[OAuth Debug] Código recebido, trocando por tokens...');
       handleOAuthCallback(platform, code, state);
-      // Limpa URL
       window.history.replaceState({}, document.title, window.location.pathname);
     }
   }, []);
@@ -85,6 +79,9 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     try {
       setLoading(true);
       const [ch, acc] = await Promise.all([listChannels(), listSocialAccounts()]);
+      console.log('[Debug] Canais carregados:', ch);
+      console.log('[Debug] Contas sociais:', acc);
+      
       setChannels(ch);
       setSocialAccounts(acc);
       ch.forEach(c => addCorteChannel(c));
@@ -119,6 +116,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
         name: newChannelName.trim(), 
         category: newChannelCategory.trim() || undefined 
       });
+      console.log('[Debug] Canal criado:', ch);
       addCorteChannel(ch);
       setChannels(prev => [...prev, ch]);
       setNewChannelName('');
@@ -145,76 +143,92 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
-  // Iniciar OAuth - AGORA ABRE NA MESMA PÁGINA
+  // Iniciar OAuth
   function startOAuth(platform: string, channelId: string) {
-    const cred = credentials[platform];
+    const cred = oauthCreds[platform];
     if (!cred?.clientId || !cred.clientSecret) {
-      alert('Configure as credenciais OAuth primeiro!');
+      alert('Por favor, salve as credenciais OAuth primeiro!');
       return;
     }
     
-    setOauthState({ platform, channelId, phase: 'waiting_code' });
+    console.log('[OAuth Debug] Iniciando OAuth:', { platform, channelId });
+    setOauthChannelId(channelId);
+    setOauthPlatform(platform);
+    setOauthStatus('waiting');
     setOauthError('');
     
-    // Redireciona para o OAuth do Google
+    // Redireciona para o backend OAuth
     const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
     const state = channelId;
+    const authUrl = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
     
-    window.location.href = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    console.log('[OAuth Debug] Redirecionando para:', authUrl);
+    window.location.href = authUrl;
   }
 
-  // Handler do callback OAuth
+  // Callback OAuth
   async function handleOAuthCallback(platform: string, code: string, channelId: string) {
-    setOauthState(prev => ({ ...prev, phase: 'connecting' }));
+    console.log('[OAuth Debug] Processando callback:', { platform, code, channelId });
+    setOauthStatus('connecting');
     
     try {
-      // Troca o code por tokens no backend
+      // Troca o código por tokens
       const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
-      const res = await fetch(`${BACKEND_URL}/oauth/${platform}/callback?code=${code}&redirectUri=${encodeURIComponent(redirectUri)}`, {
-        method: 'GET',
+      const tokenRes = await fetch(`${BACKEND_URL}/oauth/${platform}/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code, redirectUri }),
       });
       
-      if (!res.ok) {
-        throw new Error(`Falha na autenticação: ${res.status}`);
+      if (!tokenRes.ok) {
+        throw new Error(`Falha ao trocar código: ${tokenRes.status}`);
       }
       
-      // O backend já deve ter criado a conta, vamos buscar
-      const accounts = await listSocialAccounts();
-      const newAccount = accounts.find(a => a.platform === platform && a.accountId.includes('test') === false);
+      const tokenData = await tokenRes.json();
+      console.log('[OAuth Debug] Tokens obtidos:', tokenData);
       
-      if (newAccount) {
-        addCorteSocialAccount(newAccount);
-        setSocialAccounts(prev => [...prev, newAccount]);
-        
-        // Adiciona à persona
-        const currentChannel = channels.find(c => c.id === channelId);
-        if (currentChannel) {
-          const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), newAccount.id];
-          const updatedChannels = channels.map(c => 
-            c.id === channelId ? { ...c, socialAccountIds: newSocialAccountIds } : c
-          );
-          setChannels(updatedChannels);
-        }
-        
-        setOauthState({ platform, channelId, phase: 'success' });
-        onRefresh();
-        
-        // Reseta após 2 segundos
-        setTimeout(() => {
-          setOauthState({ platform: '', channelId: '', phase: 'idle' });
-        }, 2000);
-      } else {
-        throw new Error('Conta não encontrada após autenticação');
+      // Cria a conta na API de cortes
+      const account = await createSocialAccount({
+        platform,
+        accountId: tokenData.accountId,
+        displayName: tokenData.displayName,
+        channelId,
+      });
+      
+      console.log('[OAuth Debug] Conta criada:', account);
+      
+      // Adiciona à persona
+      addCorteSocialAccount(account);
+      setSocialAccounts(prev => [...prev, account]);
+      
+      const currentChannel = channels.find(c => c.id === channelId);
+      if (currentChannel) {
+        const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), account.id];
+        const updatedChannels = channels.map(c => 
+          c.id === channelId ? { ...c, socialAccountIds: newSocialAccountIds } : c
+        );
+        setChannels(updatedChannels);
+        await updateChannel(channelId, { socialAccountIds: newSocialAccountIds });
       }
+      
+      setOauthStatus('success');
+      onRefresh();
+      
+      setTimeout(() => {
+        setOauthChannelId(null);
+        setOauthPlatform(null);
+        setOauthStatus('idle');
+      }, 2000);
+      
     } catch (e) {
-      console.error('OAuth callback failed:', e);
-      setOauthState({ platform, channelId, phase: 'error' });
+      console.error('[OAuth Debug] Erro no callback:', e);
+      setOauthStatus('error');
       setOauthError(e instanceof Error ? e.message : String(e));
     }
   }
 
-  async function handleSaveCredentials(platform: string) {
-    const cred = credentials[platform];
+  async function handleSaveCreds(platform: string) {
+    const cred = oauthCreds[platform];
     if (!cred?.clientId || !cred.clientSecret) {
       alert('Preencha Client ID e Client Secret');
       return;
@@ -224,16 +238,10 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       const res = await fetch(`${BACKEND_URL}/oauth/apps/${platform}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          clientId: cred.clientId, 
-          clientSecret: cred.clientSecret 
-        }),
+        body: JSON.stringify({ clientId: cred.clientId, clientSecret: cred.clientSecret }),
       });
       if (!res.ok) throw new Error('Falha ao salvar');
-      setCredentials(prev => ({
-        ...prev,
-        [platform]: { platform, clientId: cred.clientId, clientSecret: cred.clientSecret }
-      }));
+      alert('Credenciais salvas com sucesso!');
     } catch (e) {
       alert('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
@@ -258,11 +266,9 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
-        const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), acc.id];
-        const updatedChannels = channels.map(c => 
-          c.id === channelId ? { ...c, socialAccountIds: newSocialAccountIds } : c
-        );
-        setChannels(updatedChannels);
+        const newIds = [...(currentChannel.socialAccountIds || []), acc.id];
+        setChannels(prev => prev.map(c => c.id === channelId ? { ...c, socialAccountIds: newIds } : c));
+        await updateChannel(channelId, { socialAccountIds: newIds });
       }
       
       setAccountId('');
@@ -285,10 +291,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newIds = (currentChannel.socialAccountIds || []).filter(id => id !== accountIdStr);
-        const updatedChannels = channels.map(c => 
-          c.id === channelId ? { ...c, socialAccountIds: newIds } : c
-        );
-        setChannels(updatedChannels);
+        setChannels(prev => prev.map(c => c.id === channelId ? { ...c, socialAccountIds: newIds } : c));
+        await updateChannel(channelId, { socialAccountIds: newIds });
       }
       onRefresh();
     } catch (e) {
@@ -302,32 +306,32 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="cortes-channels">
-      {/* Status do OAuth */}
-      {oauthState.phase !== 'idle' && (
-        <div className={`cortes-oauth-status ${oauthState.phase}`}>
-          {oauthState.phase === 'waiting_code' && (
+      {/* Status OAuth */}
+      {oauthStatus !== 'idle' && (
+        <div className={`cortes-oauth-status ${oauthStatus}`}>
+          {oauthStatus === 'waiting' && (
             <div className="cortes-oauth-waiting">
               <Loader2 size={20} className="spin" />
               <span>Redirecionando para o Google...</span>
             </div>
           )}
-          {oauthState.phase === 'connecting' && (
+          {oauthStatus === 'connecting' && (
             <div className="cortes-oauth-connecting">
               <Loader2 size={20} className="spin" />
               <span>Conectando conta...</span>
             </div>
           )}
-          {oauthState.phase === 'success' && (
+          {oauthStatus === 'success' && (
             <div className="cortes-oauth-success">
               <CheckCircle2 size={20} />
               <span>Conta conectada com sucesso!</span>
             </div>
           )}
-          {oauthState.phase === 'error' && (
+          {oauthStatus === 'error' && (
             <div className="cortes-oauth-error">
               <X size={20} />
               <span>{oauthError}</span>
-              <button onClick={() => setOauthState({ platform: '', channelId: '', phase: 'idle' })}>Fechar</button>
+              <button onClick={() => setOauthStatus('idle')}>Fechar</button>
             </div>
           )}
         </div>
@@ -348,12 +352,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
             
             return (
               <div key={ch.id} className="cortes-persona-card">
-                {/* Header da Persona */}
                 <div className="cortes-persona-header">
-                  <button 
-                    className="cortes-toggle-btn"
-                    onClick={() => toggleChannel(ch.id)}
-                  >
+                  <button className="cortes-toggle-btn" onClick={() => toggleChannel(ch.id)}>
                     {isExpanded ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
                   </button>
                   <div className="cortes-persona-info">
@@ -363,35 +363,27 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                       {channelAccounts.length} conta{channelAccounts.length !== 1 ? 's' : ''}
                     </span>
                   </div>
-                  <button 
-                    className="btn-icon-danger" 
-                    onClick={() => handleDeleteChannel(ch.id)}
-                    title="Excluir persona"
-                  >
+                  <button className="btn-icon-danger" onClick={() => handleDeleteChannel(ch.id)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
 
-                {/* Conteúdo expandido */}
                 {isExpanded && (
                   <div className="cortes-persona-content">
-                    {/* Seção OAuth */}
+                    {/* OAuth Section */}
                     <div className="cortes-oauth-section">
-                      <div className="cortes-section-header">
-                        <Key size={18} />
-                        <h4>Credenciais OAuth por Plataforma</h4>
-                      </div>
+                      <h4>🔑 Credenciais OAuth</h4>
                       <p className="cortes-help-text">Configure as credenciais para cada rede social.</p>
                       
-                      <div className="cortes-platforms-config">
+                      <div className="cortes-platforms-grid">
                         {PLATFORMS.map(p => {
-                          const cred = credentials[p.id];
+                          const cred = oauthCreds[p.id];
                           const hasCreds = cred?.clientId && cred.clientSecret;
                           const hasConnection = channelAccounts.some(a => a.platform === p.id);
-                          const isConnecting = oauthState.platform === p.id && oauthState.channelId === ch.id;
+                          const isConnecting = oauthPlatform === p.id && oauthChannelId === ch.id;
                           
                           return (
-                            <div key={p.id} className={`cortes-platform-config ${hasCreds ? 'configured' : ''} ${hasConnection ? 'connected' : ''}`}>
+                            <div key={p.id} className={`cortes-platform-config ${hasConnection ? 'connected' : ''}`}>
                               <div className="cortes-platform-header">
                                 <span className="cortes-platform-icon" style={{ color: p.color }}>{p.icon}</span>
                                 <span className="cortes-platform-name">{p.label}</span>
@@ -404,7 +396,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                     type="text"
                                     placeholder="Client ID"
                                     value={cred?.clientId || ''}
-                                    onChange={e => setCredentials(prev => ({
+                                    onChange={e => setOauthCreds(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientId: e.target.value }
                                     }))}
@@ -413,7 +405,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                     type="password"
                                     placeholder="Client Secret"
                                     value={cred?.clientSecret || ''}
-                                    onChange={e => setCredentials(prev => ({
+                                    onChange={e => setOauthCreds(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientSecret: e.target.value }
                                     }))}
@@ -421,10 +413,10 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                   <div className="cortes-oauth-actions">
                                     <button 
                                       className="btn-primary btn-sm"
-                                      onClick={() => handleSaveCredentials(p.id)}
+                                      onClick={() => handleSaveCreds(p.id)}
                                       disabled={savingCreds === p.id || !cred?.clientId || !cred?.clientSecret}
                                     >
-                                      {savingCreds === p.id ? <Loader2 size={12} className="spin" /> : <Key size={12} />} Salvar Credenciais
+                                      {savingCreds === p.id ? <Loader2 size={12} className="spin" /> : <Key size={12} />} Salvar
                                     </button>
                                     {hasCreds && (
                                       <button 
@@ -432,14 +424,14 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                         onClick={() => startOAuth(p.id, ch.id)}
                                         disabled={isConnecting}
                                       >
-                                        {isConnecting ? <Loader2 size={12} className="spin" /> : <Globe size={12} />} Conectar Conta
+                                        {isConnecting ? <Loader2 size={12} className="spin" /> : <Globe size={12} />} Conectar
                                       </button>
                                     )}
                                   </div>
                                 </div>
                               ) : (
                                 <div className="cortes-connected-info">
-                                  <span>✓ Conta conectada com sucesso</span>
+                                  <span>✓ Conectado</span>
                                   <button 
                                     className="btn-ghost btn-xs"
                                     onClick={() => {
@@ -457,7 +449,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                       </div>
                     </div>
 
-                    {/* Contas já conectadas */}
+                    {/* Contas Conectadas */}
                     {channelAccounts.length > 0 && (
                       <div className="cortes-connected-accounts">
                         <h4>Contas Conectadas</h4>
@@ -470,10 +462,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                               <span className="cortes-account-platform">{acc.platform.toUpperCase()}</span>
                               <span className="cortes-account-name">{acc.displayName || acc.accountId}</span>
                             </div>
-                            <button 
-                              className="btn-icon-sm"
-                              onClick={() => handleDeleteAccount(acc.id, ch.id)}
-                            >
+                            <button className="btn-icon-sm" onClick={() => handleDeleteAccount(acc.id, ch.id)}>
                               <Trash2 size={14} />
                             </button>
                           </div>
@@ -481,51 +470,23 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                       </div>
                     )}
 
-                    {/* Adicionar manualmente */}
+                    {/* Manual Add */}
                     {addingManual === ch.id ? (
                       <div className="cortes-manual-form">
                         <select value={manualPlatform} onChange={e => setManualPlatform(e.target.value)}>
-                          {PLATFORMS.map(p => (
-                            <option key={p.id} value={p.id}>{p.label}</option>
-                          ))}
+                          {PLATFORMS.map(p => (<option key={p.id} value={p.id}>{p.label}</option>))}
                         </select>
-                        <input 
-                          type="text" 
-                          placeholder="ID ou Link da conta" 
-                          value={accountId}
-                          onChange={e => setAccountId(e.target.value)}
-                        />
-                        <input 
-                          type="text" 
-                          placeholder="Nome (opcional)" 
-                          value={accountHandle}
-                          onChange={e => setAccountHandle(e.target.value)}
-                        />
+                        <input type="text" placeholder="ID ou Link da conta" value={accountId} onChange={e => setAccountId(e.target.value)} />
+                        <input type="text" placeholder="Nome (opcional)" value={accountHandle} onChange={e => setAccountHandle(e.target.value)} />
                         <div className="cortes-form-actions">
-                          <button 
-                            className="btn-primary btn-sm"
-                            onClick={() => handleAddManual(ch.id)}
-                            disabled={creatingAcc || !accountId.trim()}
-                          >
+                          <button className="btn-primary btn-sm" onClick={() => handleAddManual(ch.id)} disabled={creatingAcc || !accountId.trim()}>
                             {creatingAcc ? <Loader2 size={13} className="spin" /> : <Plus size={13} />} Adicionar
                           </button>
-                          <button 
-                            className="btn-ghost btn-sm"
-                            onClick={() => {
-                              setAddingManual(null);
-                              setAccountId('');
-                              setAccountHandle('');
-                            }}
-                          >
-                            Cancelar
-                          </button>
+                          <button className="btn-ghost btn-sm" onClick={() => setAddingManual(null)}>Cancelar</button>
                         </div>
                       </div>
                     ) : (
-                      <button 
-                        className="btn-outline"
-                        onClick={() => setAddingManual(ch.id)}
-                      >
+                      <button className="btn-outline" onClick={() => setAddingManual(ch.id)}>
                         <Plus size={14} /> Adicionar manualmente
                       </button>
                     )}
@@ -537,48 +498,20 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
         )}
       </div>
 
-      {/* Botão para nova persona */}
-      <button 
-        className="btn-primary"
-        onClick={() => setShowNewChannel(true)}
-      >
+      <button className="btn-primary" onClick={() => setShowNewChannel(true)}>
         <Plus size={16} /> Nova Persona
       </button>
 
-      {/* Formulário de nova persona */}
       {showNewChannel && (
         <div className="cortes-new-channel-form">
           <h3>Nova Persona</h3>
-          <input 
-            type="text" 
-            placeholder="Nome (ex: Risadola Cortes)" 
-            value={newChannelName}
-            onChange={e => setNewChannelName(e.target.value)}
-          />
-          <input 
-            type="text" 
-            placeholder="Categoria (opcional, ex: Comédia)" 
-            value={newChannelCategory}
-            onChange={e => setNewChannelCategory(e.target.value)}
-          />
+          <input type="text" placeholder="Nome (ex: Risadola Cortes)" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} />
+          <input type="text" placeholder="Categoria (opcional)" value={newChannelCategory} onChange={e => setNewChannelCategory(e.target.value)} />
           <div className="cortes-form-actions">
-            <button 
-              className="btn-primary"
-              onClick={handleCreateChannel}
-              disabled={creatingChannel || !newChannelName.trim()}
-            >
+            <button className="btn-primary" onClick={handleCreateChannel} disabled={creatingChannel || !newChannelName.trim()}>
               {creatingChannel ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Criar Persona
             </button>
-            <button 
-              className="btn-ghost"
-              onClick={() => {
-                setShowNewChannel(false);
-                setNewChannelName('');
-                setNewChannelCategory('');
-              }}
-            >
-              Cancelar
-            </button>
+            <button className="btn-ghost" onClick={() => setShowNewChannel(false)}>Cancelar</button>
           </div>
         </div>
       )}
