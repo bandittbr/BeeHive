@@ -5,10 +5,10 @@ import path from 'node:path';
 
 const router = Router();
 
-// Caminho para salvar dados (usa environment ou default)
+// Caminho para salvar dados
 const DATA_DIR = process.env.CORTES_DATA_DIR || 
   process.env.RAILWAY_VOLUME_PATH ||
-  path.join(process.cwd(), 'data', 'cortes');
+  path.join(process.cwd(), 'workspace', 'data', 'cortes');
 
 // Garante que o diretório existe
 if (!fs.existsSync(DATA_DIR)) {
@@ -104,7 +104,7 @@ router.get('/social-accounts', (_req, res) => {
 });
 
 router.post('/social-accounts', (req, res) => {
-  const { platform, accountId, displayName, handle } = req.body;
+  const { platform, accountId, displayName, handle, channelId } = req.body;
   if (!platform || !accountId) return res.status(400).json({ error: 'Platform e accountId são obrigatórios' });
   
   const account: CorteSocialAccount = {
@@ -115,7 +115,7 @@ router.post('/social-accounts', (req, res) => {
     handle: handle?.trim() || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    channelIds: [],
+    channelIds: channelId ? [channelId] : [],
   };
   socialAccounts.push(account);
   saveSocialAccounts();

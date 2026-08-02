@@ -1,44 +1,78 @@
-# Fix OAuth callback to redirect back to frontend
+# Fix OAuth callback to also create corte social account
+import re
+
 index_path = r'E:\BeeHive\apps\worker\src\index.ts'
 
 with open(index_path, 'r', encoding='utf-8') as f:
     content = f.read()
 
-# Find the callback section and add redirect to frontend
-old_callback = '''      await upsertAccount({
-        id, platform, accountId: r.accountId, displayName: r.displayName,
-        accessToken: r.accessToken, refreshToken: r.refreshToken,
-        expiresAt: r.expiresIn ? Date.now() + r.expiresIn * 1000 : undefined,
-      });
-      res.send(page('Conectado!', `Conta ${platform} conectada com sucesso!`, redirectUri));'''
+# Find and replace the callback section
+old_pattern = r'pendingStates\.delete\(state\);\s*const frontendUrl = process\.env\.FRONTEND_URL \|\| \'https://beehiveos\.vercel\.app\';\s*const returnUri = `\$\{frontendUrl\}/negocios\?connected=\$\{platform\}&accountId=\$\{encodeURIComponent\(r\.accountId\)\}&displayName=\$\{encodeURIComponent\(r\.displayName \|\| \'\'\)\}`;\s*res\.redirect\(returnUri\);'
 
-new_callback = '''      await upsertAccount({
-        id, platform, accountId: r.accountId, displayName: r.displayName,
-        accessToken: r.accessToken, refreshToken: r.refreshToken,
-        expiresAt: r.expiresIn ? Date.now() + r.expiresIn * 1000 : undefined,
-      });
+new_code = '''pendingStates.delete(state);
       
-      // Redirect back to frontend with account info
+      // TAMÉM criar na API de cortes (para o frontend mostrar)
+      try {
+        const corteApiUrl = `${PUBLIC_URL}/api/cortes/social-accounts`;
+        await fetch(corteApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            platform,
+            accountId: r.accountId,
+            displayName: r.displayName,
+            channelId: state || undefined,
+          }),
+        });
+      } catch (e) {
+        console.error('Erro ao criar conta na API de cortes:', e);
+      }
+      
+      // Redirecionar de volta para o frontend com os dados
       const frontendUrl = process.env.FRONTEND_URL || 'https://beehiveos.vercel.app';
-      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}`;
+      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}&channelId=${encodeURIComponent(state || '')}`;
       res.redirect(returnUri);'''
 
-if old_callback in content:
-    content = content.replace(old_callback, new_callback)
-    print("Updated callback redirect")
-else:
-    # Try alternative - just find the upsertAccount line
-    if 'await upsertAccount({' in content:
-        import re
-        # Find and replace the callback response
-        pattern = r'(await upsertAccount\(\{[^}]+\}\);)\s*(res\.send\(page\()'
-        replacement = r'\1\n      \n      // Redirect back to frontend\n      const frontendUrl = process.env.FRONTEND_URL || \'https://beehiveos.vercel.app\';\n      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || \'\'})`;\n      res.redirect(returnUri);'
-        content = re.sub(pattern, replacement, content, flags=re.DOTALL)
-        print("Updated via regex")
-    else:
-        print("Could not find callback pattern")
+new_content = re.sub(old_pattern, new_code, content, flags=re.DOTALL)
 
-with open(index_path, 'w', encoding='utf-8') as f:
-    f.write(content)
+if new_content != content:
+    with open(index_path, 'w', encoding='utf-8') as f:
+        f.write(new_content)
+    print("Fixed OAuth callback!")
+else:
+    print("Pattern not found, trying alternative...")
+    # Try simpler replacement
+    if 'pendingStates.delete(state);' in content:
+        content = content.replace(
+            'pendingStates.delete(state);\n            const frontendUrl = process.env.FRONTEND_URL || \'https://beehiveos.vercel.app\';\n            const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || \'\'})`;\n            res.redirect(returnUri);',
+            '''pendingStates.delete(state);
+            
+            // TAMÉM criar na API de cortes (para o frontend mostrar)
+            try {
+              const corteApiUrl = `${PUBLIC_URL}/api/cortes/social-accounts`;
+              await fetch(corteApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  platform,
+                  accountId: r.accountId,
+                  displayName: r.displayName,
+                  channelId: state || undefined,
+                }),
+              });
+            } catch (e) {
+              console.error('Erro ao criar conta na API de cortes:', e);
+            }
+            
+            // Redirecionar de volta para o frontend com os dados
+            const frontendUrl = process.env.FRONTEND_URL || 'https://beehiveos.vercel.app';
+            const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}&channelId=${encodeURIComponent(state || '')}`;
+            res.redirect(returnUri);'''
+        )
+        with open(index_path, 'w', encoding='utf-8') as f:
+            f.write(content)
+        print("Fixed with alternative pattern!")
+    else:
+        print("Could not find pattern")
 
 print("\nDone!")
