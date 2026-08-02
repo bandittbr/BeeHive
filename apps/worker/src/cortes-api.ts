@@ -95,7 +95,9 @@ router.patch('/channels/:id', (req, res) => {
 router.delete('/channels/:id', (req, res) => {
   const { id } = req.params;
   channels = channels.filter(c => c.id !== id);
+  socialAccounts = socialAccounts.filter((account) => !account.channelIds.includes(id));
   saveChannels();
+  saveSocialAccounts();
   res.json({ ok: true });
 });
 
@@ -107,7 +109,9 @@ router.get('/social-accounts', (_req, res) => {
 
 router.post('/social-accounts', (req, res) => {
   const { platform, accountId, displayName, handle, channelId } = req.body;
-  if (!platform || !accountId) return res.status(400).json({ error: 'Platform e accountId são obrigatórios' });
+  if (!platform || !accountId || !channelId) return res.status(400).json({ error: 'Platform, accountId e persona sao obrigatorios' });
+  const channel = channels.find((item) => item.id === channelId);
+  if (!channel) return res.status(404).json({ error: 'Persona nao encontrada' });
   
   const account: CorteSocialAccount = {
     id: `sa_${Date.now()}`,
@@ -117,16 +121,28 @@ router.post('/social-accounts', (req, res) => {
     handle: handle?.trim() || null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    channelIds: channelId ? [channelId] : [],
+    channelIds: [channelId],
   };
   socialAccounts.push(account);
+  if (!channel.socialAccountIds.includes(account.id)) {
+    channel.socialAccountIds.push(account.id);
+    channel.updatedAt = new Date().toISOString();
+    saveChannels();
+  }
   saveSocialAccounts();
   res.json(account);
 });
 
 router.delete('/social-accounts/:id', (req, res) => {
   const { id } = req.params;
-  socialAccounts = socialAccounts.filter(a => a.id !== id);
+  const account = socialAccounts.find((item) => item.id === id);
+  socialAccounts = socialAccounts.filter((item) => item.id !== id);
+  if (account) {
+    channels = channels.map((channel) => channel.socialAccountIds.includes(id)
+      ? { ...channel, socialAccountIds: channel.socialAccountIds.filter((accountId) => accountId !== id), updatedAt: new Date().toISOString() }
+      : channel);
+    saveChannels();
+  }
   saveSocialAccounts();
   res.json({ ok: true });
 });

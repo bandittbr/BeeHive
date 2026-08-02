@@ -5,6 +5,7 @@ import {
   listSocialAccounts, createSocialAccount, deleteSocialAccount, updateChannel,
 } from '../../services/cortes-api';
 import { useAppStore } from '../../stores/appStore';
+import { WORKER_BASE_URL } from '../../services/cortes-api';
 import type { CorteChannel, CorteSocialAccount } from '../../types/cortes';
 
 const PLATFORMS = [
@@ -15,7 +16,7 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '♪', color: '#00F2EA' },
 ];
 
-const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
+const BACKEND_URL = WORKER_BASE_URL;
 
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const { addCorteChannel, deleteCorteChannel, addCorteSocialAccount, deleteCorteSocialAccount, updateCorteChannel } = useAppStore();
@@ -259,7 +260,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       const acc = await createSocialAccount({ 
         platform: manualPlatform, 
         accountId: accountId.trim(), 
-        displayName: accountHandle.trim() || undefined 
+        displayName: accountHandle.trim() || undefined,
+        channelId,
       });
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
@@ -372,8 +374,8 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                   <div className="cortes-persona-content">
                     {/* OAuth Section */}
                     <div className="cortes-oauth-section">
-                      <h4>🔑 Credenciais OAuth</h4>
-                      <p className="cortes-help-text">Configure as credenciais para cada rede social.</p>
+                      <h4>Redes desta persona</h4>
+                      <p className="cortes-help-text">Cada conta conectada aqui sera usada somente pelos cortes desta persona.</p>
                       
                       <div className="cortes-platforms-grid">
                         {PLATFORMS.map(p => {

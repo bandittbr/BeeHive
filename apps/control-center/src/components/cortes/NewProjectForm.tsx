@@ -155,7 +155,7 @@ export function NewProjectForm({ onClose, onCreated }: NewProjectFormProps = {})
                 <option value="">Sem canal selecionado (padrão)</option>
                 {corteChannels.map(channel => (
                   <option key={channel.id} value={channel.id}>
-                    {channel.name} {channel.category ? `(${category})` : ''}
+                    {channel.name} {channel.category ? `(${channel.category})` : ''}
                   </option>
                 ))}
               </select>

@@ -1,13 +1,12 @@
 import { useState } from 'react';
-import { Clapperboard, Plus, Radio, Settings, ShieldCheck } from 'lucide-react';
+import { Clapperboard, Plus, Radio, Settings } from 'lucide-react';
 import { ChannelsManagerView } from './ChannelsManager';
 import { CorteSettingsView } from './CorteSettings';
-import { OauthSettingsView } from './OauthSettings';
 import { NewProjectForm } from './NewProjectForm';
 import { ProjetosView } from './ProjetosView';
 import { ProjectDetailView } from './ProjectDetail';
 
-type Tab = 'projects' | 'channels' | 'automation' | 'settings';
+type Tab = 'projects' | 'channels' | 'settings';
 
 export function CortesView() {
   const [tab, setTab] = useState<Tab>('projects');
@@ -31,15 +30,13 @@ export function CortesView() {
 
       <nav className="cortes-tabs cortes-tabs-modern" aria-label="Navegação de cortes">
         <button className={tab === 'projects' ? 'active' : ''} onClick={() => setTab('projects')}><Clapperboard size={16} /> Meus cortes</button>
-        <button className={tab === 'channels' ? 'active' : ''} onClick={() => setTab('channels')}><Radio size={16} /> Canais e redes</button>
-        <button className={tab === 'automation' ? 'active' : ''} onClick={() => setTab('automation')}><ShieldCheck size={16} /> Conexões oficiais</button>
+        <button className={tab === 'channels' ? 'active' : ''} onClick={() => setTab('channels')}><Radio size={16} /> Personas e redes</button>
         <button className={tab === 'settings' ? 'active' : ''} onClick={() => setTab('settings')}><Settings size={16} /> Estilo padrão</button>
       </nav>
 
       <div className="cortes-content cortes-content-modern" key={refreshKey}>
         {tab === 'projects' && <ProjetosView onOpenProject={setProjectId} onRefresh={() => setNewProject(true)} />}
-        {tab === 'channels' && <ChannelsManagerView />}
-        {tab === 'automation' && <OauthSettingsView />}
+        {tab === 'channels' && <ChannelsManagerView onRefresh={refresh} />}
         {tab === 'settings' && <CorteSettingsView />}
       </div>
       {newProject && <NewProjectForm onClose={() => setNewProject(false)} onCreated={(project) => { setNewProject(false); setProjectId(project.id); }} />}

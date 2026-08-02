@@ -8,7 +8,8 @@ import type {
   NewProjectForm,
 } from '../types/cortes';
 
-const API_BASE = (import.meta.env.VITE_CORTES_API_BASE_URL || 'https://beehive-production-d895.up.railway.app/api').replace(/\/$/, '');
+export const API_BASE = (import.meta.env.VITE_CORTES_API_BASE_URL || 'https://beehive-production-d895.up.railway.app/api').replace(/\/$/, '');
+export const WORKER_BASE_URL = API_BASE.replace(/\/api$/, '');
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -54,6 +55,7 @@ export async function deleteChannel(id: string): Promise<void> {
 export interface CreateSocialAccountInput {
   platform: string;
   accountId: string;
+  channelId: string;
   displayName?: string;
   handle?: string;
 }
