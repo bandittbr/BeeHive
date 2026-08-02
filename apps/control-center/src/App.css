@@ -1,16 +1,16 @@
 /* BeeHive AI Operating System — Control Center */
 
 :root {
-  --bg: #191818;
-  --surface: #212020;
-  --surface-2: #272626;
-  --surface-3: #302f2e;
-  --border: #3a3836;
-  --border-light: #2e2c2b;
-  --primary: #D97757;
-  --primary-light: #E8A382;
-  --primary-muted: rgba(217, 119, 87, 0.14);
-  --primary-glow: rgba(217, 119, 87, 0.25);
+  --bg: #0c1016;
+  --surface: #171c24;
+  --surface-2: #202733;
+  --surface-3: #293240;
+  --border: #333d4b;
+  --border-light: #222a35;
+  --primary: #f6c643;
+  --primary-light: #ffd564;
+  --primary-muted: rgba(246, 198, 67, 0.14);
+  --primary-glow: rgba(246, 198, 67, 0.25);
   --text: #F3F1EC;
   --text-secondary: #ADA9A0;
   --text-muted: #79756C;
@@ -1854,3 +1854,16 @@ html.light .logo-img-light { display: block; }
   .page-header { margin-bottom: 16px; }
   .empty-state { padding: 24px; font-size: 12px; }
 }
+
+/* Visão geral BeeHive OS */
+.overview-mode .topbar { display: none; }
+.overview-mode .main { background: #0c1016; }
+.overview-mode .sidebar { background: #0b1016; }
+.overview-mode .sidebar-logo { padding: 8px 7px 23px; }
+.overview-mode .logo-mark { width: 32px; height: 32px; }
+.overview-mode .logo-text { font-size: 18px; letter-spacing: -0.6px; }
+.overview-mode .logo-text small { font-size: 13px; font-weight: 500; color: var(--text-secondary); }
+.overview-mode .nav-row { margin: 2px 0; }
+.overview-mode .nav-row.active { background: linear-gradient(90deg, rgba(246,198,67,.18), rgba(246,198,67,.03)); box-shadow: inset 0 0 0 1px rgba(246,198,67,.32); }
+.overview-mode .nav-row.active::before { height: 24px; background: var(--primary); box-shadow: 0 0 12px var(--primary); }
+.overview-mode .nav-row.active .nav-row-main { color: #ffd660; font-weight: 700; }

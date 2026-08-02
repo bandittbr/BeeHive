@@ -1,4 +1,4 @@
-﻿import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   MessageSquare, FolderKanban, Settings, Bot, Workflow,
   FileText, Image, Video, Music, Scissors, Link2, Clapperboard,
@@ -40,6 +40,7 @@ import { createExecutionService, UnifiedExecutionService, ExecutionConfig, Execu
 import { MessageList } from './components/chat/MessageList';
 import { NegociosView } from './components/negocios/NegociosView';
 import { CortesView } from './components/cortes/CortesView';
+import { OverviewDashboard } from './components/dashboard/OverviewDashboard';
 import { useArtifacts } from './lib/useArtifacts';
 import type { ArtifactItem } from './lib/artifacts';
 import { ArtifactPanel } from './components/chat/artifact-panel';
@@ -68,9 +69,10 @@ import './components/cortes/cortes.css';
 // APP SHELL — Sidebar rotulada + Topbar + Áreas
 // ============================================================
 
-type MainArea = 'chat' | 'projetos' | 'negocios' | 'settings';
+type MainArea = 'overview' | 'chat' | 'projetos' | 'negocios' | 'settings';
 
 const AREA_LABELS: Record<MainArea, string> = {
+  overview: 'Visão Geral',
   chat: 'Chat',
   projetos: 'Projetos',
   negocios: 'Negócios',
@@ -78,8 +80,8 @@ const AREA_LABELS: Record<MainArea, string> = {
 };
 
 export default function App() {
-const { projects } = useAppStore();
-  const [activeArea, setActiveArea] = useState<MainArea>('chat');
+const { projects, events, missions } = useAppStore();
+  const [activeArea, setActiveArea] = useState<MainArea>('overview');
   const [openedProject, setOpenedProject] = useState<Project | null>(null);
   const [projectView, setProjectView] = useState<'cowork' | 'agents' | 'workflows' | 'pipelines' | 'artifacts' | 'settings' | 'scheduler' | 'secrets' | 'costs'>('cowork');
   const [rightPanel, setRightPanel] = useState<'artifacts' | 'pipeline' | 'logs' | null>(null);
@@ -148,7 +150,7 @@ const { projects } = useAppStore();
   };
 
   return (
-    <div className={`app${sidebarOpen ? ' sidebar-open' : ''}`} onClick={(e) => { if (e.target === e.currentTarget && sidebarOpen) setSidebarOpen(false); }}>
+    <div className={`app${sidebarOpen ? ' sidebar-open' : ''}${activeArea === 'overview' ? ' overview-mode' : ''}`} onClick={(e) => { if (e.target === e.currentTarget && sidebarOpen) setSidebarOpen(false); }}>
       {/* Sidebar rotulada */}
       <aside className="sidebar">
         <div className="sidebar-logo">
@@ -156,12 +158,15 @@ const { projects } = useAppStore();
             <img src="/logo.png" alt="BeeHive" className="logo-img-dark" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
             <img src="/logo-dark.png" alt="BeeHive" className="logo-img-light" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} />
           </div>
-          <span className="logo-text">BeeHive</span>
+          <span className="logo-text">BeeHive <small>OS</small></span>
         </div>
         <div className="sidebar-nav">
           <div className="nav-group">
+            <div className={`nav-row${activeArea === 'overview' ? ' active' : ''}`}>
+              <button className="nav-row-main" onClick={() => { setActiveArea('overview'); setOpenedProject(null); setSidebarOpen(false); }}><Home size={16} /> Visão Geral</button>
+            </div>
             <div className={`nav-row${activeArea === 'chat' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('chat'); setOpenedProject(null); setSidebarOpen(false); }}><MessageSquare size={16} /> Chat</button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('chat'); setOpenedProject(null); setSidebarOpen(false); }}><MessageSquare size={16} /> Cowork (Chat)</button>
               <button className="nav-row-plus" onClick={() => { handleNewConversation(); setSidebarOpen(false); }} title="Nova conversa"><Plus size={14} /></button>
             </div>
             <div className={`nav-row${activeArea === 'projetos' ? ' active' : ''}`}>
@@ -169,7 +174,7 @@ const { projects } = useAppStore();
               <button className="nav-row-plus" onClick={() => { handleNewProject(); setSidebarOpen(false); }} title="Novo projeto"><Plus size={14} /></button>
             </div>
             <div className={`nav-row${activeArea === 'negocios' ? ' active' : ''}`}>
-              <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); setSidebarOpen(false); }}><Globe size={16} /> Negócios</button>
+              <button className="nav-row-main" onClick={() => { setActiveArea('negocios'); setOpenedProject(null); setSidebarOpen(false); }}><Scissors size={16} /> Cortes e redes</button>
             </div>
           </div>
           <div className="sidebar-divider" />
@@ -253,6 +258,7 @@ const { projects } = useAppStore();
         </header>
 
         <main className="main">
+          {activeArea === 'overview' && <OverviewDashboard projects={projects} events={events} missions={missions} userName={authUser?.email?.split('@')[0] || 'Gabriel'} onOpenChat={() => setActiveArea('chat')} onOpenProjects={goToProjectsList} onOpenBusiness={() => setActiveArea('negocios')} />}
           {activeArea === 'chat' && (
             <HomeChat
               key={chatResetKey}
@@ -1379,7 +1385,7 @@ function ProjectCowork({ project }: { project: Project }) {
     </div>
   );
 }
- 
+
 // ============================================================
 // SECRET VAULT COMPONENT
 // ============================================================
@@ -1392,19 +1398,19 @@ const secretTypes = [
   { value: "SSH_KEY", label: "SSH Key", icon: "🗝️" },
   { value: "CERTIFICATE", label: "Certificado", icon: "📜" },
 ];
- 
+
 function SecretVault({ project }: { project: any }) {
   const [secrets, setSecrets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingSecret, setEditingSecret] = useState<any | null>(null);
   const [formData, setFormData] = useState({ key: "", value: "", type: "STRING", description: "" });
- 
+
   useEffect(() => {
     if (!project?.id) return;
     loadSecrets();
   }, [project?.id]);
- 
+
   const loadSecrets = async () => {
     if (!project?.id) return;
     setLoading(true);
@@ -1418,7 +1424,7 @@ function SecretVault({ project }: { project: any }) {
       setLoading(false);
     }
   };
- 
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!project?.id) return;
@@ -1435,7 +1441,7 @@ function SecretVault({ project }: { project: any }) {
       console.error("Failed to create secret:", error);
     }
   };
- 
+
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingSecret?.id) return;
@@ -1453,18 +1459,18 @@ function SecretVault({ project }: { project: any }) {
       console.error("Failed to update secret:", error);
     }
   };
- 
+
   const handleSubmit = (e: React.FormEvent) => {
     if (editingSecret) handleUpdate(e);
     else handleCreate(e);
   };
- 
+
   const handleEdit = (secret: any) => {
     setEditingSecret(secret);
     setFormData({ key: secret.key, value: secret.value, type: secret.type, description: secret.description });
     setShowForm(true);
   };
- 
+
   const handleDelete = async (secret: any) => {
     if (!confirm(`Excluir secret "${secret.key}"?`)) return;
     try {
@@ -1474,12 +1480,12 @@ function SecretVault({ project }: { project: any }) {
       console.error("Failed to delete secret:", error);
     }
   };
- 
+
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     alert("Copiado!");
   };
- 
+
   if (showForm) {
     return (
       <div className="secret-form-overlay" onClick={(e) => e.target === e.currentTarget && setShowForm(false)}>
@@ -1538,7 +1544,7 @@ function SecretVault({ project }: { project: any }) {
       </div>
     );
   }
- 
+
   return (
     <div className="secret-vault">
       <div className="vault-header">
@@ -1547,7 +1553,7 @@ function SecretVault({ project }: { project: any }) {
           <Plus size={16} /> Novo Secret
         </button>
       </div>
- 
+
       <div className="vault-usage">
         <h4>Como usar nos pipelines</h4>
         <p>Referencie secrets nas configurações dos nós com <span style={{fontFamily: "monospace", background: "var(--surface-2)", padding: "2px 6px", borderRadius: "4px"}}>{'{{secrets.SUA_CHAVE}}'}</span></p>
@@ -1559,7 +1565,7 @@ function SecretVault({ project }: { project: any }) {
 }`}</pre>
         </div>
       </div>
- 
+
       {loading ? (
         <div className="vault-loading"><Loader2 size={24} className="spin" /> Carregando...</div>
       ) : secrets.length === 0 ? (
@@ -1603,7 +1609,7 @@ function SecretVault({ project }: { project: any }) {
     </div>
   );
 }
- 
+
 // ============================================================
 // RIGHT PANELS (dentro de um Projeto)
 // ============================================================
