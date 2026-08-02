@@ -50,6 +50,21 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
 
   useEffect(() => { loadAll(); }, []);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const platform = params.get('connected');
+    const accountId = params.get('accountId');
+    const displayName = params.get('displayName');
+    const channelId = params.get('channelId');
+    if (!platform || !accountId || !channelId) return;
+    window.history.replaceState({}, document.title, window.location.pathname);
+    void (async () => {
+      await createSocialAccount({ platform, accountId, displayName: displayName || undefined, channelId });
+      await loadAll();
+      setExpandedChannels((previous) => new Set([...previous, channelId]));
+      onRefresh();
+    })().catch((error) => { setOauthStatus('error'); setOauthError(error instanceof Error ? error.message : String(error)); });
+  }, []);
   // DEBUG: Escuta callback OAuth na URL
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -159,9 +174,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     setOauthError('');
     
     // Redireciona para o backend OAuth
-    const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
-    const state = channelId;
-    const authUrl = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+    const authUrl = `${BACKEND_URL}/oauth/${platform}/start?channelId=${encodeURIComponent(channelId)}`;
     
     console.log('[OAuth Debug] Redirecionando para:', authUrl);
     window.location.href = authUrl;

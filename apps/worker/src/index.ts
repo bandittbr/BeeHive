@@ -76,7 +76,7 @@ app.use(express.json({ limit: '10mb' }));
 
 const jobs = new Map<string, JobRecord>();
 const listeners = new Map<string, Set<(e: JobEvent) => void>>();
-const pendingStates = new Set<string>();
+const pendingStates = new Map<string, { channelId?: string }>();
 
 function emit(jobId: string, e: Omit<JobEvent, 'jobId' | 'ts'>) {
   const evt: JobEvent = { jobId, ts: Date.now(), ...e };
@@ -242,8 +242,9 @@ app.get('/oauth/:platform/start', async (req, res) => {
   const oapp = await getOauthApp(platform);
   if (!oapp) return res.status(400).send('App OAuth não configurado para ' + platform);
   const redirectUri = `${PUBLIC_URL}/oauth/${platform}/callback`;
+  const channelId = typeof req.query.channelId === 'string' ? req.query.channelId : undefined;
   const state = nanoid();
-  pendingStates.add(state);
+  pendingStates.set(state, { channelId });
   setTimeout(() => pendingStates.delete(state), 600000);
   try {
     res.redirect(buildAuthUrl(platform, oapp, redirectUri, state));
@@ -261,6 +262,8 @@ app.get('/oauth/:platform/callback', async (req, res) => {
   if (err) return res.status(400).send(page('Autorização negada', err));
   if (!code) return res.status(400).send(page('Erro', 'Código de autorização ausente.'));
   if (!PUBLIC_URL) return res.status(500).send('WORKER_PUBLIC_URL não configurado');
+  const context = pendingStates.get(state);
+  if (!context) return res.status(400).send(page('Erro', 'Conexao expirada. Volte ao BeeHive e tente novamente.'));
   const oapp = await getOauthApp(platform);
   if (!oapp) return res.status(400).send(page('Erro', 'App OAuth não configurado.'));
   const redirectUri = `${PUBLIC_URL}/oauth/${platform}/callback`;
@@ -274,7 +277,7 @@ app.get('/oauth/:platform/callback', async (req, res) => {
     });
     pendingStates.delete(state);
           const frontendUrl = process.env.FRONTEND_URL || 'https://beehiveos.vercel.app';
-      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}`;
+      const returnUri = `${frontendUrl}/negocios?connected=${platform}&accountId=${encodeURIComponent(r.accountId)}&displayName=${encodeURIComponent(r.displayName || '')}&channelId=${encodeURIComponent(context.channelId || '')}`;
       res.redirect(returnUri);
   } catch (e) {
     res.status(400).send(page('Falha ao conectar', String(e instanceof Error ? e.message : e)));

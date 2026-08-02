@@ -98,15 +98,17 @@ export async function exchangeCode(platform: string, app: OauthApp, redirectUri:
     // Pega info do canal
     let displayName: string | undefined;
     try {
+    let channelId: string | undefined;
       const u = await fetch(`${YT_USER}?mine=true&part=snippet`, {
         headers: { authorization: `Bearer ${j.access_token}` }
       });
       const uj = (await u.json().catch(() => ({}))) as any;
       displayName = uj?.items?.[0]?.snippet?.title;
     } catch {}
+      channelId = uj?.items?.[0]?.id;
     
     return {
-      accountId: j.id || 'youtube_channel',
+      accountId: channelId || j.id || 'youtube_channel',
       displayName,
       accessToken: j.access_token,
       refreshToken: j.refresh_token,
