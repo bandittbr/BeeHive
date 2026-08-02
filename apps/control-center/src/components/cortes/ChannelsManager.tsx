@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Key, Globe, CheckCircle2 } from 'lucide-react';
+import { Plus, Trash2, Loader2, ChevronDown, ChevronRight, Key, Globe, CheckCircle2, X } from 'lucide-react';
 import {
   listChannels, createChannel, deleteChannel, updateChannel,
   listSocialAccounts, createSocialAccount, deleteSocialAccount,
@@ -18,12 +18,10 @@ const PLATFORMS = [
 // URL base do Railway
 const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
 
-interface PersonaState {
-  id: string;
-  name: string;
-  category?: string;
-  credentials: Record<string, PlatformCredentials>;
-  connectedAccounts: string[];
+interface PlatformCredentials {
+  platform: string;
+  clientId?: string;
+  clientSecret?: string;
 }
 
 export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
@@ -35,13 +33,23 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   // Estado para expansão das personas
   const [expandedChannels, setExpandedChannels] = useState<Set<string>>(new Set());
   
+  // Estado para novo canal
+  const [showNewChannel, setShowNewChannel] = useState(false);
+  const [newChannelName, setNewChannelName] = useState('');
+  const [newChannelCategory, setNewChannelCategory] = useState('');
+  const [creatingChannel, setCreatingChannel] = useState(false);
+  
+  // Estado para OAuth - AGORA NA PÁGINA PRINCIPAL, SEM POPUP
+  const [oauthState, setOauthState] = useState<{ 
+    platform: string; 
+    channelId: string;
+    phase: 'idle' | 'waiting_code' | 'connecting' | 'success' | 'error'
+  }>({ platform: '', channelId: '', phase: 'idle' });
+  const [oauthError, setOauthError] = useState<string>('');
+  
   // Estado para credenciais OAuth por plataforma
   const [credentials, setCredentials] = useState<Record<string, PlatformCredentials>>({});
   const [savingCreds, setSavingCreds] = useState<string | null>(null);
-  
-  // Estado para OAuth flow
-  const [oauthPlatform, setOauthPlatform] = useState<string | null>(null);
-  const [oauthChannelId, setOauthChannelId] = useState<string | null>(null);
   
   // Estado para formulário manual
   const [addingManual, setAddingManual] = useState<string | null>(null);
@@ -49,47 +57,28 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
   const [accountId, setAccountId] = useState('');
   const [accountHandle, setAccountHandle] = useState('');
   const [creatingAcc, setCreatingAcc] = useState(false);
-  
-  // Estado para novo canal
-  const [showNewChannel, setShowNewChannel] = useState(false);
-  const [newChannelName, setNewChannelName] = useState('');
-  const [newChannelCategory, setNewChannelCategory] = useState('');
-  const [creatingChannel, setCreatingChannel] = useState(false);
 
   useEffect(() => { loadAll(); }, []);
 
-  // Escuta callback do OAuth (quando volta da rede social)
+  // Escuta callback do OAuth na URL (sem popup!)
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
-    const connected = urlParams.get('connected');
-    const accountIdParam = urlParams.get('accountId');
-    const displayName = urlParams.get('displayName');
-    const state = urlParams.get('state');
+    const code = urlParams.get('code');
+    const platform = urlParams.get('platform');
+    const state = urlParams.get('state'); // channelId
+    const error = urlParams.get('error');
     
-    if (connected && accountIdParam && state) {
-      handleOAuthCallback(connected, accountIdParam, displayName || undefined, state);
-      window.history.replaceState({}, document.title, window.location.pathname);
-      
-      // Fecha o popup se estiver aberto
-      if (window.opener) {
-        try {
-          window.opener.postMessage({ type: 'OAUTH_SUCCESS', platform: connected, accountId: accountIdParam, displayName }, '*');
-          window.close();
-        } catch (e) {
-          // Cross-origin, tenta método alternativo
-          window.close();
-        }
-      }
+    if (error) {
+      setOauthState(prev => ({ ...prev, phase: 'error' }));
+      setOauthError(decodeURIComponent(error));
+      return;
     }
     
-    // Listener para mensagem do popup
-    const handleMessage = (event: MessageEvent) => {
-      if (event.data?.type === 'OAUTH_SUCCESS') {
-        handleOAuthCallback(event.data.platform, event.data.accountId, event.data.displayName, event.data.state);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => window.removeEventListener('message', handleMessage);
+    if (code && platform && state) {
+      handleOAuthCallback(platform, code, state);
+      // Limpa URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   }, []);
 
   async function loadAll() {
@@ -135,7 +124,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       setNewChannelName('');
       setNewChannelCategory('');
       setShowNewChannel(false);
-      // Expande automaticamente para configurar OAuth
       setExpandedChannels(prev => new Set([...prev, ch.id]));
       onRefresh();
     } catch (e) {
@@ -157,6 +145,74 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
     }
   }
 
+  // Iniciar OAuth - AGORA ABRE NA MESMA PÁGINA
+  function startOAuth(platform: string, channelId: string) {
+    const cred = credentials[platform];
+    if (!cred?.clientId || !cred.clientSecret) {
+      alert('Configure as credenciais OAuth primeiro!');
+      return;
+    }
+    
+    setOauthState({ platform, channelId, phase: 'waiting_code' });
+    setOauthError('');
+    
+    // Redireciona para o OAuth do Google
+    const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
+    const state = channelId;
+    
+    window.location.href = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`;
+  }
+
+  // Handler do callback OAuth
+  async function handleOAuthCallback(platform: string, code: string, channelId: string) {
+    setOauthState(prev => ({ ...prev, phase: 'connecting' }));
+    
+    try {
+      // Troca o code por tokens no backend
+      const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
+      const res = await fetch(`${BACKEND_URL}/oauth/${platform}/callback?code=${code}&redirectUri=${encodeURIComponent(redirectUri)}`, {
+        method: 'GET',
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Falha na autenticação: ${res.status}`);
+      }
+      
+      // O backend já deve ter criado a conta, vamos buscar
+      const accounts = await listSocialAccounts();
+      const newAccount = accounts.find(a => a.platform === platform && a.accountId.includes('test') === false);
+      
+      if (newAccount) {
+        addCorteSocialAccount(newAccount);
+        setSocialAccounts(prev => [...prev, newAccount]);
+        
+        // Adiciona à persona
+        const currentChannel = channels.find(c => c.id === channelId);
+        if (currentChannel) {
+          const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), newAccount.id];
+          const updatedChannels = channels.map(c => 
+            c.id === channelId ? { ...c, socialAccountIds: newSocialAccountIds } : c
+          );
+          setChannels(updatedChannels);
+        }
+        
+        setOauthState({ platform, channelId, phase: 'success' });
+        onRefresh();
+        
+        // Reseta após 2 segundos
+        setTimeout(() => {
+          setOauthState({ platform: '', channelId: '', phase: 'idle' });
+        }, 2000);
+      } else {
+        throw new Error('Conta não encontrada após autenticação');
+      }
+    } catch (e) {
+      console.error('OAuth callback failed:', e);
+      setOauthState({ platform, channelId, phase: 'error' });
+      setOauthError(e instanceof Error ? e.message : String(e));
+    }
+  }
+
   async function handleSaveCredentials(platform: string) {
     const cred = credentials[platform];
     if (!cred?.clientId || !cred.clientSecret) {
@@ -174,94 +230,14 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
         }),
       });
       if (!res.ok) throw new Error('Falha ao salvar');
-      // Update UI to show saved
       setCredentials(prev => ({
         ...prev,
-        [platform]: { ...prev[platform], clientId: cred.clientId, clientSecret: cred.clientSecret }
+        [platform]: { platform, clientId: cred.clientId, clientSecret: cred.clientSecret }
       }));
     } catch (e) {
       alert('Erro ao salvar: ' + (e instanceof Error ? e.message : String(e)));
     } finally {
       setSavingCreds(null);
-    }
-  }
-
-  function startOAuth(platform: string, channelId: string) {
-    const cred = credentials[platform];
-    if (!cred?.clientId || !cred.clientSecret) {
-      alert('Configure as credenciais OAuth primeiro!');
-      return;
-    }
-    setOauthPlatform(platform);
-    setOauthChannelId(channelId);
-    // CORREÇÃO: Usar o redirect_uri correto esperado pelo backend
-    const redirectUri = `${BACKEND_URL}/oauth/${platform}/callback`;
-    const state = channelId;
-    const oauthUrl = `${BACKEND_URL}/oauth/${platform}/start?redirectUri=${encodeURIComponent(redirectUri)}&state=${state}`;
-    
-    // Abre em popup
-    const popup = window.open(oauthUrl, 'oauth_popup', 'width=600,height=500,left=' + (window.screen.width/2 - 300) + ',top=' + (window.screen.height/2 - 250));
-    
-    // Verifica se o popup foi bloqueado
-    if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-      alert('Popup foi bloqueado! Por favor, permita popups para este site e tente novamente.');
-      return;
-    }
-    
-    // Monitora se o popup foi fechado
-    const checkClosed = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(checkClosed);
-        // Se fechou sem callback, verifica se precisa refresh
-        if (!credentials[platform]?.connectedAccountId) {
-          // O callback deve ter sido tratado pelo useEffect
-        }
-      }
-    }, 500);
-    
-    // Timeout de segurança
-    setTimeout(() => {
-      if (!popup.closed) {
-        try {
-          popup.close();
-        } catch (e) {}
-      }
-      setOauthPlatform(null);
-      setOauthChannelId(null);
-    }, 60000); // 1 minuto
-  }
-
-  async function handleOAuthCallback(platform: string, accountId: string, displayName?: string, channelId?: string) {
-    if (!channelId) {
-      alert('Erro: ID da persona não encontrado');
-      return;
-    }
-    try {
-      const acc = await createSocialAccount({ 
-        platform, 
-        accountId, 
-        displayName: displayName || accountId
-      });
-      addCorteSocialAccount(acc);
-      setSocialAccounts(prev => [...prev, acc]);
-      
-      // Adiciona à persona
-      const currentChannel = channels.find(c => c.id === channelId);
-      if (currentChannel) {
-        const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), acc.id];
-        const updatedChannels = channels.map(c => 
-          c.id === channelId ? { ...c, socialAccountIds: newSocialAccountIds } : c
-        );
-        setChannels(updatedChannels);
-      }
-      
-      setOauthPlatform(null);
-      setOauthChannelId(null);
-      onRefresh();
-    } catch (e) {
-      alert('Erro ao conectar conta: ' + (e instanceof Error ? e.message : String(e)));
-      setOauthPlatform(null);
-      setOauthChannelId(null);
     }
   }
 
@@ -280,7 +256,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       addCorteSocialAccount(acc);
       setSocialAccounts(prev => [...prev, acc]);
       
-      // Adiciona à persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newSocialAccountIds = [...(currentChannel.socialAccountIds || []), acc.id];
@@ -307,7 +282,6 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       deleteCorteSocialAccount(accountIdStr);
       setSocialAccounts(prev => prev.filter(a => a.id !== accountIdStr));
       
-      // Remove da persona
       const currentChannel = channels.find(c => c.id === channelId);
       if (currentChannel) {
         const newIds = (currentChannel.socialAccountIds || []).filter(id => id !== accountIdStr);
@@ -328,6 +302,37 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
 
   return (
     <div className="cortes-channels">
+      {/* Status do OAuth */}
+      {oauthState.phase !== 'idle' && (
+        <div className={`cortes-oauth-status ${oauthState.phase}`}>
+          {oauthState.phase === 'waiting_code' && (
+            <div className="cortes-oauth-waiting">
+              <Loader2 size={20} className="spin" />
+              <span>Redirecionando para o Google...</span>
+            </div>
+          )}
+          {oauthState.phase === 'connecting' && (
+            <div className="cortes-oauth-connecting">
+              <Loader2 size={20} className="spin" />
+              <span>Conectando conta...</span>
+            </div>
+          )}
+          {oauthState.phase === 'success' && (
+            <div className="cortes-oauth-success">
+              <CheckCircle2 size={20} />
+              <span>Conta conectada com sucesso!</span>
+            </div>
+          )}
+          {oauthState.phase === 'error' && (
+            <div className="cortes-oauth-error">
+              <X size={20} />
+              <span>{oauthError}</span>
+              <button onClick={() => setOauthState({ platform: '', channelId: '', phase: 'idle' })}>Fechar</button>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Lista de personas */}
       <div className="cortes-personas-list">
         {channels.length === 0 ? (
@@ -370,19 +375,20 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                 {/* Conteúdo expandido */}
                 {isExpanded && (
                   <div className="cortes-persona-content">
-                    {/* Seção OAuth - Configuração direta na persona */}
+                    {/* Seção OAuth */}
                     <div className="cortes-oauth-section">
                       <div className="cortes-section-header">
                         <Key size={18} />
                         <h4>Credenciais OAuth por Plataforma</h4>
                       </div>
-                      <p className="cortes-help-text">Configure as credenciais para cada rede social. Você pode obter isso no painel de desenvolvedores de cada plataforma.</p>
+                      <p className="cortes-help-text">Configure as credenciais para cada rede social.</p>
                       
                       <div className="cortes-platforms-config">
                         {PLATFORMS.map(p => {
-                          const hasCreds = credentials[p.id]?.clientId && credentials[p.id]?.clientSecret;
+                          const cred = credentials[p.id];
+                          const hasCreds = cred?.clientId && cred.clientSecret;
                           const hasConnection = channelAccounts.some(a => a.platform === p.id);
-                          const isSaving = savingCreds === p.id;
+                          const isConnecting = oauthState.platform === p.id && oauthState.channelId === ch.id;
                           
                           return (
                             <div key={p.id} className={`cortes-platform-config ${hasCreds ? 'configured' : ''} ${hasConnection ? 'connected' : ''}`}>
@@ -397,7 +403,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                   <input 
                                     type="text"
                                     placeholder="Client ID"
-                                    value={credentials[p.id]?.clientId || ''}
+                                    value={cred?.clientId || ''}
                                     onChange={e => setCredentials(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientId: e.target.value }
@@ -406,7 +412,7 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                   <input 
                                     type="password"
                                     placeholder="Client Secret"
-                                    value={credentials[p.id]?.clientSecret || ''}
+                                    value={cred?.clientSecret || ''}
                                     onChange={e => setCredentials(prev => ({
                                       ...prev,
                                       [p.id]: { ...prev[p.id], clientSecret: e.target.value }
@@ -416,16 +422,17 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
                                     <button 
                                       className="btn-primary btn-sm"
                                       onClick={() => handleSaveCredentials(p.id)}
-                                      disabled={isSaving || !credentials[p.id]?.clientId || !credentials[p.id]?.clientSecret}
+                                      disabled={savingCreds === p.id || !cred?.clientId || !cred?.clientSecret}
                                     >
-                                      {isSaving ? <Loader2 size={12} className="spin" /> : <Key size={12} />} Salvar Credenciais
+                                      {savingCreds === p.id ? <Loader2 size={12} className="spin" /> : <Key size={12} />} Salvar Credenciais
                                     </button>
                                     {hasCreds && (
                                       <button 
                                         className="btn-outline btn-sm"
                                         onClick={() => startOAuth(p.id, ch.id)}
+                                        disabled={isConnecting}
                                       >
-                                        <Globe size={12} /> Conectar Conta
+                                        {isConnecting ? <Loader2 size={12} className="spin" /> : <Globe size={12} />} Conectar Conta
                                       </button>
                                     )}
                                   </div>
