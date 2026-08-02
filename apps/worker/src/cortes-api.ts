@@ -2,7 +2,8 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { runYtFetch, runClip } from './executors/media.js';
+import type { JobRequest } from './types.js';
 
 const router = Router();
 
@@ -256,7 +257,7 @@ router.post('/generate', (req, res) => {
   const projectId = String(req.body?.projectId || '');
   const project = projects.find((item) => item.id === projectId);
   if (!project) return res.status(404).json({ error: 'Projeto nao encontrado' });
-  if (!process.env.MUAPI_API_KEY) return res.status(503).json({ error: 'MUAPI_API_KEY ainda nao esta configurada no worker de nuvem.' });
+  if (!process.env.GROQ_API_KEY) return res.status(503).json({ error: 'GROQ_API_KEY ainda nao esta configurada no worker de nuvem.' });
   const job: CorteJob = { id: `cj_${Date.now()}`, projectId, status: 'queued', progress: 0, message: 'Na fila para processamento em nuvem' };
   jobs.set(job.id, job);
   project.status = 'GENERATING'; project.error = undefined; project.updatedAt = new Date().toISOString(); saveProjects();
@@ -292,19 +293,21 @@ router.post('/clips/:id/publish', (req, res) => {
 function findClip(id: string): CorteClip | undefined { return projects.flatMap((project) => project.clips).find((clip) => clip.id === id); }
 
 async function runGeneration(job: CorteJob, project: CorteProject): Promise<void> {
-  job.status = 'running'; job.progress = 8; job.message = 'Baixando e transcrevendo em nuvem';
-  const generatorDir = process.env.CORTES_GENERATOR_DIR || path.join(process.cwd(), 'AI-Youtube-Shorts-Generator');
-  const script = ['import json,sys', 'from shorts_generator import generate_shorts', 'r=generate_shorts(sys.argv[1],num_clips=int(sys.argv[2]),aspect_ratio=sys.argv[3],download_format=sys.argv[4],mode="api")', 'print(json.dumps(r, ensure_ascii=False))'].join(';');
+  job.status = 'running'; job.progress = 8; job.message = 'Baixando video e legendas no worker de nuvem';
+  const workspace = `cortes/${project.id}/${job.id}`;
+  const log = (_kind: 'stdout' | 'stderr', text: string) => { job.message = text.replace(/\s+/g, ' ').trim().slice(0, 140) || job.message; job.progress = Math.min(88, job.progress + 2); };
   try {
-    const result = await new Promise<any>((resolve, reject) => {
-      const child = spawn(process.env.PYTHON_BIN || 'python3', ['-c', script, project.sourceVideoUrl, String(project.quantityRequested), project.format, '720'], { cwd: generatorDir, env: process.env });
-      let stdout = ''; let stderr = '';
-      child.stdout.on('data', (data) => { stdout += String(data); job.progress = Math.min(90, job.progress + 2); job.message = 'Analisando os melhores momentos e renderizando cortes'; });
-      child.stderr.on('data', (data) => { stderr += String(data); });
-      child.on('error', reject);
-      child.on('close', (code) => { const line = stdout.trim().split(/\r?\n/).reverse().find((item) => item.trim().startsWith('{')); if (code !== 0 || !line) reject(new Error(stderr || 'O gerador nao retornou um resultado valido.')); else { try { resolve(JSON.parse(line)); } catch (error) { reject(error); } } });
-    });
-    project.clips = (result.shorts || []).filter((item: any) => item.clip_url).map((item: any, index: number) => ({ id: `cc_${project.id}_${index + 1}`, projectId: project.id, index: index + 1, startTime: Number(item.start_time || 0), endTime: Number(item.end_time || 0), videoFile: item.clip_url, thumbnailFile: youtubeThumbnail(project.sourceVideoUrl), title: item.title || `Corte ${index + 1}`, caption: item.hook_sentence || '', description: item.virality_reason || '', hashtags: [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+    const fetched = await runYtFetch({ type: 'ytFetch', cwd: workspace, payload: { url: project.sourceVideoUrl } } as JobRequest, log);
+    const source = fetched.result as { video: string; srt: string | null; transcript: string; duration: number };
+    if (!source.srt || !source.transcript) throw new Error('Nao foi possivel obter uma transcricao. Tente um video com fala ou legenda.');
+    job.progress = 35; job.message = 'A IA esta escolhendo os melhores momentos';
+    const segments = await chooseHighlights(source.transcript, project.quantityRequested, project.duration);
+    if (!segments.length) throw new Error('A IA nao encontrou momentos fortes suficientes para criar cortes.');
+    job.progress = 55; job.message = `Renderizando ${segments.length} corte(s) com legendas dinamicas`;
+    const rendered = await runClip({ type: 'clip', cwd: workspace, payload: { input: source.video, srt: source.srt, segments, vertical: project.format === '9:16' } } as JobRequest, log);
+    const output = rendered.result as { clips: Array<{ file: string; title?: string; start: number; end: number }> };
+    const publicBase = (process.env.WORKER_PUBLIC_URL || '').replace(/\/$/, '');
+    project.clips = output.clips.map((item, index) => ({ id: `cc_${project.id}_${index + 1}`, projectId: project.id, index: index + 1, startTime: item.start, endTime: item.end, videoFile: `${publicBase}/files/${workspace}/${item.file}`, thumbnailFile: youtubeThumbnail(project.sourceVideoUrl), title: item.title || `Corte ${index + 1}`, caption: '', description: '', hashtags: [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
     project.status = 'READY'; project.updatedAt = new Date().toISOString(); job.status = 'done'; job.progress = 100; job.message = `${project.clips.length} corte(s) prontos para revisar`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error); project.status = 'ERROR'; project.error = message; project.updatedAt = new Date().toISOString(); job.status = 'error'; job.error = message; job.message = 'Falha no processamento';
@@ -312,6 +315,15 @@ async function runGeneration(job: CorteJob, project: CorteProject): Promise<void
   saveProjects();
 }
 
+async function chooseHighlights(transcript: string, quantity: number, duration: number): Promise<Array<{ start: number; end: number; title: string }>> {
+  const prompt = `Analise esta transcricao de video e encontre exatamente ate ${Math.max(1, Math.min(10, quantity))} momentos independentes com alto potencial para video curto. Cada trecho deve durar aproximadamente ${Math.max(8, Math.min(180, duration))} segundos, ter inicio forte, fim natural e nao se sobrepor. Retorne SOMENTE JSON valido: {"segments":[{"start":12.3,"end":42.3,"title":"titulo curto"}]}. Use exclusivamente timestamps presentes na transcricao.\n\nTRANSCRICAO:\n${transcript.slice(0, 100000)}`;
+  const res = await fetch('https://api.groq.com/openai/v1/chat/completions', { method: 'POST', headers: { Authorization: `Bearer ${process.env.GROQ_API_KEY}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ model: 'llama-3.3-70b-versatile', temperature: 0.35, response_format: { type: 'json_object' }, messages: [{ role: 'system', content: 'Voce e um editor de videos curtos. Responda somente JSON.' }, { role: 'user', content: prompt }] }) });
+  if (!res.ok) throw new Error(`Groq falhou ao analisar a transcricao (HTTP ${res.status}).`);
+  const data = await res.json() as any;
+  const raw = data?.choices?.[0]?.message?.content || '{}';
+  const parsed = JSON.parse(raw);
+  return (Array.isArray(parsed?.segments) ? parsed.segments : []).map((item: any) => ({ start: Number(item.start), end: Number(item.end), title: String(item.title || 'Corte viral') })).filter((item) => Number.isFinite(item.start) && Number.isFinite(item.end) && item.end > item.start).slice(0, Math.max(1, Math.min(10, quantity)));
+}
 function youtubeThumbnail(url: string): string | undefined { const id = url.match(/(?:v=|youtu\.be\/|shorts\/)([\w-]{6,})/)?.[1]; return id ? `https://i.ytimg.com/vi/${id}/hqdefault.jpg` : undefined; }
 // Types (simple interfaces for this module)
 interface CorteChannel {
