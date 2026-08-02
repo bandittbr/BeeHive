@@ -505,15 +505,25 @@ export function ChannelsManagerView({ onRefresh }: { onRefresh: () => void }) {
       </button>
 
       {showNewChannel && (
-        <div className="cortes-new-channel-form">
-          <h3>Nova Persona</h3>
-          <input type="text" placeholder="Nome (ex: Risadola Cortes)" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} />
-          <input type="text" placeholder="Categoria (opcional)" value={newChannelCategory} onChange={e => setNewChannelCategory(e.target.value)} />
-          <div className="cortes-form-actions">
-            <button className="btn-primary" onClick={handleCreateChannel} disabled={creatingChannel || !newChannelName.trim()}>
-              {creatingChannel ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Criar Persona
-            </button>
-            <button className="btn-ghost" onClick={() => setShowNewChannel(false)}>Cancelar</button>
+        <div className="new-project-modal-overlay" onClick={() => setShowNewChannel(false)}>
+          <div className="new-project-modal cortes-persona-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="new-project-modal-header">
+              <h2 className="new-project-modal-title">Criar persona</h2>
+              <button className="btn-close-modal" onClick={() => setShowNewChannel(false)} aria-label="Fechar">x</button>
+            </div>
+            <div className="new-project-modal-body">
+              <p className="form-hint">Esta persona tera suas proprias redes sociais e sua propria agenda de publicacao.</p>
+              <div className="cortes-new-channel-form">
+                <input autoFocus type="text" placeholder="Nome (ex: Risadola Cortes)" value={newChannelName} onChange={e => setNewChannelName(e.target.value)} />
+                <input type="text" placeholder="Nicho ou categoria (opcional)" value={newChannelCategory} onChange={e => setNewChannelCategory(e.target.value)} />
+                <div className="cortes-form-actions">
+                  <button className="btn-primary" onClick={handleCreateChannel} disabled={creatingChannel || !newChannelName.trim()}>
+                    {creatingChannel ? <Loader2 size={14} className="spin" /> : <Plus size={14} />} Criar persona
+                  </button>
+                  <button className="btn-ghost" onClick={() => setShowNewChannel(false)}>Cancelar</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}
