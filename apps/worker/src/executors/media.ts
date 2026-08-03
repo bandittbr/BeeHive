@@ -48,13 +48,18 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
     '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
     '--merge-output-format', 'mp4',
     '-o', 'source.%(ext)s',
-    '--write-auto-subs', '--write-subs',
-    '--sub-langs', 'pt.*,en.*,pt-BR',
-    '--convert-subs', 'srt',
     '--no-playlist',
     url,
   ], dir, (kind, data) => { if (kind === 'stderr') ytError += data; onChunk(kind, data); });
   if (code !== 0) throw new Error(`yt-dlp falhou (code ${code}): ${ytError.replace(/\s+/g, ' ').trim().slice(-500) || 'sem detalhe do servidor'}`);
+
+  // Legendas automáticas podem receber rate-limit do YouTube. Não interrompem o vídeo:
+  // se esta tentativa falhar, o Whisper/Groq gera a transcrição no passo seguinte.
+  await run('yt-dlp', [
+    ...cookieArgs,
+    '--skip-download', '--write-auto-subs', '--write-subs',
+    '--sub-langs', 'pt.*,en.*,pt-BR', '--convert-subs', '--no-playlist', url,
+  ], dir, onChunk).catch(() => {});
 
   const files = await fsp.readdir(dir);
   const video = files.find((f) => f === 'source.mp4') || files.find((f) => f.startsWith('source.') && /\.(mp4|mkv|webm)$/.test(f));
