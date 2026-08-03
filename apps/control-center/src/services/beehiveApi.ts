@@ -1,4 +1,4 @@
-﻿// Backend real do BeeHive — apps/worker (Railway, root Dockerfile em pnpm).
+// Backend real do BeeHive — apps/worker (Railway, root Dockerfile em pnpm).
 // Usado aqui pro Chat responder de verdade via plugin ai-manager
 // (executeCapability('ai.complete', ...) em apps/worker/src/index.ts).
 //
@@ -16,7 +16,7 @@
 
 import { authHeaders } from './authToken';
 
-export const BEEHIVE_API_URL = 'https://beehive-production-d895.up.railway.app';
+export const BEEHIVE_API_URL = 'https://beehive-production-3701.up.railway.app';
 
 // modelID: slug do modelo no OpenRouter (ex.: "deepseek/deepseek-v4-pro").
 // Se omitido, o worker usa o padrão do ambiente (AI_MODEL / deepseek-v4-pro).

@@ -9,7 +9,7 @@ const PLATFORMS = [
   { id: 'tiktok', label: 'TikTok', icon: '♪', color: '#00F2EA' },
 ];
 
-const BACKEND_URL = 'https://beehive-production-d895.up.railway.app';
+const BACKEND_URL = 'https://beehive-production-3701.up.railway.app';
 
 interface OauthAppConfig {
   clientId: string;
