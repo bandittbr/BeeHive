@@ -71,7 +71,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
     if (!project || busy) return;
     setBusy(true); setErr('');
     try {
-      await updateProject(project.id, { status: 'GENERATING' });
+      await updateProject(project.id, { sourceVideoUrl: url, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
       setProject((previous) => previous ? { ...previous, status: 'GENERATING' } : null);
       const { jobId } = await generateCortes({ projectId: project.id, url });
       let attempts = 0;
@@ -272,7 +272,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
                 <label>Canal</label>
                 <select value={channelId} onChange={e => setChannelId(e.target.value)}>
                   <option value="">— Nenhum canal —</option>
-                  {/* Use corteChannels from store */}
+                  {corteChannels.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </select>
               </div>
             </div>

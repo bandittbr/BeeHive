@@ -31,6 +31,7 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   await fsp.mkdir(dir, { recursive: true });
 
   onChunk('stdout', '→ Baixando vídeo e legendas...\n');
+  let ytError = '';
   const code = await run('yt-dlp', [
     '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
     '--merge-output-format', 'mp4',
@@ -40,8 +41,8 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
     '--convert-subs', 'srt',
     '--no-playlist',
     url,
-  ], dir, onChunk);
-  if (code !== 0) throw new Error(`yt-dlp falhou (code ${code})`);
+  ], dir, (kind, data) => { if (kind === 'stderr') ytError += data; onChunk(kind, data); });
+  if (code !== 0) throw new Error(`yt-dlp falhou (code ${code}): ${ytError.replace(/\s+/g, ' ').trim().slice(-500) || 'sem detalhe do servidor'}`);
 
   const files = await fsp.readdir(dir);
   const video = files.find((f) => f === 'source.mp4') || files.find((f) => f.startsWith('source.') && /\.(mp4|mkv|webm)$/.test(f));
