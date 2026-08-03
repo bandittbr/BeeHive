@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
-import { getProject, updateProject, publishClip, getGenerateJob, scheduleProjectClips } from '../../services/cortes-api';
-import { generateCortes } from '../../services/cortesPipeline';
+import { getProject, updateProject, publishClip, getGenerateJob, scheduleProjectClips, generateCortes } from '../../services/cortes-api';
 import type { CorteProject, CorteClipStatus } from '../../types/cortes';
 import { Loader2, Download, Play, Edit2, Share2, CheckCircle2, XCircle } from 'lucide-react';
 
