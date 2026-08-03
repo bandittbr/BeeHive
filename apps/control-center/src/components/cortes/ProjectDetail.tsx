@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
-import { getProject, listProjects, updateProject, publishClip } from '../../services/cortes-api';
+import { getProject, updateProject, publishClip, getGenerateJob, scheduleProjectClips } from '../../services/cortes-api';
 import { generateCortes } from '../../services/cortesPipeline';
 import type { CorteProject, CorteClipStatus } from '../../types/cortes';
 import { Loader2, Download, Play, Edit2, Share2, CheckCircle2, XCircle } from 'lucide-react';
@@ -37,6 +37,10 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
   const [err, setErr] = useState('');
   const [expandedClip, setExpandedClip] = useState<string | null>(null);
   const [publishingClip, setPublishingClip] = useState<string | null>(null);
+  const [postsPerDay, setPostsPerDay] = useState(4);
+  const [postingTimes, setPostingTimes] = useState(['09:00', '12:00', '15:00', '19:00']);
+  const [scheduling, setScheduling] = useState(false);
+  const [liveJob, setLiveJob] = useState<{ progress: number; message: string; status: string } | null>(null);
 
   useEffect(() => {
     loadProject();
@@ -57,6 +61,8 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       setAutoTitle(p.autoTitle);
       setAutoDescription(p.autoDescription);
       setAutoHashtags(p.autoHashtags);
+      setPostsPerDay(p.postingSchedule?.postsPerDay || 4);
+      setPostingTimes(p.postingSchedule?.times || ['09:00', '12:00', '15:00', '19:00']);
     } catch (e) {
       console.error('Failed to load project', e);
     }
@@ -73,6 +79,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       while (attempts++ < 180) {
         await new Promise((resolve) => window.setTimeout(resolve, 5000));
         const job = await getGenerateJob(jobId);
+        setLiveJob({ progress: job.progress || 0, message: job.message || 'Processando...', status: job.status });
         if (job.status === 'done') { await loadProject(); break; }
         if (job.status === 'error') throw new Error(job.error || 'Falha ao gerar os cortes.');
       }
@@ -106,6 +113,20 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
     }
   }
 
+  async function handleScheduleAll() {
+    if (!project || scheduling) return;
+    setScheduling(true); setErr('');
+    try {
+      const result = await scheduleProjectClips(project.id, postsPerDay, postingTimes.slice(0, postsPerDay));
+      setProject({ ...project, clips: project.clips.map((clip) => result.scheduled.find((item) => item.id === clip.id) || clip), postingSchedule: { postsPerDay, times: postingTimes.slice(0, postsPerDay) } });
+    } catch (error) { setErr(error instanceof Error ? error.message : String(error)); }
+    finally { setScheduling(false); }
+  }
+
+  function changePostsPerDay(value: number) {
+    setPostsPerDay(value);
+    setPostingTimes((current) => Array.from({ length: value }, (_, index) => current[index] || ['09:00', '12:00', '15:00', '19:00'][index] || '09:00'));
+  }
   const clips = project?.clips ?? [];
   const channel = corteChannels.find(c => c.id === project?.channelId);
 
@@ -128,6 +149,28 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
         </div>
       )}
 
+      {liveJob && (
+        <div className="cortes-card" style={{ marginBottom: 16 }}>
+          <div className="cortes-card-body">
+            <strong>Processamento ao vivo</strong>
+            <p style={{ marginTop: 8, fontSize: 13 }}>{liveJob.message}</p>
+            <div className="overview-progress" style={{ marginTop: 10 }}><span style={{ width: `${liveJob.progress}%` }} /></div>
+            <small style={{ display: 'block', marginTop: 6, color: 'var(--text-muted)' }}>{liveJob.progress}% concluído · {liveJob.status}</small>
+          </div>
+        </div>
+      )}
+
+      {clips.length > 0 && (
+        <div className="cortes-section">
+          <div className="cortes-section-header"><h2>Agenda de publicação</h2><p>Distribua um corte por horário, todos os dias.</p></div>
+          <div className="cortes-card"><div className="cortes-card-body">
+            <div className="cortes-form-row"><div className="cortes-form-group"><label>Publicações por dia</label><select value={postsPerDay} onChange={e => changePostsPerDay(Number(e.target.value))}>{[1, 2, 3, 4, 5, 6, 8, 10].map(value => <option key={value} value={value}>{value} por dia</option>)}</select></div></div>
+            <div className="cortes-form-row">{postingTimes.slice(0, postsPerDay).map((time, index) => <div className="cortes-form-group" key={index}><label>Postagem {index + 1}</label><input type="time" value={time} onChange={e => setPostingTimes(current => current.map((item, position) => position === index ? e.target.value : item))} /></div>)}</div>
+            <p className="form-hint">Exemplo: 10 cortes com 4 por dia serão postados em 3 dias, sempre nos horários acima.</p>
+            <button className="btn-primary" onClick={handleScheduleAll} disabled={scheduling}>{scheduling ? <Loader2 size={14} className="spin" /> : <Share2 size={14} />} Agendar {clips.filter(c => c.status === 'READY' || c.status === 'SCHEDULED').length} cortes</button>
+          </div></div>
+        </div>
+      )}
       {/* Clips */}
       <div className="cortes-section">
         <div className="cortes-section-header">
@@ -180,11 +223,11 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
                                 className="btn-primary btn-xs" 
                                 onClick={(e) => { e.stopPropagation(); handlePublishClip(clip.id); }}
                               >
-                                <Share2 size={12} /> Publicar
+                                <Share2 size={12} /> Forçar post (teste)
                               </button>
                             ) : publishingClip === clip.id ? (
                               <button className="btn-outline btn-xs" disabled>
-                                <Loader2 size={12} className="spin" /> Publicando...
+                                <Loader2 size={12} className="spin" /> Enviando teste...
                               </button>
                             ) : null}
                           </div>

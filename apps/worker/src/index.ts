@@ -1128,10 +1128,12 @@ async function schedulerTick() {
       try {
         const r = await publishPost(post);
         await updatePost(post.id, { status: 'done', url: r?.url });
+        if (post.origin?.startsWith('corte:')) markCorteClipPublication(post.origin.slice('corte:'.length), 'PUBLISHED');
         console.log(`[scheduler] publicado ${post.platform} ${post.id} → ${r?.url ?? ''}`);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         await updatePost(post.id, { status: 'error', error: msg });
+        if (post.origin?.startsWith('corte:')) markCorteClipPublication(post.origin.slice('corte:'.length), 'ERROR', msg);
         console.error(`[scheduler] erro em ${post.id}: ${msg}`);
       }
     }
@@ -1502,7 +1504,7 @@ app.post('/api/modelos/tick', async (_req, res): Promise<void> => {
 });
 
 // Cortes API routes
-import cortesRouter from './cortes-api.js';
+import cortesRouter, { markCorteClipPublication } from './cortes-api.js';
 app.use('/api/cortes', cortesRouter);
 
 app.listen(PORT, () => {

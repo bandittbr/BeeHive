@@ -125,6 +125,9 @@ export async function publishClip(id: string): Promise<{ success: boolean; url?:
   });
 }
 
+export async function scheduleProjectClips(projectId: string, postsPerDay: number, times: string[]): Promise<{ ok: boolean; scheduled: CorteClip[] }> {
+  return requestPost<{ ok: boolean; scheduled: CorteClip[] }>(`/cortes/projects/${projectId}/schedule`, { postsPerDay, times });
+}
 // ── Configurações ─────────────────────────────────────────────────────────────
 
 export async function getSettings(): Promise<CorteSettings> {

@@ -40,6 +40,7 @@ export interface CorteProject {
   status: CorteProjectStatus;
   error?: string;
   channelId?: string;
+  postingSchedule?: { postsPerDay: number; times: string[] };
   clips: CorteClip[];
   createdAt: string;
   updatedAt: string;

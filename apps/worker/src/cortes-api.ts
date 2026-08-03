@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { runYtFetch, runClip } from './executors/media.js';
 import type { JobRequest } from './types.js';
+import { addPost } from './store.js';
 
 const router = Router();
 
@@ -287,6 +288,28 @@ router.get('/jobs/:id', (req, res) => {
   res.json(job);
 });
 
+router.post('/projects/:id/schedule', async (req, res) => {
+  const project = projects.find((item) => item.id === req.params.id);
+  if (!project) return res.status(404).json({ error: 'Projeto nao encontrado' });
+  const postsPerDay = Math.max(1, Math.min(10, Number(req.body?.postsPerDay) || 1));
+  const times = Array.isArray(req.body?.times) ? req.body.times.map((value: unknown) => String(value)).filter((value: string) => /^([01]\d|2[0-3]):[0-5]\d$/.test(value)).slice(0, postsPerDay) : [];
+  if (times.length !== postsPerDay) return res.status(400).json({ error: 'Informe um horario valido para cada postagem diaria.' });
+  const account = socialAccounts.find((item) => item.channelIds.includes(project.channelId || '') && item.platform === 'youtube');
+  if (!account) return res.status(409).json({ error: 'Conecte uma conta do YouTube a esta persona antes de agendar.' });
+  const pending = project.clips.filter((clip) => clip.status === 'READY' || clip.status === 'SCHEDULED');
+  if (!pending.length) return res.status(400).json({ error: 'Nao ha cortes prontos para agendar.' });
+  const now = new Date();
+  const scheduled = [] as CorteClip[];
+  for (let index = 0; index < pending.length; index++) {
+    const clip = pending[index]; const day = Math.floor(index / postsPerDay); const [hour, minute] = times[index % postsPerDay].split(':').map(Number);
+    const at = new Date(now.getFullYear(), now.getMonth(), now.getDate() + day, hour, minute, 0, 0);
+    if (at.getTime() <= Date.now()) at.setDate(at.getDate() + 1);
+    await addPost({ platform: 'youtube', file: clip.videoFile || '', title: clip.title || `Corte ${clip.index}`, description: clip.description || clip.caption || '', tags: clip.hashtags || [], at: at.getTime(), accountId: `youtube:${account.accountId}` });
+    clip.status = 'SCHEDULED'; clip.scheduledAt = at.toISOString(); clip.updatedAt = new Date().toISOString(); scheduled.push(clip);
+  }
+  project.postingSchedule = { postsPerDay, times }; project.updatedAt = new Date().toISOString(); saveProjects();
+  res.json({ ok: true, scheduled });
+});
 router.post('/clips/:id/schedule', (req, res) => {
   const clip = findClip(req.params.id);
   if (!clip) return res.status(404).json({ error: 'Corte nao encontrado' });
@@ -296,17 +319,29 @@ router.post('/clips/:id/schedule', (req, res) => {
   res.json(clip);
 });
 
-router.post('/clips/:id/publish', (req, res) => {
+router.post('/clips/:id/publish', async (req, res) => {
   const clip = findClip(req.params.id);
   if (!clip) return res.status(404).json({ success: false, error: 'Corte nao encontrado' });
   const project = projects.find((item) => item.id === clip.projectId);
-  const connected = project?.channelId && socialAccounts.some((account) => account.channelIds.includes(project.channelId!));
-  if (!connected) return res.status(409).json({ success: false, error: 'Conecte uma conta social oficial antes de publicar.' });
-  clip.status = 'SCHEDULED'; clip.scheduledAt = new Date().toISOString(); clip.updatedAt = new Date().toISOString(); saveProjects();
-  res.json({ success: true, clip, message: 'Corte adicionado a fila de publicacao.' });
+  const account = socialAccounts.find((item) => item.channelIds.includes(project?.channelId || '') && item.platform === 'youtube');
+  if (!account || !clip.videoFile) return res.status(409).json({ success: false, error: 'Conecte o YouTube desta persona e gere o video antes de publicar.' });
+  const at = Date.now();
+  await addPost({ platform: 'youtube', file: clip.videoFile, title: clip.title || `Corte ${clip.index}`, description: clip.description || clip.caption || '', tags: clip.hashtags || [], at, accountId: `youtube:${account.accountId}` });
+  clip.status = 'SCHEDULED'; clip.scheduledAt = new Date(at).toISOString(); clip.updatedAt = new Date().toISOString(); saveProjects();
+  res.json({ success: true, clip, message: 'Teste colocado na fila. O envio inicia em ate 30 segundos.' });
 });
 
 function findClip(id: string): CorteClip | undefined { return projects.flatMap((project) => project.clips).find((clip) => clip.id === id); }
+
+export function markCorteClipPublication(clipId: string, status: 'PUBLISHED' | 'ERROR', error?: string): void {
+  const clip = findClip(clipId);
+  if (!clip) return;
+  clip.status = status;
+  clip.updatedAt = new Date().toISOString();
+  if (status === 'PUBLISHED') { clip.publishedAt = new Date().toISOString(); clip.error = undefined; }
+  else clip.error = error || 'Falha na publicacao';
+  saveProjects();
+}
 
 async function runGeneration(job: CorteJob, project: CorteProject): Promise<void> {
   job.status = 'running'; job.progress = 8; job.message = 'Baixando video e legendas no worker de nuvem';
@@ -378,6 +413,7 @@ interface CorteProject {
   status: 'PENDING' | 'GENERATING' | 'READY' | 'ERROR' | 'PUBLISHED';
   error?: string;
   channelId?: string;
+  postingSchedule?: { postsPerDay: number; times: string[] };
   clips: CorteClip[];
   createdAt: string;
   updatedAt: string;
@@ -397,6 +433,8 @@ interface CorteClip {
   hashtags?: string[];
   status: string;
   scheduledAt?: string;
+  publishedAt?: string;
+  error?: string;
   updatedAt: string;
   createdAt: string;
 }
