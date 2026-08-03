@@ -30,9 +30,21 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   const dir = resolveInWorkspace(req.cwd ?? '.');
   await fsp.mkdir(dir, { recursive: true });
 
+  const cookiesB64 = String(process.env.YTDLP_COOKIES_B64 || '').trim();
+  const cookieArgs: string[] = [];
+  if (cookiesB64) {
+    try {
+      const cookiePath = path.join(dir, '.youtube-cookies.txt');
+      await fsp.writeFile(cookiePath, Buffer.from(cookiesB64, 'base64'));
+      cookieArgs.push('--cookies', cookiePath);
+      onChunk('stdout', '→ Usando sessão segura do YouTube para o download.\n');
+    } catch { onChunk('stderr', 'Não foi possível ler a sessão segura do YouTube.\n'); }
+  }
+
   onChunk('stdout', '→ Baixando vídeo e legendas...\n');
   let ytError = '';
   const code = await run('yt-dlp', [
+    ...cookieArgs,
     '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
     '--merge-output-format', 'mp4',
     '-o', 'source.%(ext)s',
