@@ -80,14 +80,16 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
     setBusy(true); setErr('');
     try {
       let sourceUrl = url;
+      let sourceStorageFileId: string | undefined;
       if (sourceType === 'upload' && sourceFile) {
         setLiveJob({ progress: 1, message: `Enviando ${sourceFile.name} para a nuvem...`, status: 'uploading' });
         const uploaded = await uploadCorteVideo(sourceFile, (progress) => setUploadProgress(progress));
         sourceUrl = uploaded.sourceUrl;
+        sourceStorageFileId = uploaded.sourceFileId;
         setUrl(sourceUrl);
       }
-      if (!sourceUrl.trim() || (sourceType === 'upload' && !sourceUrl.startsWith('upload://'))) throw new Error('Escolha um vídeo para enviar antes de gerar os cortes.');
-      await updateProject(project.id, { sourceVideoUrl: sourceUrl, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
+      if (!sourceUrl.trim() || (sourceType === 'upload' && !sourceUrl.startsWith('b2://'))) throw new Error('Escolha um vídeo para enviar antes de gerar os cortes.');
+      await updateProject(project.id, { sourceVideoUrl: sourceUrl, sourceStorageFileId, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
       setProject((previous) => previous ? { ...previous, sourceVideoUrl: sourceUrl, status: 'GENERATING' } : null);
       setLiveJob({ progress: 5, message: 'Vídeo recebido. Iniciando a IA de cortes...', status: 'queued' });
       const { jobId } = await generateCortes({ projectId: project.id, url: sourceUrl });

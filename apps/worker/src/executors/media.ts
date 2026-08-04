@@ -4,10 +4,20 @@ import { spawn } from 'node:child_process';
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
+import os from 'node:os';
 import { resolveInWorkspace } from '../workspace.js';
 import type { JobRequest } from '../types.js';
 
 type Chunk = (kind: 'stdout' | 'stderr', data: string) => void;
+const TEMP_CORTES_ROOT = path.join(os.tmpdir(), 'beehive-cortes');
+function resolveMediaDir(cwd = '.'): string {
+  if (path.isAbsolute(cwd)) {
+    const abs = path.resolve(cwd); const root = TEMP_CORTES_ROOT + path.sep;
+    if (!abs.startsWith(root)) throw new Error('Diretório temporário inválido.');
+    return abs;
+  }
+  return resolveInWorkspace(cwd);
+}
 
 function run(cmd: string, args: string[], cwd: string, onChunk: Chunk, timeoutMs = 900000): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -27,7 +37,7 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   if (!url) throw new Error('ytFetch: payload.url é obrigatório');
   if (!/^https?:\/\//i.test(url)) throw new Error('ytFetch: url inválida');
 
-  const dir = resolveInWorkspace(req.cwd ?? '.');
+  const dir = resolveMediaDir(req.cwd ?? '.');
   await fsp.mkdir(dir, { recursive: true });
 
   const cookiesB64 = String(process.env.YTDLP_COOKIES_B64 || '').trim();
@@ -94,16 +104,16 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
 
 // Prepara um vídeo enviado pelo cliente. Não depende de cookies do YouTube.
 export async function runUploadedVideoFetch(req: JobRequest, onChunk: Chunk): Promise<{ result: unknown }> {
-  const relativeFile = String(req.payload.file ?? '').trim();
-  if (!relativeFile.startsWith('uploads/')) throw new Error('Arquivo enviado inválido. Envie o vídeo novamente.');
-  const sourcePath = resolveInWorkspace(relativeFile);
+  const suppliedFile = String(req.payload.filePath ?? req.payload.file ?? '').trim();
+  const sourcePath = path.isAbsolute(suppliedFile) ? path.resolve(suppliedFile) : resolveInWorkspace(suppliedFile);
+  if (path.isAbsolute(suppliedFile) && !sourcePath.startsWith(TEMP_CORTES_ROOT + path.sep)) throw new Error('Arquivo temporário inválido.');
   const sourceStat = await fsp.stat(sourcePath).catch(() => null);
   if (!sourceStat?.isFile()) throw new Error('O vídeo enviado não foi encontrado. Envie o arquivo novamente.');
-  const dir = resolveInWorkspace(req.cwd ?? '.');
+  const dir = resolveMediaDir(req.cwd ?? '.');
   await fsp.mkdir(dir, { recursive: true });
   const ext = path.extname(sourcePath).toLowerCase();
   const videoFile = `source${['.mov', '.mkv', '.webm'].includes(ext) ? ext : '.mp4'}`;
-  await fsp.copyFile(sourcePath, path.join(dir, videoFile));
+  if (path.resolve(sourcePath) !== path.resolve(path.join(dir, videoFile))) await fsp.copyFile(sourcePath, path.join(dir, videoFile));
   onChunk('stdout', '→ Vídeo enviado recebido no processamento em nuvem.\n');
   let probeOutput = '';
   await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoFile], dir, (kind, data) => { if (kind === 'stdout') probeOutput += data; }).catch(() => 1);
@@ -278,7 +288,7 @@ const segments = Array.isArray(req.payload.segments) ? (req.payload.segments as 
       throw new Error('clip: payload.segments vazio');
    }
 
-  const dir = resolveInWorkspace(req.cwd ?? '.');
+  const dir = resolveMediaDir(req.cwd ?? '.');
   const abs = path.join(dir, input);
   if (!fs.existsSync(abs)) throw new Error(`clip: arquivo de entrada não encontrado: ${input}`);
 

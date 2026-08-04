@@ -4,6 +4,8 @@ import express from 'express';
 import cors from 'cors';
 import fs from 'node:fs';
 import path from 'node:path';
+import os from 'node:os';
+import fsp from 'node:fs/promises';
 import { nanoid } from 'nanoid';
 import { ensureWorkspace, WORKSPACE_ROOT, resolveInWorkspace } from './workspace.js';
 import { runShell } from './executors/shell.js';
@@ -59,6 +61,7 @@ import { bootKernel, executeCapability, listCapabilities } from './kernel-bridge
 import { hashPassword, verifyPassword, signToken, verifyToken, isValidEmail } from './auth.js';
 import { encryptSecret, decryptSecret, maskSecret } from './key-crypto.js';
 import { callProviderCompletion, testProviderConnection } from './provider-call.js';
+import { downloadB2File } from './b2-storage.js';
 
 const PORT = Number(process.env.PORT ?? 4000);
 const AUTH_TOKEN = process.env.WORKER_TOKEN ?? '';
@@ -1052,8 +1055,18 @@ function buildCaption(post: ScheduledPost): string {
   return [post.title, post.description, tags].filter(Boolean).join('\n\n').slice(0, 2200);
 }
 
+async function materializePostFile(file: string, postId: string): Promise<string> {
+  if (!file.startsWith('b2://')) return file;
+  const destination = path.join(os.tmpdir(), 'beehive-publish', `${postId}.mp4`);
+  await fsp.mkdir(path.dirname(destination), { recursive: true });
+  await downloadB2File(file.slice(5), destination);
+  setTimeout(() => { void fsp.rm(destination, { force: true }); }, 60_000);
+  return destination;
+}
+
 async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
   const noop = () => {};
+  const mediaFile = await materializePostFile(post.file, post.id);
   if (post.platform === 'youtube') {
     let clientId = '', clientSecret = '', refreshToken = '', privacyStatus = 'public';
     const acc = post.accountId ? await getAccount(post.accountId) : null;
@@ -1067,7 +1080,7 @@ async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
       if (!c) throw new Error('Credenciais do YouTube não configuradas');
       clientId = c.clientId; clientSecret = c.clientSecret; refreshToken = c.refreshToken; privacyStatus = c.privacyStatus ?? 'public';
     }
-    const out = await runPublishYoutube({ type: 'publishYoutube', payload: { file: post.file, title: post.title, description: post.description, tags: post.tags, privacyStatus, clientId, clientSecret, refreshToken } } as JobRequest, noop);
+    const out = await runPublishYoutube({ type: 'publishYoutube', payload: { file: mediaFile, title: post.title, description: post.description, tags: post.tags, privacyStatus, clientId, clientSecret, refreshToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'instagram') {
@@ -1081,7 +1094,7 @@ async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
       if (!c) throw new Error('Credenciais do Instagram não configuradas');
       igUserId = String(c.igUserId ?? ''); accessToken = String(c.accessToken ?? '');
     }
-    const out = await runPublishInstagram({ type: 'publishInstagram', payload: { file: post.file, caption: buildCaption(post), igUserId, accessToken } } as JobRequest, noop);
+    const out = await runPublishInstagram({ type: 'publishInstagram', payload: { file: mediaFile, caption: buildCaption(post), igUserId, accessToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'facebook') {
@@ -1095,7 +1108,7 @@ async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
       if (!c) throw new Error('Credenciais do Facebook não configuradas');
       pageId = String(c.pageId ?? ''); accessToken = String(c.accessToken ?? '');
     }
-    const out = await runPublishFacebook({ type: 'publishFacebook', payload: { file: post.file, caption: buildCaption(post), pageId, accessToken } } as JobRequest, noop);
+    const out = await runPublishFacebook({ type: 'publishFacebook', payload: { file: mediaFile, caption: buildCaption(post), pageId, accessToken } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   if (post.platform === 'tiktok') {
@@ -1106,12 +1119,12 @@ async function publishPost(post: ScheduledPost): Promise<{ url?: string }> {
       if (!oapp) throw new Error('App OAuth do TikTok não configurado');
       const tok = await refreshTiktok(oapp.clientId, oapp.clientSecret, acc.refreshToken);
       await updateAccountTokens(acc.id, { accessToken: tok.accessToken, refreshToken: tok.refreshToken ?? acc.refreshToken, expiresAt: tok.expiresIn ? Date.now() + tok.expiresIn * 1000 : undefined });
-      const r = await publishTiktokWithToken(tok.accessToken, { file: post.file, title: buildCaption(post), privacyLevel: (acc.extra as any)?.privacyLevel, cwd: undefined }, noop);
+      const r = await publishTiktokWithToken(tok.accessToken, { file: mediaFile, title: buildCaption(post), privacyLevel: (acc.extra as any)?.privacyLevel, cwd: undefined }, noop);
       return { url: r.url };
     }
     const c = await getPlatformCreds('tiktok');
     if (!c) throw new Error('Credenciais do TikTok não configuradas');
-    const out = await runPublishTiktok({ type: 'publishTiktok', payload: { file: post.file, title: buildCaption(post), clientKey: c.clientKey, clientSecret: c.clientSecret, refreshToken: c.refreshToken, privacyLevel: c.privacyLevel } } as JobRequest, noop);
+    const out = await runPublishTiktok({ type: 'publishTiktok', payload: { file: mediaFile, title: buildCaption(post), clientKey: c.clientKey, clientSecret: c.clientSecret, refreshToken: c.refreshToken, privacyLevel: c.privacyLevel } } as JobRequest, noop);
     return out.result as { url?: string };
   }
   throw new Error(`Publicação em ${post.platform} ainda não suportada`);

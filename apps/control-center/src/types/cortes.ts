@@ -28,7 +28,7 @@ export interface CorteSocialAccount {
 export interface CorteProject {
   id: string;
   name: string;
-  sourceVideoUrl: string;
+  sourceVideoUrl: string;`n  sourceStorageFileId?: string;
   duration: number; // segundos
   format: string; // "9:16", "16:9", "1:1"
   quantityRequested: number;
