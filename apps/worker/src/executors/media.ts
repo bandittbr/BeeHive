@@ -92,6 +92,28 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   return { result: { video, srt: srt || null, duration, hasSubs: !!srt, transcript } };
 }
 
+// Prepara um vídeo enviado pelo cliente. Não depende de cookies do YouTube.
+export async function runUploadedVideoFetch(req: JobRequest, onChunk: Chunk): Promise<{ result: unknown }> {
+  const relativeFile = String(req.payload.file ?? '').trim();
+  if (!relativeFile.startsWith('uploads/')) throw new Error('Arquivo enviado inválido. Envie o vídeo novamente.');
+  const sourcePath = resolveInWorkspace(relativeFile);
+  const sourceStat = await fsp.stat(sourcePath).catch(() => null);
+  if (!sourceStat?.isFile()) throw new Error('O vídeo enviado não foi encontrado. Envie o arquivo novamente.');
+  const dir = resolveInWorkspace(req.cwd ?? '.');
+  await fsp.mkdir(dir, { recursive: true });
+  const ext = path.extname(sourcePath).toLowerCase();
+  const videoFile = `source${['.mov', '.mkv', '.webm'].includes(ext) ? ext : '.mp4'}`;
+  await fsp.copyFile(sourcePath, path.join(dir, videoFile));
+  onChunk('stdout', '→ Vídeo enviado recebido no processamento em nuvem.\n');
+  let probeOutput = '';
+  await run('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=noprint_wrappers=1:nokey=1', videoFile], dir, (kind, data) => { if (kind === 'stdout') probeOutput += data; }).catch(() => 1);
+  const duration = Math.round(parseFloat(probeOutput.trim()) || 0);
+  const whisper = await transcribeWithGroq(dir, videoFile, onChunk);
+  if (!whisper) throw new Error('Não foi possível transcrever o vídeo. Confira se ele possui áudio e tente novamente.');
+  const transcript = (await fsp.readFile(path.join(dir, whisper.srtPath), 'utf8')).slice(0, 120000);
+  onChunk('stdout', `✓ Vídeo enviado: ${videoFile} (${duration}s) · transcrição pronta\n`);
+  return { result: { video: videoFile, srt: whisper.srtPath, duration, hasSubs: true, transcript } };
+}
 function fmtSrtTime(sec: number): string {
   if (!(sec >= 0)) sec = 0;
   const h = Math.floor(sec / 3600);
@@ -270,7 +292,7 @@ const segments = Array.isArray(req.payload.segments) ? (req.payload.segments as 
   } catch { /* sem legendas */ }
 
   const crop = vertical ? 'scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920' : 'scale=1080:-2';
-  const outputs: { file: string; title?: string; start: number; end: number }[] = [];
+  const outputs: { file: string; thumbnail?: string; title?: string; start: number; end: number }[] = [];
 
   for (let i = 0; i < Math.min(segments.length, 40); i++) {
     const seg = segments[i] || {};
@@ -304,7 +326,9 @@ const segments = Array.isArray(req.payload.segments) ? (req.payload.segments as 
       '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart', out,
     ], dir, onChunk);
     if (code === 0 && fs.existsSync(path.join(dir, out))) {
-      outputs.push({ file: out, title: title || undefined, start, end });
+      const thumbnail = `clip_${i + 1}.jpg`;
+      await run('ffmpeg', ['-y', '-ss', '1', '-i', out, '-frames:v', '1', '-vf', 'scale=360:-2', thumbnail], dir, () => {}).catch(() => 1);
+      outputs.push({ file: out, thumbnail: fs.existsSync(path.join(dir, thumbnail)) ? thumbnail : undefined, title: title || undefined, start, end });
     }
   }
 

@@ -105,6 +105,23 @@ export async function generateCortes(input: {
   return requestPost<{ jobId: string }>('/cortes/generate', input);
 }
 
+export function uploadCorteVideo(file: File, onProgress?: (percent: number) => void): Promise<{ sourceUrl: string; fileName: string; size: number }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', `${WORKER_BASE_URL}/api/cortes/upload`);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    xhr.setRequestHeader('X-File-Name', file.name);
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress?.(Math.max(1, Math.round((event.loaded / event.total) * 100))); };
+    xhr.onerror = () => reject(new Error('Não foi possível enviar o vídeo. Verifique sua conexão e tente novamente.'));
+    xhr.onload = () => {
+      let body: { sourceUrl?: string; fileName?: string; size?: number; error?: string } = {};
+      try { body = JSON.parse(xhr.responseText || '{}'); } catch { /* resposta inválida */ }
+      if (xhr.status >= 200 && xhr.status < 300 && body.sourceUrl) resolve(body as { sourceUrl: string; fileName: string; size: number });
+      else reject(new Error(body.error || `Falha ao enviar o vídeo (HTTP ${xhr.status}).`));
+    };
+    xhr.send(file);
+  });
+}
 export async function getGenerateJob(jobId: string): Promise<{ status: string; progress?: number }> {
   return request<{ status: string; progress?: number }>(`/cortes/jobs/${jobId}`);
 }
@@ -125,6 +142,9 @@ export async function publishClip(id: string): Promise<{ success: boolean; url?:
   });
 }
 
+export async function scheduleClip(id: string, scheduledAt: string): Promise<CorteClip> {
+  return requestPost<CorteClip>(`/cortes/clips/${id}/schedule`, { scheduledAt });
+}
 export async function scheduleProjectClips(projectId: string, postsPerDay: number, times: string[]): Promise<{ ok: boolean; scheduled: CorteClip[] }> {
   return requestPost<{ ok: boolean; scheduled: CorteClip[] }>(`/cortes/projects/${projectId}/schedule`, { postsPerDay, times });
 }

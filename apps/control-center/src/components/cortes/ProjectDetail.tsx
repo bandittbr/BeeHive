@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAppStore } from '../../stores/appStore';
-import { getProject, updateProject, publishClip, getGenerateJob, scheduleProjectClips, generateCortes } from '../../services/cortes-api';
+import { getProject, updateProject, publishClip, getGenerateJob, scheduleProjectClips, scheduleClip, generateCortes, uploadCorteVideo } from '../../services/cortes-api';
 import type { CorteProject, CorteClipStatus } from '../../types/cortes';
 import { Loader2, Download, Play, Edit2, Share2, CheckCircle2, XCircle } from 'lucide-react';
 
@@ -14,6 +14,7 @@ const STATUS_LABEL: Record<CorteClipStatus, string> = {
   PENDING: 'Pendente',
   PROCESSING: 'Processando',
   READY: 'Pronto',
+  SCHEDULED: 'Agendado',
   ERROR: 'Erro',
   PUBLISHED: 'Publicado',
 };
@@ -22,6 +23,9 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
   const { corteChannels, updateCorteProject } = useAppStore();
   const [project, setProject] = useState<CorteProject | null>(null);
   const [url, setUrl] = useState('');
+  const [sourceType, setSourceType] = useState<'upload' | 'url'>('upload');
+  const [sourceFile, setSourceFile] = useState<File | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [name, setName] = useState('');
   const [quantity, setQuantity] = useState(3);
   const [duration, setDuration] = useState(15);
@@ -39,6 +43,8 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
   const [postsPerDay, setPostsPerDay] = useState(4);
   const [postingTimes, setPostingTimes] = useState(['09:00', '12:00', '15:00', '19:00']);
   const [scheduling, setScheduling] = useState(false);
+  const [clipSchedules, setClipSchedules] = useState<Record<string, string>>({});
+  const [schedulingClip, setSchedulingClip] = useState<string | null>(null);
   const [liveJob, setLiveJob] = useState<{ progress: number; message: string; status: string } | null>(null);
 
   useEffect(() => {
@@ -50,6 +56,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       const p = await getProject(projectId);
       setProject(p);
       setUrl(p.sourceVideoUrl);
+      setSourceType(p.sourceVideoUrl.startsWith('upload://') ? 'upload' : 'url');
       setName(p.name);
       setQuantity(p.quantityRequested);
       setDuration(p.duration);
@@ -62,6 +69,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       setAutoHashtags(p.autoHashtags);
       setPostsPerDay(p.postingSchedule?.postsPerDay || 4);
       setPostingTimes(p.postingSchedule?.times || ['09:00', '12:00', '15:00', '19:00']);
+      setClipSchedules(Object.fromEntries(p.clips.map((clip) => [clip.id, toDateTimeLocal(clip.scheduledAt) || nextScheduleTime()])));
     } catch (e) {
       console.error('Failed to load project', e);
     }
@@ -71,9 +79,18 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
     if (!project || busy) return;
     setBusy(true); setErr('');
     try {
-      await updateProject(project.id, { sourceVideoUrl: url, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
-      setProject((previous) => previous ? { ...previous, status: 'GENERATING' } : null);
-      const { jobId } = await generateCortes({ projectId: project.id, url });
+      let sourceUrl = url;
+      if (sourceType === 'upload' && sourceFile) {
+        setLiveJob({ progress: 1, message: `Enviando ${sourceFile.name} para a nuvem...`, status: 'uploading' });
+        const uploaded = await uploadCorteVideo(sourceFile, (progress) => setUploadProgress(progress));
+        sourceUrl = uploaded.sourceUrl;
+        setUrl(sourceUrl);
+      }
+      if (!sourceUrl.trim() || (sourceType === 'upload' && !sourceUrl.startsWith('upload://'))) throw new Error('Escolha um vídeo para enviar antes de gerar os cortes.');
+      await updateProject(project.id, { sourceVideoUrl: sourceUrl, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
+      setProject((previous) => previous ? { ...previous, sourceVideoUrl: sourceUrl, status: 'GENERATING' } : null);
+      setLiveJob({ progress: 5, message: 'Vídeo recebido. Iniciando a IA de cortes...', status: 'queued' });
+      const { jobId } = await generateCortes({ projectId: project.id, url: sourceUrl });
       let attempts = 0;
       while (attempts++ < 180) {
         await new Promise((resolve) => window.setTimeout(resolve, 5000));
@@ -87,7 +104,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       const message = error instanceof Error ? error.message : String(error);
       setErr(message);
       if (project) { await updateProject(project.id, { status: 'ERROR', error: message }); setProject((previous) => previous ? { ...previous, status: 'ERROR', error: message } : null); }
-    } finally { setBusy(false); onLoad(); }
+    } finally { setBusy(false); setUploadProgress(0); onLoad(); }
   }
   async function handlePublishClip(clipId: string) {
     setPublishingClip(clipId);
@@ -97,7 +114,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
         // Update local project state
         if (project) {
           const updatedClips = project.clips.map(c => 
-            c.id === clipId ? { ...c, status: 'PUBLISHED', publishedAt: new Date().toISOString() } : c
+            c.id === clipId ? { ...c, status: 'SCHEDULED', scheduledAt: new Date().toISOString() } : c
           );
           setProject({ ...project, clips: updatedClips });
           updateProject(project.id, { clips: updatedClips });
@@ -112,6 +129,30 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
     }
   }
 
+  function toDateTimeLocal(value?: string): string {
+    if (!value) return '';
+    const date = new Date(value);
+    const offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  }
+
+  function nextScheduleTime(): string {
+    const date = new Date(Date.now() + 60 * 60_000);
+    date.setMinutes(0, 0, 0);
+    const offset = date.getTimezoneOffset() * 60_000;
+    return new Date(date.getTime() - offset).toISOString().slice(0, 16);
+  }
+
+  async function handleScheduleClip(clipId: string) {
+    const scheduledAt = clipSchedules[clipId];
+    if (!project || !scheduledAt || schedulingClip) return;
+    setSchedulingClip(clipId); setErr('');
+    try {
+      const updated = await scheduleClip(clipId, new Date(scheduledAt).toISOString());
+      setProject((current) => current ? { ...current, clips: current.clips.map((clip) => clip.id === updated.id ? updated : clip) } : current);
+    } catch (error) { setErr(error instanceof Error ? error.message : String(error)); }
+    finally { setSchedulingClip(null); }
+  }
   async function handleScheduleAll() {
     if (!project || scheduling) return;
     setScheduling(true); setErr('');
@@ -180,7 +221,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
           <div className="cortes-card-body">
             {clips.length === 0 ? (
               <div className="empty-state">
-                <p>Nenhum corte gerado ainda. Cole uma URL e clique em "Gerar Cortes".</p>
+                <p>Nenhum corte gerado ainda. Envie um vídeo e clique em "Gerar Cortes".</p>
               </div>
             ) : (
               <div className="cortes-clips-grid">
@@ -192,7 +233,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
                   >
                     <div className="cortes-clip-video-wrap">
                       {clip.videoFile ? (
-                        <video src={clip.videoFile} controls preload="metadata" playsInline className="cortes-clip-video" />
+                        <video src={clip.videoFile} poster={clip.thumbnailFile} controls preload="metadata" playsInline className="cortes-clip-video" />
                       ) : (
                         <div className="cortes-clip-placeholder">
                           <Play size={24} />
@@ -203,6 +244,17 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
                     </div>
                     <div className="cortes-clip-info">
                       <span className="cortes-clip-title">{clip.title || `Corte ${i + 1}`}</span>
+                      {clip.status === 'PUBLISHED' ? (
+                        <div className="clip-publication-status published">✓ Postado{clip.publishedAt ? ` em ${new Date(clip.publishedAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}` : ''}</div>
+                      ) : clip.status === 'SCHEDULED' ? (
+                        <div className="clip-publication-status scheduled">◷ Agendado para {clip.scheduledAt ? new Date(clip.scheduledAt).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'horário definido'}</div>
+                      ) : (
+                        <div className="clip-schedule-control" onClick={e => e.stopPropagation()}>
+                          <label>Publicar este corte em</label>
+                          <input type="datetime-local" value={clipSchedules[clip.id] || nextScheduleTime()} min={nextScheduleTime()} onChange={e => setClipSchedules(current => ({ ...current, [clip.id]: e.target.value }))} />
+                          <button type="button" className="btn-primary btn-xs" disabled={schedulingClip === clip.id} onClick={() => handleScheduleClip(clip.id)}>{schedulingClip === clip.id ? <Loader2 size={12} className="spin" /> : <Share2 size={12} />} Agendar</button>
+                        </div>
+                      )}
                       {expandedClip === clip.id && (
                         <div className="cortes-clip-expanded" onClick={e => e.stopPropagation()}>
                           {clip.caption && <div><strong>Legenda:</strong> {clip.caption}</div>}
@@ -249,15 +301,24 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
         </div>
         <div className="cortes-card">
           <div className="cortes-card-body cortes-gen-form">
-            <div className="cortes-form-group">
-              <label>URL do vídeo do YouTube</label>
-              <input
-                type="text"
-                placeholder="https://www.youtube.com/watch?v=..."
-                value={url}
-                onChange={e => setUrl(e.target.value)}
-              />
+            <div className="cortes-source-switch" role="tablist" aria-label="Origem do vídeo">
+              <button type="button" className={sourceType === 'upload' ? 'active' : ''} onClick={() => setSourceType('upload')}>Enviar vídeo <span>Recomendado</span></button>
+              <button type="button" className={sourceType === 'url' ? 'active' : ''} onClick={() => setSourceType('url')}>URL do YouTube <span>Avançado</span></button>
             </div>
+            {sourceType === 'upload' ? (
+              <div className="cortes-form-group cortes-upload-field">
+                <label>Vídeo original</label>
+                <input type="file" accept="video/mp4,video/quicktime,video/x-matroska,video/webm,.mp4,.mov,.mkv,.webm" onChange={e => { setSourceFile(e.target.files?.[0] || null); setUrl(''); setUploadProgress(0); }} />
+                <small>{sourceFile ? `${sourceFile.name} · ${(sourceFile.size / 1024 / 1024).toFixed(1)} MB` : 'MP4, MOV, MKV ou WEBM · até 500 MB · o processamento acontece na nuvem.'}</small>
+                {busy && uploadProgress > 0 && <div className="upload-progress"><span style={{ width: `${uploadProgress}%` }} /> <em>Enviando: {uploadProgress}%</em></div>}
+              </div>
+            ) : (
+              <div className="cortes-form-group">
+                <label>URL do vídeo do YouTube</label>
+                <input type="text" placeholder="https://www.youtube.com/watch?v=..." value={url.startsWith('upload://') ? '' : url} onChange={e => setUrl(e.target.value)} />
+                <small>Alternativa avançada. Alguns vídeos podem ser bloqueados pelo YouTube.</small>
+              </div>
+            )}
             <div className="cortes-form-row">
               <div className="cortes-form-group">
                 <label>Nome do projeto</label>
@@ -323,7 +384,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
             </div>
             {err && <p style={{ fontSize: 12, color: 'var(--danger)', gridColumn: '1 / -1' }}>{err}</p>}
             <div className="cortes-gen-actions">
-              <button className="btn-primary" onClick={handleGenerate} disabled={busy || !url.trim()}>
+              <button className="btn-primary" onClick={handleGenerate} disabled={busy || (sourceType === 'upload' ? (!sourceFile && !url.startsWith('upload://')) : !url.trim())}>
                 {busy ? <Loader2 size={14} className="spin" /> : null}
                 {busy ? 'Processando...' : 'Gerar Cortes'}
               </button>

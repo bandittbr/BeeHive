@@ -2,8 +2,9 @@
 import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
-import { runYtFetch, runClip } from './executors/media.js';
+import { runYtFetch, runUploadedVideoFetch, runClip } from './executors/media.js';
 import type { JobRequest } from './types.js';
+import { resolveInWorkspace } from './workspace.js';
 import { addPost } from './store.js';
 
 const router = Router();
@@ -192,6 +193,42 @@ router.post('/projects', (req, res) => {
   res.json(project);
 });
 
+// Upload direto: o vídeo fica no volume persistente e não depende de YouTube.
+router.post('/upload', (req, res) => {
+  const requestedName = String(req.headers['x-file-name'] || 'video.mp4');
+  const ext = path.extname(requestedName).toLowerCase();
+  const allowed = new Set(['.mp4', '.mov', '.mkv', '.webm']);
+  const declaredSize = Number(req.headers['content-length'] || 0);
+  const maxBytes = 500 * 1024 * 1024;
+  if (!allowed.has(ext)) return res.status(400).json({ error: 'Envie um vídeo MP4, MOV, MKV ou WEBM.' });
+  if (declaredSize > maxBytes) return res.status(413).json({ error: 'O vídeo excede o limite de 500 MB.' });
+  const relativeFile = `uploads/upload_${Date.now()}_${Math.random().toString(36).slice(2, 8)}${ext}`;
+  const target = resolveInWorkspace(relativeFile);
+  const temporary = `${target}.uploading`;
+  fs.mkdirSync(path.dirname(target), { recursive: true });
+  const destination = fs.createWriteStream(temporary);
+  let received = 0;
+  let failed = false;
+  const fail = (status: number, error: string) => {
+    if (failed || res.headersSent) return;
+    failed = true;
+    destination.destroy();
+    fs.rmSync(temporary, { force: true });
+    res.status(status).json({ error });
+  };
+  req.on('data', (chunk: Buffer) => {
+    received += chunk.length;
+    if (received > maxBytes) { req.destroy(); fail(413, 'O vídeo excede o limite de 500 MB.'); }
+  });
+  req.on('error', () => fail(400, 'O envio do vídeo foi interrompido. Tente novamente.'));
+  destination.on('error', () => fail(500, 'Não foi possível salvar o vídeo enviado.'));
+  destination.on('finish', () => {
+    if (failed) return;
+    fs.renameSync(temporary, target);
+    res.status(201).json({ sourceUrl: `upload://${relativeFile}`, fileName: requestedName, size: received });
+  });
+  req.pipe(destination);
+});
 router.patch('/projects/:id', (req, res) => {
   const { id } = req.params;
   const updates = req.body;
@@ -296,7 +333,7 @@ router.post('/projects/:id/schedule', async (req, res) => {
   if (times.length !== postsPerDay) return res.status(400).json({ error: 'Informe um horario valido para cada postagem diaria.' });
   const account = socialAccounts.find((item) => item.channelIds.includes(project.channelId || '') && item.platform === 'youtube');
   if (!account) return res.status(409).json({ error: 'Conecte uma conta do YouTube a esta persona antes de agendar.' });
-  const pending = project.clips.filter((clip) => clip.status === 'READY' || clip.status === 'SCHEDULED');
+  const pending = project.clips.filter((clip) => clip.status === 'READY');
   if (!pending.length) return res.status(400).json({ error: 'Nao ha cortes prontos para agendar.' });
   const now = new Date();
   const scheduled = [] as CorteClip[];
@@ -310,20 +347,27 @@ router.post('/projects/:id/schedule', async (req, res) => {
   project.postingSchedule = { postsPerDay, times }; project.updatedAt = new Date().toISOString(); saveProjects();
   res.json({ ok: true, scheduled });
 });
-router.post('/clips/:id/schedule', (req, res) => {
+router.post('/clips/:id/schedule', async (req, res) => {
   const clip = findClip(req.params.id);
   if (!clip) return res.status(404).json({ error: 'Corte nao encontrado' });
+  if (clip.status === 'PUBLISHED') return res.status(409).json({ error: 'Este corte já foi publicado.' });
+  if (clip.status === 'SCHEDULED') return res.status(409).json({ error: 'Este corte já está agendado. Cancele-o antes de escolher outro horário.' });
   const scheduledAt = String(req.body?.scheduledAt || '');
-  if (Number.isNaN(Date.parse(scheduledAt))) return res.status(400).json({ error: 'Horario de agendamento invalido' });
-  clip.scheduledAt = scheduledAt; clip.status = 'SCHEDULED'; clip.updatedAt = new Date().toISOString(); saveProjects();
+  const scheduledTime = Date.parse(scheduledAt);
+  if (Number.isNaN(scheduledTime) || scheduledTime <= Date.now()) return res.status(400).json({ error: 'Escolha uma data e horário no futuro.' });
+  const project = projects.find((item) => item.id === clip.projectId);
+  const account = socialAccounts.find((item) => item.channelIds.includes(project?.channelId || '') && item.platform === 'youtube');
+  if (!account || !clip.videoFile) return res.status(409).json({ error: 'Conecte o YouTube desta persona e gere o vídeo antes de agendar.' });
+  await addPost({ platform: 'youtube', file: clip.videoFile, title: clip.title || `Corte ${clip.index}`, description: clip.description || clip.caption || '', tags: clip.hashtags || [], at: scheduledTime, accountId: `youtube:${account.accountId}`, origin: `corte:${clip.id}` });
+  clip.scheduledAt = new Date(scheduledTime).toISOString(); clip.status = 'SCHEDULED'; clip.updatedAt = new Date().toISOString(); saveProjects();
   res.json(clip);
 });
-
 router.post('/clips/:id/publish', async (req, res) => {
   const clip = findClip(req.params.id);
   if (!clip) return res.status(404).json({ success: false, error: 'Corte nao encontrado' });
   const project = projects.find((item) => item.id === clip.projectId);
   const account = socialAccounts.find((item) => item.channelIds.includes(project?.channelId || '') && item.platform === 'youtube');
+  if (clip.status !== 'READY') return res.status(409).json({ success: false, error: 'Este corte já está agendado ou publicado.' });
   if (!account || !clip.videoFile) return res.status(409).json({ success: false, error: 'Conecte o YouTube desta persona e gere o video antes de publicar.' });
   const at = Date.now();
   await addPost({ platform: 'youtube', file: clip.videoFile, title: clip.title || `Corte ${clip.index}`, description: clip.description || clip.caption || '', tags: clip.hashtags || [], at, accountId: `youtube:${account.accountId}` });
@@ -348,7 +392,9 @@ async function runGeneration(job: CorteJob, project: CorteProject): Promise<void
   const workspace = `cortes/${project.id}/${job.id}`;
   const log = (_kind: 'stdout' | 'stderr', text: string) => { job.message = text.replace(/\s+/g, ' ').trim().slice(0, 140) || job.message; job.progress = Math.min(88, job.progress + 2); };
   try {
-    const fetched = await runYtFetch({ type: 'ytFetch', cwd: workspace, payload: { url: project.sourceVideoUrl } } as JobRequest, log);
+    const fetched = project.sourceVideoUrl.startsWith('upload://')
+      ? await runUploadedVideoFetch({ type: 'ytFetch', cwd: workspace, payload: { file: project.sourceVideoUrl.slice('upload://'.length) } } as JobRequest, log)
+      : await runYtFetch({ type: 'ytFetch', cwd: workspace, payload: { url: project.sourceVideoUrl } } as JobRequest, log);
     const source = fetched.result as { video: string; srt: string | null; transcript: string; duration: number };
     if (!source.srt || !source.transcript) throw new Error('Nao foi possivel obter uma transcricao. Tente um video com fala ou legenda.');
     job.progress = 35; job.message = 'A IA esta escolhendo os melhores momentos';
@@ -356,9 +402,9 @@ async function runGeneration(job: CorteJob, project: CorteProject): Promise<void
     if (!segments.length) throw new Error('A IA nao encontrou momentos fortes suficientes para criar cortes.');
     job.progress = 55; job.message = `Renderizando ${segments.length} corte(s) com legendas dinamicas`;
     const rendered = await runClip({ type: 'clip', cwd: workspace, payload: { input: source.video, srt: source.srt, segments, vertical: project.format === '9:16' } } as JobRequest, log);
-    const output = rendered.result as { clips: Array<{ file: string; title?: string; start: number; end: number }> };
+    const output = rendered.result as { clips: Array<{ file: string; thumbnail?: string; title?: string; start: number; end: number }> };
     const publicBase = (process.env.WORKER_PUBLIC_URL || '').replace(/\/$/, '');
-    project.clips = output.clips.map((item, index) => ({ id: `cc_${project.id}_${index + 1}`, projectId: project.id, index: index + 1, startTime: item.start, endTime: item.end, videoFile: `${publicBase}/files/${workspace}/${item.file}`, thumbnailFile: youtubeThumbnail(project.sourceVideoUrl), title: item.title || `Corte ${index + 1}`, caption: '', description: '', hashtags: [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
+    project.clips = output.clips.map((item, index) => ({ id: `cc_${project.id}_${index + 1}`, projectId: project.id, index: index + 1, startTime: item.start, endTime: item.end, videoFile: `${publicBase}/files/${workspace}/${item.file}`, thumbnailFile: item.thumbnail ? `${publicBase}/files/${workspace}/${item.thumbnail}` : youtubeThumbnail(project.sourceVideoUrl), title: item.title || `Corte ${index + 1}`, caption: '', description: '', hashtags: [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }));
     project.status = 'READY'; project.updatedAt = new Date().toISOString(); job.status = 'done'; job.progress = 100; job.message = `${project.clips.length} corte(s) prontos para revisar`;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error); project.status = 'ERROR'; project.error = message; project.updatedAt = new Date().toISOString(); job.status = 'error'; job.error = message; job.message = 'Falha no processamento';
