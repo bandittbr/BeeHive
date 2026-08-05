@@ -3,9 +3,15 @@
 import path from 'node:path';
 import fs from 'node:fs';
 
+const mountedWorkerWorkspace = path.resolve(process.cwd(), 'apps', 'worker', 'workspace');
+
+// Em produção o Railway monta o volume em /app/apps/worker/workspace.
+// Em desenvolvimento mantemos o diretório workspace relativo ao processo.
 export const WORKSPACE_ROOT = process.env.WORKSPACE_DIR
   ? path.resolve(process.env.WORKSPACE_DIR)
-  : path.resolve(process.cwd(), 'workspace');
+  : fs.existsSync(mountedWorkerWorkspace)
+    ? mountedWorkerWorkspace
+    : path.resolve(process.cwd(), 'workspace');
 
 export function ensureWorkspace(): void {
   fs.mkdirSync(WORKSPACE_ROOT, { recursive: true });

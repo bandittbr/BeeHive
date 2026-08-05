@@ -283,19 +283,127 @@ router.post('/settings', (req, res) => {
 
 // A fila usa o modo API do gerador: download, transcricao e renderizacao sao
 // processados na nuvem. O browser do cliente nunca executa esse trabalho.
-type CorteJob = { id: string; projectId: string; status: 'queued' | 'running' | 'done' | 'error'; progress: number; message: string; error?: string };
+type CorteJob = { id: string; projectId: string; status: 'queued' | 'running' | 'done' | 'error'; progress: number; message: string; error?: string; executionMode?: 'cloud' | 'connector' };
 const jobs = new Map<string, CorteJob>();
+type ConnectorUpload = { video?: { key: string; fileId: string }; thumbnail?: { key: string; fileId: string } };
+const connectorUploads = new Map<string, Map<number, ConnectorUpload>>();
+
+function connectorAuthorized(req: { headers: Record<string, string | string[] | undefined> }): boolean {
+  const expected = String(process.env.BEEHIVE_CONNECTOR_TOKEN || '').trim();
+  const received = String(req.headers['x-beehive-connector-token'] || '').trim();
+  return Boolean(expected) && received === expected;
+}
+
+function connectorUnavailable(res: import('express').Response): boolean {
+  if (String(process.env.BEEHIVE_CONNECTOR_TOKEN || '').trim()) return false;
+  res.status(503).json({ error: 'Conector ainda n?o foi ativado. Configure BEEHIVE_CONNECTOR_TOKEN no Railway.' });
+  return true;
+}
 
 router.post('/generate', (req, res) => {
   const projectId = String(req.body?.projectId || '');
   const project = projects.find((item) => item.id === projectId);
   if (!project) return res.status(404).json({ error: 'Projeto nao encontrado' });
-  if (!process.env.GROQ_API_KEY) return res.status(503).json({ error: 'GROQ_API_KEY ainda nao esta configurada no worker de nuvem.' });
-  const job: CorteJob = { id: `cj_${Date.now()}`, projectId, status: 'queued', progress: 0, message: 'Na fila para processamento em nuvem' };
+  const executionMode: 'cloud' | 'connector' = req.body?.executionMode === 'connector' ? 'connector' : 'cloud';
+  if (executionMode === 'cloud' && !process.env.GROQ_API_KEY) return res.status(503).json({ error: 'GROQ_API_KEY ainda nao esta configurada no worker de nuvem.' });
+  if (executionMode === 'connector' && !String(process.env.BEEHIVE_CONNECTOR_TOKEN || '').trim()) return res.status(503).json({ error: 'Ative primeiro o BeeHive Connector no Railway.' });
+  const job: CorteJob = { id: `cj_${Date.now()}`, projectId, status: 'queued', progress: 0, message: executionMode === 'connector' ? 'Aguardando o BeeHive Connector do seu PC' : 'Na fila para processamento em nuvem', executionMode };
   jobs.set(job.id, job);
-  project.status = 'GENERATING'; project.error = undefined; project.updatedAt = new Date().toISOString(); saveProjects();
-  void runGeneration(job, project);
+  project.status = 'GENERATING'; project.error = undefined; project.executionMode = executionMode; project.updatedAt = new Date().toISOString(); saveProjects();
+  if (executionMode === 'cloud') void runGeneration(job, project);
   res.status(202).json({ jobId: job.id });
+});
+
+// BeeHive Connector: agente local autenticado que usa a instala??o do usu?rio.
+// Ele evita bloqueio por IP de nuvem do YouTube e sobe somente os cortes prontos.
+router.post('/connector/jobs/next', (req, res) => {
+  if (connectorUnavailable(res)) return;
+  if (!connectorAuthorized(req)) return res.status(401).json({ error: 'Conector n?o autorizado.' });
+  const job = [...jobs.values()].find((item) => item.executionMode === 'connector' && item.status === 'queued');
+  if (!job) return res.status(204).end();
+  const project = projects.find((item) => item.id === job.projectId);
+  if (!project) { jobs.delete(job.id); return res.status(204).end(); }
+  job.status = 'running'; job.progress = 8; job.message = 'Conector local iniciou o download';
+  project.status = 'GENERATING'; project.updatedAt = new Date().toISOString(); saveProjects();
+  res.json({ jobId: job.id, projectId: project.id, url: project.sourceVideoUrl, name: project.name, quantity: project.quantityRequested, duration: project.duration, format: project.format, autoCaptions: project.autoCaptions });
+});
+
+router.post('/connector/jobs/:id/progress', (req, res) => {
+  if (connectorUnavailable(res)) return;
+  if (!connectorAuthorized(req)) return res.status(401).json({ error: 'Conector n?o autorizado.' });
+  const job = jobs.get(req.params.id);
+  if (!job || job.executionMode !== 'connector') return res.status(404).json({ error: 'Tarefa n?o encontrada.' });
+  job.progress = Math.max(1, Math.min(96, Number(req.body?.progress) || job.progress));
+  job.message = String(req.body?.message || job.message).slice(0, 180);
+  res.json({ ok: true });
+});
+
+router.post('/connector/jobs/:id/upload/:clipIndex', (req, res) => {
+  if (connectorUnavailable(res)) return;
+  if (!connectorAuthorized(req)) return res.status(401).json({ error: 'Conector n?o autorizado.' });
+  const job = jobs.get(req.params.id);
+  const project = job && projects.find((item) => item.id === job.projectId);
+  if (!job || !project || job.executionMode !== 'connector') return res.status(404).json({ error: 'Tarefa n?o encontrada.' });
+  if (!isB2Configured()) return res.status(503).json({ error: 'Backblaze n?o est? configurado.' });
+  const index = Math.max(1, Number(req.params.clipIndex) || 1);
+  const role = String(req.headers['x-beehive-media-role'] || 'video') === 'thumbnail' ? 'thumbnail' : 'video';
+  const ext = role === 'thumbnail' ? '.jpg' : '.mp4';
+  const local = path.join(os.tmpdir(), 'beehive-connector', job.id, `${index}-${role}${ext}`);
+  fs.mkdirSync(path.dirname(local), { recursive: true });
+  const output = fs.createWriteStream(local);
+  let failed = false;
+  const fail = (code: number, error: string) => { if (failed || res.headersSent) return; failed = true; output.destroy(); fs.rmSync(local, { force: true }); res.status(code).json({ error }); };
+  req.on('error', () => fail(400, 'Upload interrompido.'));
+  output.on('error', () => fail(500, 'Falha ao receber arquivo.'));
+  output.on('finish', async () => {
+    try {
+      const key = `cortes/${project.id}/${job.id}/connector_${index}${ext}`;
+      const stored = await uploadB2File(local, key, role === 'thumbnail' ? 'image/jpeg' : 'video/mp4');
+      await fsp.rm(local, { force: true });
+      const entries = connectorUploads.get(job.id) || new Map<number, ConnectorUpload>();
+      const current = entries.get(index) || {};
+      current[role] = { key: stored.fileName, fileId: stored.fileId };
+      entries.set(index, current); connectorUploads.set(job.id, entries);
+      res.status(201).json({ ok: true });
+    } catch (error) { fail(502, error instanceof Error ? error.message : 'Falha ao guardar no Backblaze.'); }
+  });
+  req.pipe(output);
+});
+
+router.post('/connector/jobs/:id/complete', (req, res) => {
+  if (connectorUnavailable(res)) return;
+  if (!connectorAuthorized(req)) return res.status(401).json({ error: 'Conector n?o autorizado.' });
+  const job = jobs.get(req.params.id);
+  const project = job && projects.find((item) => item.id === job.projectId);
+  if (!job || !project || job.executionMode !== 'connector') return res.status(404).json({ error: 'Tarefa n?o encontrada.' });
+  const items = Array.isArray(req.body?.clips) ? req.body.clips : [];
+  const uploads = connectorUploads.get(job.id) || new Map<number, ConnectorUpload>();
+  const publicBase = (process.env.WORKER_PUBLIC_URL || '').replace(/\/$/, '');
+  try {
+    project.clips = items.map((item: any, offset: number) => {
+      const index = Math.max(1, Number(item?.index) || offset + 1);
+      const stored = uploads.get(index);
+      if (!stored?.video) throw new Error(`V?deo do corte ${index} n?o foi recebido.`);
+      const clipId = `cc_${project.id}_${index}`;
+      return { id: clipId, projectId: project.id, index, startTime: Number(item?.startTime) || 0, endTime: Number(item?.endTime) || 0, videoFile: `${publicBase}/api/cortes/media/${clipId}`, thumbnailFile: stored.thumbnail ? `${publicBase}/api/cortes/media/${clipId}?type=thumbnail` : undefined, storageKey: stored.video.key, storageFileId: stored.video.fileId, thumbnailStorageKey: stored.thumbnail?.key, thumbnailStorageFileId: stored.thumbnail?.fileId, title: String(item?.title || `Corte ${index}`), caption: String(item?.caption || ''), description: String(item?.description || ''), hashtags: Array.isArray(item?.hashtags) ? item.hashtags.map(String) : [], status: 'READY', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() } as CorteClip;
+    });
+    project.status = 'READY'; project.error = undefined; project.updatedAt = new Date().toISOString(); saveProjects();
+    job.status = 'done'; job.progress = 100; job.message = `${project.clips.length} corte(s) prontos para revisar`;
+    connectorUploads.delete(job.id);
+    res.json({ ok: true, clips: project.clips.length });
+  } catch (error) { res.status(400).json({ error: error instanceof Error ? error.message : 'Falha ao finalizar cortes.' }); }
+});
+
+router.post('/connector/jobs/:id/error', (req, res) => {
+  if (connectorUnavailable(res)) return;
+  if (!connectorAuthorized(req)) return res.status(401).json({ error: 'Conector n?o autorizado.' });
+  const job = jobs.get(req.params.id);
+  const project = job && projects.find((item) => item.id === job.projectId);
+  if (!job || !project || job.executionMode !== 'connector') return res.status(404).json({ error: 'Tarefa n?o encontrada.' });
+  const error = String(req.body?.error || 'Falha no conector local.').slice(0, 500);
+  project.status = 'ERROR'; project.error = error; project.updatedAt = new Date().toISOString(); saveProjects();
+  job.status = 'error'; job.error = error; job.message = 'Falha no conector local';
+  res.json({ ok: true });
 });
 
 router.get('/jobs/:id', (req, res) => {
@@ -458,6 +566,7 @@ interface CorteProject {
   autoTitle: boolean;
   autoDescription: boolean;
   autoHashtags: boolean;
+  executionMode?: 'cloud' | 'connector';
   status: 'PENDING' | 'GENERATING' | 'READY' | 'ERROR' | 'PUBLISHED';
   error?: string;
   channelId?: string;

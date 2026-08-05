@@ -37,6 +37,7 @@ export interface CorteProject {
   autoTitle: boolean;
   autoDescription: boolean;
   autoHashtags: boolean;
+  executionMode?: 'cloud' | 'connector';
   status: CorteProjectStatus;
   error?: string;
   channelId?: string;
@@ -106,4 +107,5 @@ export interface NewProjectForm {
   autoTitle: boolean;
   autoDescription: boolean;
   autoHashtags: boolean;
+  executionMode?: 'cloud' | 'connector';
 }

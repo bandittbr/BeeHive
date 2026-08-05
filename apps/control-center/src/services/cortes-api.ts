@@ -101,6 +101,7 @@ export async function deleteProject(id: string): Promise<void> {
 export async function generateCortes(input: {
   projectId: string;
   url: string;
+  executionMode?: 'cloud' | 'connector';
 }): Promise<{ jobId: string }> {
   return requestPost<{ jobId: string }>('/cortes/generate', input);
 }

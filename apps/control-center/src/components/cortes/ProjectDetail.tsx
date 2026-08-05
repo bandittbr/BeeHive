@@ -89,7 +89,8 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
         setUrl(sourceUrl);
       }
       if (!sourceUrl.trim() || (sourceType === 'upload' && !sourceUrl.startsWith('b2://'))) throw new Error('Escolha um vídeo para enviar antes de gerar os cortes.');
-      await updateProject(project.id, { sourceVideoUrl: sourceUrl, sourceStorageFileId, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, status: 'GENERATING' });
+      const executionMode = sourceType === 'url' ? 'connector' : 'cloud';
+      await updateProject(project.id, { sourceVideoUrl: sourceUrl, sourceStorageFileId, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, executionMode, status: 'GENERATING' });
       setProject((previous) => previous ? { ...previous, sourceVideoUrl: sourceUrl, status: 'GENERATING' } : null);
       setLiveJob({ progress: 5, message: 'Vídeo recebido. Iniciando a IA de cortes...', status: 'queued' });
       const { jobId } = await generateCortes({ projectId: project.id, url: sourceUrl });
