@@ -1,4 +1,4 @@
-﻿param(
+param(
   [Parameter(Mandatory=$true)][string]$WorkerUrl,
   [Parameter(Mandatory=$true)][string]$Token
 )
@@ -6,6 +6,7 @@ $ErrorActionPreference = 'Stop'
 $base = $WorkerUrl.TrimEnd('/') + '/api/cortes'
 $headers = @{ 'X-BeeHive-Connector-Token' = $Token }
 $yt = if ($env:YTDLP_PATH) { $env:YTDLP_PATH } else { 'yt-dlp' }
+$browser = if ($env:YTDLP_BROWSER) { $env:YTDLP_BROWSER } else { 'edge' }
 $root = Join-Path $env:TEMP 'beehive-connector'; New-Item -ItemType Directory -Force -Path $root | Out-Null
 Write-Host 'BeeHive Connector ativo. Deixe esta janela aberta.'
 while ($true) {
@@ -15,7 +16,7 @@ while ($true) {
       $dir = Join-Path $root $job.jobId; New-Item -ItemType Directory -Force -Path $dir | Out-Null
       $out = Join-Path $dir 'source.%(ext)s'
       Invoke-RestMethod -Uri ($base + '/connector/jobs/' + $job.jobId + '/progress') -Method Post -Headers $headers -Body (@{ progress = 12; message = 'Baixando vídeo no computador autenticado' } | ConvertTo-Json) -ContentType 'application/json' | Out-Null
-      & $yt --cookies-from-browser chrome --no-playlist -f 'best[height<=1080]/best' --merge-output-format mp4 -o $out $job.url
+      & $yt --cookies-from-browser $browser --no-playlist -f 'best[height<=1080]/best' --merge-output-format mp4 -o $out $job.url
       if ($LASTEXITCODE -ne 0) { throw 'Falha no download do YouTube. Feche o Chrome e tente novamente.' }
       $file = Get-ChildItem $dir -File | Where-Object { $_.Extension -in '.mp4','.mkv','.webm','.mov' } | Select-Object -First 1
       if (-not $file) { throw 'Vídeo baixado não encontrado.' }
