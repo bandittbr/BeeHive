@@ -55,6 +55,7 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   let ytError = '';
   const code = await run('yt-dlp', [
     ...cookieArgs,
+    '--js-runtimes', 'node',
     '-f', 'bestvideo[height<=1080]+bestaudio/best[height<=1080]/best',
     '--merge-output-format', 'mp4',
     '-o', 'source.%(ext)s',
@@ -67,6 +68,7 @@ export async function runYtFetch(req: JobRequest, onChunk: Chunk): Promise<{ res
   // se esta tentativa falhar, o Whisper/Groq gera a transcrição no passo seguinte.
   await run('yt-dlp', [
     ...cookieArgs,
+    '--js-runtimes', 'node',
     '--skip-download', '--write-auto-subs', '--write-subs',
     '--sub-langs', 'pt.*,en.*,pt-BR', '--convert-subs', '--no-playlist', url,
   ], dir, onChunk).catch(() => {});
