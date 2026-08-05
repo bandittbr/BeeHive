@@ -7,11 +7,18 @@ import fsp from 'node:fs/promises';
 import { Readable } from 'node:stream';
 import { runYtFetch, runUploadedVideoFetch, runClip } from './executors/media.js';
 import type { JobRequest } from './types.js';
-import { resolveInWorkspace } from './workspace.js';
+import { resolveInWorkspace, WORKSPACE_ROOT } from './workspace.js';
 import { addPost } from './store.js';
 import { isB2Configured, uploadB2File, downloadB2File, getB2File, deleteB2File } from './b2-storage.js';
 
 const router = Router();
+
+// Mídia antiga de cortes foi migrada para Backblaze. Não remover dados, contas ou configurações.
+if (isB2Configured()) {
+  for (const legacyDir of ['cortes', 'uploads']) {
+    try { fs.rmSync(path.join(WORKSPACE_ROOT, legacyDir), { recursive: true, force: true }); } catch { /* limpeza não bloqueia o worker */ }
+  }
+}
 
 // Caminho para salvar dados
 const DATA_DIR = process.env.CORTES_DATA_DIR || 
