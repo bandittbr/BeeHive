@@ -93,7 +93,7 @@ export function ProjectDetailView({ projectId, onBack, onLoad }: ProjectDetailPr
       await updateProject(project.id, { sourceVideoUrl: sourceUrl, sourceStorageFileId, name, channelId: channelId || undefined, quantityRequested: quantity, duration, format, autoHighlights, autoCaptions, autoTitle, autoDescription, autoHashtags, executionMode, status: 'GENERATING' });
       setProject((previous) => previous ? { ...previous, sourceVideoUrl: sourceUrl, status: 'GENERATING' } : null);
       setLiveJob({ progress: 5, message: 'Vídeo recebido. Iniciando a IA de cortes...', status: 'queued' });
-      const { jobId } = await generateCortes({ projectId: project.id, url: sourceUrl });
+      const { jobId } = await generateCortes({ projectId: project.id, url: sourceUrl, executionMode });
       let attempts = 0;
       while (attempts++ < 180) {
         await new Promise((resolve) => window.setTimeout(resolve, 5000));
