@@ -144,43 +144,41 @@ async function transcribeWithGroq(dir: string, videoFile: string, onChunk: Chunk
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return null;
   try {
-    onChunk('stdout', '→ Sem legenda no YouTube — transcrevendo áudio com Whisper (Groq)...\n');
-    const audioFile = 'whisper_audio.mp3';
-    const code = await run('ffmpeg', ['-y', '-i', videoFile, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '64k', audioFile], dir, onChunk);
-    if (code !== 0) return null;
-
-    const audioBuf = await fsp.readFile(path.join(dir, audioFile));
-    const form = new FormData();
-    form.append('file', new Blob([audioBuf], { type: 'audio/mpeg' }), audioFile);
-    form.append('model', 'whisper-large-v3-turbo');
-    form.append('response_format', 'verbose_json');
-
-    const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${apiKey}` },
-      body: form,
-    });
-    if (!res.ok) {
-      onChunk('stderr', `Whisper/Groq falhou: HTTP ${res.status}\n`);
-      return null;
+    onChunk('stdout', '→ Transcrevendo áudio com Whisper (Groq)...\n');
+    const code = await run('ffmpeg', ['-y', '-i', videoFile, '-vn', '-ac', '1', '-ar', '16000', '-b:a', '64k', '-f', 'segment', '-segment_time', '600', '-reset_timestamps', '1', 'whisper_audio_%03d.mp3'], dir, onChunk);
+    if (code !== 0) throw new Error('Não foi possível extrair o áudio para transcrição.');
+    const audioFiles = (await fsp.readdir(dir)).filter((name) => /^whisper_audio_\d+\.mp3$/.test(name)).sort();
+    if (!audioFiles.length) throw new Error('Nenhuma faixa de áudio foi criada para transcrição.');
+    const allSegments: Array<{ start: number; end: number; text: string }> = [];
+    for (let index = 0; index < audioFiles.length; index++) {
+      const audioFile = audioFiles[index];
+      onChunk('stdout', `→ Transcrevendo parte ${index + 1}/${audioFiles.length}...\n`);
+      const audioBuf = await fsp.readFile(path.join(dir, audioFile));
+      const form = new FormData();
+      form.append('file', new Blob([audioBuf], { type: 'audio/mpeg' }), audioFile);
+      form.append('model', 'whisper-large-v3-turbo');
+      form.append('response_format', 'verbose_json');
+      const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', { method: 'POST', headers: { Authorization: `Bearer ${apiKey}` }, body: form });
+      if (!res.ok) throw new Error(`Groq recusou a parte ${index + 1} (HTTP ${res.status}).`);
+      const data: any = await res.json().catch(() => null);
+      const offset = index * 600;
+      for (const segment of Array.isArray(data?.segments) ? data.segments : []) {
+        const start = Number(segment.start); const end = Number(segment.end); const text = String(segment.text ?? '').trim();
+        if (text && Number.isFinite(start) && Number.isFinite(end)) allSegments.push({ start: start + offset, end: end + offset, text });
+      }
     }
-    const data: any = await res.json().catch(() => null);
-    const segments = Array.isArray(data?.segments) ? data.segments : [];
-    if (segments.length === 0) return null;
-
-    const srtBody = segments
-      .map((s: any, i: number) => `${i + 1}\n${fmtSrtTime(Number(s.start))} --> ${fmtSrtTime(Number(s.end))}\n${String(s.text ?? '').trim()}\n`)
-      .join('\n');
+    if (!allSegments.length) throw new Error('A IA não encontrou fala no áudio.');
+    const srtBody = allSegments.map((segment, index) => `${index + 1}\n${fmtSrtTime(segment.start)} --> ${fmtSrtTime(segment.end)}\n${segment.text}\n`).join('\n');
     const srtPath = 'whisper.srt';
     await fsp.writeFile(path.join(dir, srtPath), srtBody, 'utf8');
-    onChunk('stdout', `✓ Transcrito via Whisper (${segments.length} trecho(s))\n`);
+    onChunk('stdout', `✓ Transcrito via Whisper (${allSegments.length} trecho(s))\n`);
     return { srtPath };
-  } catch (e) {
-    onChunk('stderr', `Whisper/Groq erro: ${e instanceof Error ? e.message : String(e)}\n`);
-    return null;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    onChunk('stderr', `Whisper/Groq erro: ${message}\n`);
+    throw new Error(`Transcrição por IA falhou: ${message}`);
   }
 }
-
 function toSeconds(v: unknown): number {
   if (typeof v === 'number') return v;
   const s = String(v ?? '').trim();
