@@ -20,8 +20,9 @@ while ($true) {
       if ($LASTEXITCODE -ne 0) { throw 'Falha no download do YouTube. Feche o Chrome e tente novamente.' }
       $file = Get-ChildItem $dir -File | Where-Object { $_.Extension -in '.mp4','.mkv','.webm','.mov' } | Select-Object -First 1
       if (-not $file) { throw 'Vídeo baixado não encontrado.' }
-      $uploadHeaders = @{ 'X-File-Name' = $file.Name; 'Content-Type' = 'video/mp4' }
-      $stored = Invoke-RestMethod -Uri ($base + '/upload') -Method Post -Headers $uploadHeaders -InFile $file.FullName -ContentType 'video/mp4'
+      $uploadJson = & curl.exe -sS --fail --retry 3 --retry-delay 2 -X POST -H "X-File-Name: $($file.Name)" -H "Content-Type: video/mp4" --data-binary "@$($file.FullName)" ($base + '/upload')
+      if ($LASTEXITCODE -ne 0) { throw 'Falha ao enviar o vídeo para o BeeHive.' }
+      $stored = $uploadJson | ConvertFrom-Json
       Invoke-RestMethod -Uri ($base + '/projects/' + $job.projectId) -Method Patch -Headers $headers -Body (@{ sourceVideoUrl = $stored.sourceUrl } | ConvertTo-Json) -ContentType 'application/json' | Out-Null
       Invoke-RestMethod -Uri ($base + '/generate') -Method Post -Headers $headers -Body (@{ projectId = $job.projectId; executionMode = 'cloud' } | ConvertTo-Json) -ContentType 'application/json' | Out-Null
       Remove-Item -LiteralPath $dir -Recurse -Force
